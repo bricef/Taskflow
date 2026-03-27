@@ -6,80 +6,111 @@ The system exposes multiple interface surfaces -- a CLI for scripting and automa
 
 ## Status
 
-**Increment 1 (Schema, Models & Database Layer) is complete.** This provides the full data model, SQLite schema with FTS5 full-text search, migration runner, and a tested service layer with audit logging. There is no HTTP server or CLI yet -- those come in later increments.
+**Increment 1 is complete.** This provides the domain model, service layer, SQLite storage, and 74 passing tests. There is no HTTP server or CLI yet -- those come in later increments.
 
-See [docs/plans/](docs/plans/) for the implementation plan.
+See [docs/](docs/) for the PRD and phase plans.
 
 ## Architecture
 
-The codebase separates business logic from storage so the backend can be swapped without touching domain code:
+The codebase has a clean three-layer architecture that separates domain logic from storage. To swap the storage backend (e.g., PostgreSQL), implement `repo.Store` in a new package -- nothing in `model/`, `service/`, or `taskflow/` changes.
+
+```
+                    ┌─────────────────────┐
+                    │  taskflow.TaskFlow   │  Canonical interface (35 operations)
+                    │  (interface)         │  Consumers depend on this, not on concrete types
+                    └──────────┬──────────┘
+                               │ implements
+                    ┌──────────▼──────────┐
+                    │  service.Service     │  Business logic: validation, audit recording,
+                    │                     │  task numbering, change tracking, reassignment
+                    └──────────┬──────────┘
+                               │ calls
+                    ┌──────────▼──────────┐
+                    │  repo.Store          │  Storage-agnostic interfaces + Transactor/Tx
+                    │  (interface)         │  Service passes opaque Tx through, never imports a driver
+                    └──────────┬──────────┘
+                               │ implements
+                    ┌──────────▼──────────┐
+                    │  sqlite.Store        │  SQLite via sqlx, generic struct mapper,
+                    │                     │  Scanner/Valuer types for row↔model conversion
+                    └─────────────────────┘
+```
+
+## Project Structure
 
 ```
 internal/
-├── model/          Domain types, enums, validation, error types
-│   ├── actor.go        Actor, ActorType, Role
-│   ├── board.go        Board, slug validation
-│   ├── task.go         Task, Priority, TaskFilter, TaskSort
-│   ├── comment.go      Comment
-│   ├── dependency.go   Dependency, DepType
-│   ├── file.go         File
-│   ├── attachment.go   Attachment, RefType
-│   ├── webhook.go      Webhook
-│   ├── audit.go        AuditEntry, AuditAction
-│   ├── workflow.go     Workflow definition (data type only)
-│   └── errors.go       ValidationError, NotFoundError, ConflictError
+├── model/              Domain types — the shared language of the system
+│   ├── actor.go            Actor, ActorType (human/ai_agent), Role (admin/member/read_only)
+│   ├── board.go            Board, slug validation, workflow as JSON blob
+│   ├── task.go             Task, Priority, TaskFilter, TaskSort
+│   ├── comment.go          Comment (attributed to an actor, not necessarily the task creator)
+│   ├── dependency.go       Dependency, DependencyType (depends_on/relates_to)
+│   ├── attachment.go       Attachment — a typed reference (URL, file, git branch, commit, PR)
+│   ├── webhook.go          Webhook (event subscriptions, optionally board-scoped)
+│   ├── audit.go            AuditEntry, AuditAction (16 action types)
+│   ├── workflow.go         Workflow state machine definition (data type; engine is Increment 2)
+│   ├── optional.go         Optional[T] — distinguishes "not provided" from "provided nil"
+│   └── errors.go           ValidationError, NotFoundError, ConflictError
 │
-├── repo/           Repository interfaces (defined by the domain)
-│   └── repo.go         Thin CRUD interfaces + Transactor + Tx
+├── taskflow/           The canonical interface — what the system can do
+│   └── taskflow.go         TaskFlow interface: 35 business operations grouped by entity
 │
-├── service/        Business logic (storage-agnostic)
-│   ├── service.go      Service struct, audit helper
-│   ├── actors.go       Validation, CRUD orchestration
-│   ├── boards.go       Validation, soft-delete, task reassignment
-│   ├── tasks.go        Validation, sequential numbering, change tracking
-│   ├── comments.go     Validation, task existence check
-│   ├── dependencies.go Validation, self-dep prevention
-│   ├── files.go        Validation, referential integrity
-│   ├── attachments.go  Validation, file-or-ref enforcement
-│   ├── webhooks.go     Validation, CRUD
-│   └── audit.go        Audit query pass-through
+├── repo/               Storage contract — what the service layer needs from persistence
+│   └── repo.go             CRUD interfaces per entity + Transactor/Tx for transactions
 │
-├── sqlite/         SQLite implementation of repo interfaces
-│   ├── store.go        Store struct, InTransaction, interface assertion
-│   ├── migrate.go      Embedded migration runner
-│   ├── helpers.go      Time parsing, error helpers
-│   ├── actors.go       Pure SQL CRUD
-│   ├── boards.go       Pure SQL CRUD + task num allocation
-│   ├── tasks.go        Pure SQL CRUD + FTS5 search
-│   ├── comments.go     Pure SQL CRUD
-│   ├── dependencies.go Pure SQL CRUD
-│   ├── files.go        Pure SQL CRUD
-│   ├── attachments.go  Pure SQL CRUD
-│   ├── webhooks.go     Pure SQL CRUD
-│   └── audit.go        Audit insert + queries
+├── service/            Business logic — storage-agnostic, owns all domain rules
+│   ├── service.go          Service struct, New() returns taskflow.TaskFlow, audit helper
+│   ├── actors.go           Validation, role checking
+│   ├── boards.go           Validation, soft-delete, task reassignment with related data migration
+│   ├── tasks.go            Validation, sequential numbering, change tracking for audit
+│   ├── comments.go         Validation, task existence check
+│   ├── dependencies.go     Validation, self-dependency prevention
+│   ├── attachments.go      Validation (ref_type + reference required)
+│   ├── webhooks.go         Validation
+│   └── audit.go            Audit query pass-through
 │
-└── testutil/       Test helpers
-    └── testutil.go     NewTestService, SeedActor, SeedBoard, SeedTask
+├── sqlite/             SQLite implementation of repo.Store
+│   ├── store.go            *sqlx.DB, InTransaction, interface satisfaction check
+│   ├── migrate.go          Embedded SQL migration runner with schema_version tracking
+│   ├── mapper.go           Generic toModel/fromModel via reflection + dispatch table
+│   ├── types.go            SQLiteBool, Timestamp, NullTimestamp, StringList, JSONRaw
+│   ├── helpers.go          insertRow, queryBuilder, error helpers
+│   ├── actors.go           actorRow + CRUD
+│   ├── boards.go           boardRow + CRUD + AllocateTaskNum
+│   ├── tasks.go            taskRow + CRUD + FTS5 search + dynamic filters
+│   ├── comments.go         commentRow + CRUD
+│   ├── dependencies.go     dependencyRow + CRUD + bidirectional ref updates
+│   ├── attachments.go      attachmentRow + CRUD
+│   ├── webhooks.go         webhookRow + CRUD
+│   └── audit.go            auditRow + insert + queries
+│
+└── testutil/           Test infrastructure
+    └── testutil.go         NewTestService (returns taskflow.TaskFlow), seed helpers
 
 migrations/
-├── embed.go                  go:embed for SQL files
-├── 001_initial_schema.sql    9 tables with constraints and indexes
-└── 002_fts5.sql              FTS5 virtual table + sync triggers
+├── embed.go                //go:embed *.sql
+├── 001_initial_schema.sql  8 tables with constraints and indexes
+└── 002_fts5.sql            FTS5 virtual table + sync triggers
 ```
-
-To swap the storage backend (e.g., PostgreSQL), implement the `repo.Store` interface in a new package and wire it in at startup. Nothing in `model/` or `service/` changes.
 
 ## Data Model
 
 - **Actors** -- humans or AI agents, identified by name, with roles (admin/member/read_only)
-- **Boards** -- kanban boards with slug identifiers and embedded workflow definitions
-- **Tasks** -- identified by `board-slug/N`, with priority, tags, assignee, due date
-- **Comments** -- attributed to actors, chronologically ordered
-- **Dependencies** -- `depends_on` or `relates_to` links, can cross boards
-- **Files** -- uploaded file metadata (storage is separate)
-- **Attachments** -- link tasks to files or external references (URLs, git branches, etc.)
-- **Webhooks** -- event subscriptions, optionally scoped to a board
+- **Boards** -- kanban boards with slug identifiers and embedded workflow state machines
+- **Tasks** -- identified by `board-slug/N` (sequential per board), with priority, tags, assignee, due date
+- **Comments** -- on tasks, attributed to actors, chronologically ordered
+- **Dependencies** -- `depends_on` or `relates_to` links between tasks, can cross boards
+- **Attachments** -- typed references linking tasks to URLs, files, git branches, commits, or PRs
+- **Webhooks** -- event subscriptions with HMAC signing, optionally scoped to a board
 - **Audit Log** -- append-only record of every mutation with actor attribution
+
+## Key Design Decisions
+
+- **`Optional[T]`** for partial updates — cleanly distinguishes "not provided" from "set to nil" without pointer hacks
+- **Attachments are references** — all attachments (including files) are typed references. File storage is an infrastructure concern outside the domain.
+- **Generic struct mapper** — `toModel`/`fromModel` use reflection with a cached dispatch table to convert between DB row types and model types. Field name mismatches panic at first use, not at query time.
+- **Scanner/Valuer types** (`SQLiteBool`, `Timestamp`, `StringList`, etc.) — contained in the sqlite package so model types stay clean (`bool`, `time.Time`, `[]string`)
 
 ## Development
 
