@@ -74,7 +74,6 @@ func SeedTask(t *testing.T, svc taskflow.TaskFlow, boardSlug, title, createdBy s
 	task, err := svc.CreateTask(context.Background(), model.CreateTaskParams{
 		BoardSlug: boardSlug,
 		Title:     title,
-		State:     "open",
 		Priority:  model.PriorityNone,
 		CreatedBy: createdBy,
 	})

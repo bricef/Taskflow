@@ -8,6 +8,7 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 
 	"github.com/bricef/taskflow/internal/model"
@@ -35,6 +36,7 @@ type BoardRepo interface {
 	BoardGet(ctx context.Context, slug string) (model.Board, error)
 	BoardList(ctx context.Context, params model.ListBoardsParams) ([]model.Board, error)
 	BoardUpdate(ctx context.Context, tx Tx, params model.UpdateBoardParams) (model.Board, error)
+	BoardSetWorkflow(ctx context.Context, tx Tx, slug string, workflow json.RawMessage) error
 	BoardSetDeleted(ctx context.Context, tx Tx, slug string) error
 	BoardAllocateTaskNum(ctx context.Context, tx Tx, slug string) (int, error)
 	BoardUpdateNextTaskNum(ctx context.Context, tx Tx, slug string, nextNum int) error

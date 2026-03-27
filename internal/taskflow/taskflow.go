@@ -6,8 +6,10 @@ package taskflow
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/workflow"
 )
 
 type TaskFlow interface {
@@ -26,11 +28,17 @@ type TaskFlow interface {
 	DeleteBoard(ctx context.Context, slug, actor string) error
 	ReassignTasks(ctx context.Context, fromSlug, toSlug, actor string, states []string) (int, error) // Returns count of tasks reassigned.
 
+	// Workflows
+	GetWorkflow(ctx context.Context, boardSlug string) (*workflow.Workflow, error)
+	SetWorkflow(ctx context.Context, boardSlug string, workflowJSON json.RawMessage, actor string) error
+	CheckWorkflowHealth(ctx context.Context, boardSlug string) ([]workflow.HealthIssue, error)
+
 	// Tasks
 	CreateTask(ctx context.Context, params model.CreateTaskParams) (model.Task, error)
 	GetTask(ctx context.Context, boardSlug string, num int) (model.Task, error)
 	ListTasks(ctx context.Context, filter model.TaskFilter, sort *model.TaskSort) ([]model.Task, error)
 	UpdateTask(ctx context.Context, params model.UpdateTaskParams, actor string) (model.Task, error)
+	TransitionTask(ctx context.Context, params model.TransitionTaskParams) (model.Task, error)
 	DeleteTask(ctx context.Context, boardSlug string, num int, actor string) error
 
 	// Comments

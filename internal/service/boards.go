@@ -6,11 +6,15 @@ import (
 
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/repo"
+	"github.com/bricef/taskflow/internal/workflow"
 )
 
 func (s *Service) CreateBoard(ctx context.Context, params model.CreateBoardParams) (model.Board, error) {
 	if err := params.Validate(); err != nil {
 		return model.Board{}, err
+	}
+	if _, err := workflow.Parse(params.Workflow); err != nil {
+		return model.Board{}, &model.ValidationError{Field: "workflow", Message: err.Error()}
 	}
 
 	var board model.Board
@@ -25,6 +29,61 @@ func (s *Service) CreateBoard(ctx context.Context, params model.CreateBoardParam
 		return err
 	})
 	return board, err
+}
+
+func (s *Service) GetWorkflow(ctx context.Context, boardSlug string) (*workflow.Workflow, error) {
+	board, err := s.store.BoardGet(ctx, boardSlug)
+	if err != nil {
+		return nil, err
+	}
+	return workflow.Parse(board.Workflow)
+}
+
+func (s *Service) SetWorkflow(ctx context.Context, boardSlug string, workflowJSON json.RawMessage, actor string) error {
+	if _, err := workflow.Parse(workflowJSON); err != nil {
+		return &model.ValidationError{Field: "workflow", Message: err.Error()}
+	}
+
+	board, err := s.store.BoardGet(ctx, boardSlug)
+	if err != nil {
+		return err
+	}
+
+	return s.store.InTransaction(ctx, func(tx repo.Tx) error {
+		if err := s.store.BoardSetWorkflow(ctx, tx, boardSlug, workflowJSON); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, boardSlug, nil, actor, model.AuditActionWorkflowChanged, map[string]any{
+			"board": boardSlug, "old_states": extractStates(board.Workflow), "new_states": extractStates(workflowJSON),
+		})
+	})
+}
+
+func (s *Service) CheckWorkflowHealth(ctx context.Context, boardSlug string) ([]workflow.HealthIssue, error) {
+	w, err := s.GetWorkflow(ctx, boardSlug)
+	if err != nil {
+		return nil, err
+	}
+
+	tasks, err := s.store.TaskList(ctx, model.TaskFilter{BoardSlug: boardSlug, IncludeDeleted: false}, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	states := make([]string, len(tasks))
+	for i, t := range tasks {
+		states[i] = t.State
+	}
+
+	return w.HealthCheck(states), nil
+}
+
+func extractStates(workflowJSON json.RawMessage) []string {
+	var raw struct {
+		States []string `json:"states"`
+	}
+	json.Unmarshal(workflowJSON, &raw)
+	return raw.States
 }
 
 func (s *Service) GetBoard(ctx context.Context, slug string) (model.Board, error) {

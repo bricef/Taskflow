@@ -5,6 +5,7 @@ import (
 
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/repo"
+	"github.com/bricef/taskflow/internal/workflow"
 )
 
 func (s *Service) CreateTask(ctx context.Context, params model.CreateTaskParams) (model.Task, error) {
@@ -12,8 +13,18 @@ func (s *Service) CreateTask(ctx context.Context, params model.CreateTaskParams)
 		return model.Task{}, err
 	}
 
+	// Derive initial state from the board's workflow.
+	board, err := s.store.BoardGet(ctx, params.BoardSlug)
+	if err != nil {
+		return model.Task{}, err
+	}
+	w, err := workflow.Parse(board.Workflow)
+	if err != nil {
+		return model.Task{}, err
+	}
+
 	var task model.Task
-	err := s.store.InTransaction(ctx, func(tx repo.Tx) error {
+	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
 		num, err := s.store.BoardAllocateTaskNum(ctx, tx, params.BoardSlug)
 		if err != nil {
 			return err
@@ -29,7 +40,7 @@ func (s *Service) CreateTask(ctx context.Context, params model.CreateTaskParams)
 			Num:         num,
 			Title:       params.Title,
 			Description: params.Description,
-			State:       params.State,
+			State:       w.InitialState,
 			Priority:    params.Priority,
 			Tags:        tags,
 			Assignee:    params.Assignee,
@@ -41,7 +52,7 @@ func (s *Service) CreateTask(ctx context.Context, params model.CreateTaskParams)
 		}
 
 		return s.audit(ctx, tx, params.BoardSlug, &num, params.CreatedBy, model.AuditActionCreated, map[string]any{
-			"title": params.Title, "state": params.State,
+			"title": params.Title, "state": w.InitialState,
 		})
 	})
 	return task, err
@@ -53,6 +64,66 @@ func (s *Service) GetTask(ctx context.Context, boardSlug string, num int) (model
 
 func (s *Service) ListTasks(ctx context.Context, filter model.TaskFilter, sort *model.TaskSort) ([]model.Task, error) {
 	return s.store.TaskList(ctx, filter, sort)
+}
+
+func (s *Service) TransitionTask(ctx context.Context, params model.TransitionTaskParams) (model.Task, error) {
+	task, err := s.store.TaskGet(ctx, params.BoardSlug, params.Num)
+	if err != nil {
+		return model.Task{}, err
+	}
+
+	board, err := s.store.BoardGet(ctx, params.BoardSlug)
+	if err != nil {
+		return model.Task{}, err
+	}
+	w, err := workflow.Parse(board.Workflow)
+	if err != nil {
+		return model.Task{}, err
+	}
+
+	newState, err := w.ExecuteTransition(task.State, params.TransitionName)
+	if err != nil {
+		return model.Task{}, &model.ValidationError{Field: "transition", Message: err.Error()}
+	}
+
+	var updated model.Task
+	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
+		updated, err = s.store.TaskUpdate(ctx, tx, model.UpdateTaskParams{
+			BoardSlug: params.BoardSlug,
+			Num:       params.Num,
+			State:     model.Set(newState),
+		})
+		if err != nil {
+			return err
+		}
+
+		auditDetail := map[string]any{
+			"from": task.State, "to": newState, "transition": params.TransitionName,
+		}
+		if params.Comment != "" {
+			auditDetail["comment"] = params.Comment
+		}
+
+		if err := s.audit(ctx, tx, params.BoardSlug, &params.Num, params.Actor, model.AuditActionTransitioned, auditDetail); err != nil {
+			return err
+		}
+
+		// If a comment was provided, also create a comment record.
+		if params.Comment != "" {
+			_, err := s.store.CommentInsert(ctx, tx, model.Comment{
+				BoardSlug: params.BoardSlug,
+				TaskNum:   params.Num,
+				Actor:     params.Actor,
+				Body:      params.Comment,
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	return updated, err
 }
 
 func (s *Service) UpdateTask(ctx context.Context, params model.UpdateTaskParams, actor string) (model.Task, error) {

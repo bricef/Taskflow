@@ -214,11 +214,23 @@ func TestReassignTasksWithStateFilter(t *testing.T) {
 
 	testutil.SeedTask(t, svc, "board-a", "Open Task", actor.Name)
 	// Create a task and move it to in_progress.
-	task2, _ := svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "board-a", Title: "In Progress", State: "in_progress",
-		Priority: model.PriorityNone, CreatedBy: actor.Name,
+	task2, err := svc.CreateTask(ctx, model.CreateTaskParams{
+		BoardSlug: "board-a",
+		Title:     "In Progress Task",
+		Priority:  model.PriorityNone, CreatedBy: actor.Name,
 	})
-	_ = task2
+	if err != nil {
+		t.Fatalf("unexpected error creating second task: %v", err)
+	}
+	_, err = svc.TransitionTask(ctx, model.TransitionTaskParams{
+		BoardSlug:      "board-a",
+		Num:            task2.Num,
+		TransitionName: "start",
+		Actor:          actor.Name,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error transitioning task: %v", err)
+	}
 
 	// Only reassign "open" tasks.
 	count, err := svc.ReassignTasks(ctx, "board-a", "board-b", actor.Name, []string{"open"})

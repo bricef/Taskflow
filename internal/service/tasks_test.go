@@ -20,7 +20,6 @@ func TestCreateTask(t *testing.T) {
 	task, err := svc.CreateTask(ctx, model.CreateTaskParams{
 		BoardSlug: "my-board",
 		Title:     "Fix bug",
-		State:     "open",
 		Priority:  model.PriorityNone,
 		CreatedBy: actor.Name,
 	})
@@ -78,7 +77,6 @@ func TestCreateTaskWithAllFields(t *testing.T) {
 		BoardSlug:   "my-board",
 		Title:       "Full task",
 		Description: "A detailed description",
-		State:       "open",
 		Priority:    model.PriorityHigh,
 		Tags:        []string{"bug", "urgent"},
 		Assignee:    &assignee,
@@ -115,7 +113,6 @@ func TestCreateTaskInvalidPriority(t *testing.T) {
 	_, err := svc.CreateTask(ctx, model.CreateTaskParams{
 		BoardSlug: "my-board",
 		Title:     "Bad",
-		State:     "open",
 		Priority:  "urgent",
 		CreatedBy: "brice",
 	})
@@ -136,7 +133,6 @@ func TestCreateTaskNonExistentAssignee(t *testing.T) {
 	_, err := svc.CreateTask(ctx, model.CreateTaskParams{
 		BoardSlug: "my-board",
 		Title:     "Bad",
-		State:     "open",
 		Priority:  model.PriorityNone,
 		Assignee:  &ghost,
 		CreatedBy: "brice",
@@ -155,7 +151,6 @@ func TestCreateTaskNonExistentBoard(t *testing.T) {
 	_, err := svc.CreateTask(ctx, model.CreateTaskParams{
 		BoardSlug: "no-board",
 		Title:     "Bad",
-		State:     "open",
 		Priority:  model.PriorityNone,
 		CreatedBy: "brice",
 	})
@@ -232,10 +227,24 @@ func TestListTasksFilterByState(t *testing.T) {
 	actor := testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
 	testutil.SeedBoard(t, svc, "my-board")
 	testutil.SeedTask(t, svc, "my-board", "Open Task", actor.Name)
-	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "WIP", State: "in_progress",
-		Priority: model.PriorityNone, CreatedBy: actor.Name,
+	task2, err := svc.CreateTask(ctx, model.CreateTaskParams{
+		BoardSlug: "my-board",
+		Title:     "In Progress Task",
+		Priority:  model.PriorityNone, CreatedBy: actor.Name,
 	})
+	if err != nil {
+		t.Fatalf("unexpected error creating second task: %v", err)
+	}
+	// Transition second task from "open" to "in_progress" via the "start" transition.
+	_, err = svc.TransitionTask(ctx, model.TransitionTaskParams{
+		BoardSlug:      "my-board",
+		Num:            task2.Num,
+		TransitionName: "start",
+		Actor:          actor.Name,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error transitioning task: %v", err)
+	}
 
 	state := "open"
 	tasks, err := svc.ListTasks(ctx, model.TaskFilter{BoardSlug: "my-board", State: &state}, nil)
@@ -261,12 +270,14 @@ func TestListTasksFilterByAssignee(t *testing.T) {
 	alice := "alice"
 	bob := "bob"
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Alice's task", State: "open",
-		Priority: model.PriorityNone, Assignee: &alice, CreatedBy: "alice",
+		BoardSlug: "my-board",
+		Title:     "Alice's task",
+		Priority:  model.PriorityNone, Assignee: &alice, CreatedBy: "alice",
 	})
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Bob's task", State: "open",
-		Priority: model.PriorityNone, Assignee: &bob, CreatedBy: "bob",
+		BoardSlug: "my-board",
+		Title:     "Bob's task",
+		Priority:  model.PriorityNone, Assignee: &bob, CreatedBy: "bob",
 	})
 
 	tasks, err := svc.ListTasks(ctx, model.TaskFilter{BoardSlug: "my-board", Assignee: &alice}, nil)
@@ -286,12 +297,14 @@ func TestListTasksFilterByPriority(t *testing.T) {
 	testutil.SeedBoard(t, svc, "my-board")
 
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "High", State: "open",
-		Priority: model.PriorityHigh, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "High",
+		Priority:  model.PriorityHigh, CreatedBy: actor.Name,
 	})
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Low", State: "open",
-		Priority: model.PriorityLow, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "Low",
+		Priority:  model.PriorityLow, CreatedBy: actor.Name,
 	})
 
 	p := model.PriorityHigh
@@ -312,12 +325,14 @@ func TestListTasksFilterByTag(t *testing.T) {
 	testutil.SeedBoard(t, svc, "my-board")
 
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Tagged", State: "open",
-		Priority: model.PriorityNone, Tags: []string{"bug", "ui"}, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "Tagged",
+		Priority:  model.PriorityNone, Tags: []string{"bug", "ui"}, CreatedBy: actor.Name,
 	})
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Untagged", State: "open",
-		Priority: model.PriorityNone, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "Untagged",
+		Priority:  model.PriorityNone, CreatedBy: actor.Name,
 	})
 
 	tag := "bug"
@@ -338,16 +353,19 @@ func TestListTasksSortByPriority(t *testing.T) {
 	testutil.SeedBoard(t, svc, "my-board")
 
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Low", State: "open",
-		Priority: model.PriorityLow, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "Low",
+		Priority:  model.PriorityLow, CreatedBy: actor.Name,
 	})
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Critical", State: "open",
-		Priority: model.PriorityCritical, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "Critical",
+		Priority:  model.PriorityCritical, CreatedBy: actor.Name,
 	})
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "High", State: "open",
-		Priority: model.PriorityHigh, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "High",
+		Priority:  model.PriorityHigh, CreatedBy: actor.Name,
 	})
 
 	tasks, err := svc.ListTasks(ctx, model.TaskFilter{BoardSlug: "my-board"}, &model.TaskSort{Field: "priority", Desc: false})
@@ -370,12 +388,14 @@ func TestFTSSearch(t *testing.T) {
 	testutil.SeedBoard(t, svc, "my-board")
 
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Fix authentication bug", State: "open",
-		Priority: model.PriorityNone, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "Fix authentication bug",
+		Priority:  model.PriorityNone, CreatedBy: actor.Name,
 	})
 	svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "my-board", Title: "Add logging", State: "open",
-		Priority: model.PriorityNone, CreatedBy: actor.Name,
+		BoardSlug: "my-board",
+		Title:     "Update dashboard",
+		Priority:  model.PriorityNone, CreatedBy: actor.Name,
 	})
 
 	q := "authentication"

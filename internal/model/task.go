@@ -41,7 +41,6 @@ type CreateTaskParams struct {
 	BoardSlug   string
 	Title       string
 	Description string
-	State       string // Initial state from the board's workflow.
 	Priority    Priority
 	Tags        []string
 	Assignee    *string
@@ -56,9 +55,6 @@ func (p CreateTaskParams) Validate() error {
 	if p.Title == "" {
 		return &ValidationError{Field: "title", Message: "must not be empty"}
 	}
-	if p.State == "" {
-		return &ValidationError{Field: "state", Message: "must not be empty"}
-	}
 	if err := ValidatePriority(p.Priority); err != nil {
 		return err
 	}
@@ -66,6 +62,15 @@ func (p CreateTaskParams) Validate() error {
 		return &ValidationError{Field: "created_by", Message: "must not be empty"}
 	}
 	return nil
+}
+
+// TransitionTaskParams describes a task state transition.
+type TransitionTaskParams struct {
+	BoardSlug      string
+	Num            int
+	TransitionName string
+	Comment        string // Optional comment recorded with the transition.
+	Actor          string
 }
 
 type UpdateTaskParams struct {

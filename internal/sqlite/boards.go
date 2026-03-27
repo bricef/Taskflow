@@ -112,6 +112,19 @@ func (s *Store) BoardSetDeleted(ctx context.Context, tx repo.Tx, slug string) er
 	return nil
 }
 
+func (s *Store) BoardSetWorkflow(ctx context.Context, tx repo.Tx, slug string, wf json.RawMessage) error {
+	result, err := asTx(tx).ExecContext(ctx,
+		`UPDATE boards SET workflow = ?, updated_at = ? WHERE slug = ? AND deleted = 0`,
+		string(wf), nowUTC(), slug)
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return notFound("board", slug)
+	}
+	return nil
+}
+
 func (s *Store) BoardAllocateTaskNum(ctx context.Context, tx repo.Tx, slug string) (int, error) {
 	var num int
 	err := asTx(tx).QueryRowContext(ctx,
