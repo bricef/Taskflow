@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/repo"
 )
@@ -13,8 +14,13 @@ func (s *Service) CreateDependency(ctx context.Context, params model.CreateDepen
 		return model.Dependency{}, err
 	}
 
+	task, err := s.store.TaskGet(ctx, params.BoardSlug, params.TaskNum)
+	if err != nil {
+		return model.Dependency{}, err
+	}
+
 	var dep model.Dependency
-	err := s.store.InTransaction(ctx, func(tx repo.Tx) error {
+	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
 		var err error
 		dep, err = s.store.DependencyInsert(ctx, tx, model.Dependency{
 			BoardSlug:      params.BoardSlug,
@@ -32,6 +38,14 @@ func (s *Service) CreateDependency(ctx context.Context, params model.CreateDepen
 			"dep_type":   string(params.DependencyType),
 		})
 	})
+	if err == nil {
+		s.emit(eventbus.Event{
+			Type:  eventbus.EventDependencyAdded,
+			Actor: actorRef(params.CreatedBy),
+			Board: boardRef(params.BoardSlug),
+			Task:  taskRef(task),
+		})
+	}
 	return dep, err
 }
 
@@ -45,7 +59,12 @@ func (s *Service) DeleteDependency(ctx context.Context, id int, actor string) er
 		return err
 	}
 
-	return s.store.InTransaction(ctx, func(tx repo.Tx) error {
+	task, err := s.store.TaskGet(ctx, dep.BoardSlug, dep.TaskNum)
+	if err != nil {
+		return err
+	}
+
+	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
 		if err := s.store.DependencyDelete(ctx, tx, id); err != nil {
 			return err
 		}
@@ -54,4 +73,13 @@ func (s *Service) DeleteDependency(ctx context.Context, id int, actor string) er
 			"dep_type":   string(dep.DependencyType),
 		})
 	})
+	if err == nil {
+		s.emit(eventbus.Event{
+			Type:  eventbus.EventDependencyRemoved,
+			Actor: actorRef(actor),
+			Board: boardRef(dep.BoardSlug),
+			Task:  taskRef(task),
+		})
+	}
+	return err
 }

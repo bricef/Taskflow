@@ -115,6 +115,7 @@ func (s *Server) registerRoutes() {
 
 		// Aggregate views and utilities (not domain operations).
 		r.Get("/boards/{slug}/detail", s.boardDetailHandler)
+		r.Get("/boards/{slug}/events", s.sseHandler)
 		r.Get("/admin/stats", s.systemStatsHandler)
 		r.Get("/search", s.searchHandler)
 		r.Post("/batch", s.batchHandler)

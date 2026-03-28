@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/service"
 	"github.com/bricef/taskflow/internal/sqlite"
@@ -26,13 +27,14 @@ func main() {
 	}
 	defer store.Close()
 
-	svc := service.New(store)
+	bus := eventbus.New()
+	svc := service.New(store, service.WithEventBus(bus))
 
 	if err := seedAdmin(svc); err != nil {
 		log.Fatalf("failed to seed admin: %v", err)
 	}
 
-	srv := taskflowhttp.NewServer(svc)
+	srv := taskflowhttp.NewServer(svc, taskflowhttp.ServerConfig{EventBus: bus})
 
 	log.Printf("TaskFlow server listening on %s", listenAddr)
 	if err := srv.ListenAndServe(listenAddr); err != nil {

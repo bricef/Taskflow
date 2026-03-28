@@ -5,19 +5,24 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/taskflow"
 )
 
 // ServerConfig holds configuration for the HTTP server.
 type ServerConfig struct {
 	// IdempotencyCacheBytes is the maximum memory budget for the idempotency
-	// key cache in bytes. Defaults to 1 MB if zero.
+	// key cache in bytes. Defaults to 50 MB if zero.
 	IdempotencyCacheBytes int
+
+	// EventBus enables SSE event streaming. If nil, the SSE endpoint returns 503.
+	EventBus *eventbus.EventBus
 }
 
 // Server is the HTTP API server for TaskFlow.
 type Server struct {
 	svc         taskflow.TaskFlow
+	bus         *eventbus.EventBus
 	router      *chi.Mux
 	openAPISpec []byte
 }
@@ -34,6 +39,7 @@ func NewServer(svc taskflow.TaskFlow, cfg ...ServerConfig) *Server {
 
 	s := &Server{
 		svc:    svc,
+		bus:    c.EventBus,
 		router: chi.NewRouter(),
 	}
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/repo"
 	"github.com/bricef/taskflow/internal/workflow"
@@ -55,6 +56,14 @@ func (s *Service) CreateTask(ctx context.Context, params model.CreateTaskParams)
 			"title": params.Title, "state": w.InitialState,
 		})
 	})
+	if err == nil {
+		s.emit(eventbus.Event{
+			Type:  eventbus.EventTaskCreated,
+			Actor: actorRef(params.CreatedBy),
+			Board: boardRef(params.BoardSlug),
+			Task:  taskRef(task),
+		})
+	}
 	return task, err
 }
 
@@ -135,6 +144,17 @@ func (s *Service) TransitionTask(ctx context.Context, params model.TransitionTas
 
 		return nil
 	})
+	if err == nil {
+		ref := taskRef(updated)
+		ref.PreviousState = task.State
+		s.emit(eventbus.Event{
+			Type:   eventbus.EventTaskTransitioned,
+			Actor:  actorRef(params.Actor),
+			Board:  boardRef(params.BoardSlug),
+			Task:   ref,
+			Detail: map[string]any{"from": task.State, "to": updated.State, "transition": params.TransitionName},
+		})
+	}
 	return updated, err
 }
 
@@ -186,6 +206,25 @@ func (s *Service) UpdateTask(ctx context.Context, params model.UpdateTaskParams,
 		}
 		return s.audit(ctx, tx, params.BoardSlug, &params.Num, actor, model.AuditActionUpdated, map[string]any{"fields": changes})
 	})
+	if err == nil {
+		if params.Assignee.Set {
+			s.emit(eventbus.Event{
+				Type:   eventbus.EventTaskAssigned,
+				Actor:  actorRef(actor),
+				Board:  boardRef(params.BoardSlug),
+				Task:   taskRef(task),
+				Detail: map[string]any{"assignee": params.Assignee.Value},
+			})
+		} else {
+			s.emit(eventbus.Event{
+				Type:   eventbus.EventTaskUpdated,
+				Actor:  actorRef(actor),
+				Board:  boardRef(params.BoardSlug),
+				Task:   taskRef(task),
+				Detail: map[string]any{"fields": changes},
+			})
+		}
+	}
 	return task, err
 }
 
@@ -198,12 +237,21 @@ func (s *Service) DeleteTask(ctx context.Context, boardSlug string, num int, act
 		return &model.NotFoundError{Resource: "task"}
 	}
 
-	return s.store.InTransaction(ctx, func(tx repo.Tx) error {
+	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
 		if err := s.store.TaskSetDeleted(ctx, tx, boardSlug, num); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, boardSlug, &num, actor, model.AuditActionDeleted, nil)
 	})
+	if err == nil {
+		s.emit(eventbus.Event{
+			Type:  eventbus.EventTaskDeleted,
+			Actor: actorRef(actor),
+			Board: boardRef(boardSlug),
+			Task:  taskRef(task),
+		})
+	}
+	return err
 }
 
 func (s *Service) ListTags(ctx context.Context, boardSlug string) ([]model.TagCount, error) {

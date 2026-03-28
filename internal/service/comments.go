@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/repo"
 )
@@ -13,12 +14,13 @@ func (s *Service) CreateComment(ctx context.Context, params model.CreateCommentP
 	}
 
 	// Verify task exists.
-	if _, err := s.store.TaskGet(ctx, params.BoardSlug, params.TaskNum); err != nil {
+	task, err := s.store.TaskGet(ctx, params.BoardSlug, params.TaskNum)
+	if err != nil {
 		return model.Comment{}, err
 	}
 
 	var comment model.Comment
-	err := s.store.InTransaction(ctx, func(tx repo.Tx) error {
+	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
 		var err error
 		comment, err = s.store.CommentInsert(ctx, tx, model.Comment{
 			BoardSlug: params.BoardSlug,
@@ -33,6 +35,15 @@ func (s *Service) CreateComment(ctx context.Context, params model.CreateCommentP
 			"comment_id": comment.ID,
 		})
 	})
+	if err == nil {
+		s.emit(eventbus.Event{
+			Type:   eventbus.EventTaskCommented,
+			Actor:  actorRef(params.Actor),
+			Board:  boardRef(params.BoardSlug),
+			Task:   taskRef(task),
+			Detail: map[string]any{"body": params.Body},
+		})
+	}
 	return comment, err
 }
 

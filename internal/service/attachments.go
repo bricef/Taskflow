@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/repo"
 )
@@ -12,8 +13,13 @@ func (s *Service) CreateAttachment(ctx context.Context, params model.CreateAttac
 		return model.Attachment{}, err
 	}
 
+	task, err := s.store.TaskGet(ctx, params.BoardSlug, params.TaskNum)
+	if err != nil {
+		return model.Attachment{}, err
+	}
+
 	var att model.Attachment
-	err := s.store.InTransaction(ctx, func(tx repo.Tx) error {
+	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
 		var err error
 		att, err = s.store.AttachmentInsert(ctx, tx, model.Attachment{
 			BoardSlug: params.BoardSlug,
@@ -30,6 +36,14 @@ func (s *Service) CreateAttachment(ctx context.Context, params model.CreateAttac
 			"attachment_id": att.ID,
 		})
 	})
+	if err == nil {
+		s.emit(eventbus.Event{
+			Type:  eventbus.EventAttachmentAdded,
+			Actor: actorRef(params.CreatedBy),
+			Board: boardRef(params.BoardSlug),
+			Task:  taskRef(task),
+		})
+	}
 	return att, err
 }
 
@@ -43,7 +57,12 @@ func (s *Service) DeleteAttachment(ctx context.Context, id int, actor string) er
 		return err
 	}
 
-	return s.store.InTransaction(ctx, func(tx repo.Tx) error {
+	task, err := s.store.TaskGet(ctx, att.BoardSlug, att.TaskNum)
+	if err != nil {
+		return err
+	}
+
+	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
 		if err := s.store.AttachmentDelete(ctx, tx, id); err != nil {
 			return err
 		}
@@ -51,4 +70,13 @@ func (s *Service) DeleteAttachment(ctx context.Context, id int, actor string) er
 			"attachment_id": id,
 		})
 	})
+	if err == nil {
+		s.emit(eventbus.Event{
+			Type:  eventbus.EventAttachmentRemoved,
+			Actor: actorRef(actor),
+			Board: boardRef(att.BoardSlug),
+			Task:  taskRef(task),
+		})
+	}
+	return err
 }

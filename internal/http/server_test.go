@@ -8,8 +8,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/service"
 	"github.com/bricef/taskflow/internal/sqlite"
@@ -819,5 +822,74 @@ func TestBatchTooManyOperations(t *testing.T) {
 	resp := env.request(t, "POST", "/batch", map[string]any{"operations": ops}, env.memberKey)
 	if resp.StatusCode != 400 {
 		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+// --- SSE ---
+
+func TestSSEReceivesEvents(t *testing.T) {
+	// Create a test env with an event bus.
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	bus := eventbus.New()
+	svc := service.New(store, service.WithEventBus(bus))
+
+	srv := taskflowhttp.NewServer(svc, taskflowhttp.ServerConfig{EventBus: bus})
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	adminKey := "test-admin-key"
+	svc.CreateActor(context.Background(), model.CreateActorParams{
+		Name: "admin", DisplayName: "Admin", Type: model.ActorTypeHuman,
+		Role: model.RoleAdmin, APIKeyHash: taskflowhttp.HashAPIKey(adminKey),
+	})
+	svc.CreateBoard(context.Background(), model.CreateBoardParams{
+		Slug: "my-board", Name: "My Board", Workflow: workflow.DefaultWorkflowJSON,
+	})
+
+	// Open SSE connection using ?token= auth.
+	resp, err := http.Get(ts.URL + "/boards/my-board/events?token=" + adminKey)
+	if err != nil {
+		t.Fatalf("failed to connect SSE: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("expected text/event-stream, got %s", ct)
+	}
+
+	// Create a task — should trigger an event.
+	reqBody, _ := json.Marshal(map[string]any{"title": "SSE Test", "priority": "none"})
+	req, _ := http.NewRequest("POST", ts.URL+"/boards/my-board/tasks", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminKey)
+	http.DefaultClient.Do(req)
+
+	// Read the SSE event with a timeout.
+	ch := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 4096)
+		n, _ := resp.Body.Read(buf)
+		ch <- string(buf[:n])
+	}()
+
+	select {
+	case output := <-ch:
+		if !strings.Contains(output, "event: task.created") {
+			t.Errorf("expected SSE event 'task.created', got: %s", output)
+		}
+		if !strings.Contains(output, "SSE Test") {
+			t.Errorf("expected task title in event data, got: %s", output)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout waiting for SSE event")
 	}
 }

@@ -127,10 +127,14 @@ func writeError(w http.ResponseWriter, status int, code, message string, detail 
 
 func extractBearerToken(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
-	if !strings.HasPrefix(auth, "Bearer ") {
-		return ""
+	if strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
 	}
-	return strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+	// Fallback: ?token= query param (for SSE/EventSource clients that can't set headers).
+	if token := r.URL.Query().Get("token"); token != "" {
+		return strings.TrimSpace(token)
+	}
+	return ""
 }
 
 // hashAPIKey produces a SHA-256 hex digest of the API key.
