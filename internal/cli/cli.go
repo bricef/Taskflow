@@ -40,6 +40,33 @@ func getConfig() Config {
 	return Config{ServerURL: "http://localhost:8374"}
 }
 
+// checkConfig validates the config and returns a helpful error if something is missing.
+func checkConfig(cfg Config) error {
+	if cfg.APIKey == "" {
+		return fmt.Errorf(`no API key configured
+
+Set your API key using one of:
+  --api-key <key>                      (command line flag)
+  export TASKFLOW_API_KEY=<key>        (environment variable)
+  echo "api_key: <key>" >> ~/.config/taskflow/config.yaml  (config file)
+
+The seed admin key is written to seed-admin-key.txt on first server start.`)
+	}
+	return nil
+}
+
+// friendlyRequestError returns a user-friendly error message for connection failures.
+func friendlyRequestError(err error, serverURL string) error {
+	return fmt.Errorf(`could not connect to TaskFlow server at %s
+
+%w
+
+Is the server running? To use a different server URL:
+  --url <url>                          (command line flag)
+  export TASKFLOW_URL=<url>            (environment variable)
+  echo "url: <url>" >> ~/.config/taskflow/config.yaml  (config file)`, serverURL, err)
+}
+
 // BuildCLI generates a Cobra command tree from model.Operations().
 // Config is resolved lazily via SetConfig before commands run.
 func BuildCLI(cfg *Config) *cobra.Command {
@@ -152,16 +179,19 @@ func addConvenienceCommands(root *cobra.Command, getGroup func(string) *cobra.Co
 
 // doGet is a helper for convenience commands that make a simple GET request.
 func doGet(cmd *cobra.Command, cfg Config, path string) error {
+	if err := checkConfig(cfg); err != nil {
+		cmd.SilenceUsage = true
+		return err
+	}
+	cmd.SilenceUsage = true
 	req, err := http.NewRequest("GET", cfg.ServerURL+path, nil)
 	if err != nil {
 		return err
 	}
-	if cfg.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-	}
+	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return friendlyRequestError(err, cfg.ServerURL)
 	}
 	defer resp.Body.Close()
 
@@ -273,14 +303,76 @@ func addFlags(cmd *cobra.Command, input any) {
 	}
 }
 
+// validateRequiredFlags checks that all required input fields have corresponding flags set.
+// Required means: exported, has a json tag (not "-"), not a pointer, not Optional, not omitempty.
+func validateRequiredFlags(cmd *cobra.Command, input any) error {
+	if input == nil {
+		return nil
+	}
+	t := reflect.TypeOf(input)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+
+	var missing []string
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		tag := f.Tag.Get("json")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		name := strings.Split(tag, ",")[0]
+		if strings.Contains(tag, "omitempty") {
+			continue
+		}
+
+		ft := f.Type
+		// Optional[T] fields are never required.
+		if ft.Kind() == reflect.Struct && ft.NumField() == 2 && ft.Field(0).Name == "Value" && ft.Field(1).Name == "Set" {
+			continue
+		}
+		// Pointer fields are nullable, not required.
+		if ft.Kind() == reflect.Ptr {
+			continue
+		}
+		// Slice fields are required only if they can't be empty.
+		if ft.Kind() == reflect.Slice {
+			if !cmd.Flags().Changed(name) {
+				missing = append(missing, "--"+name)
+			}
+			continue
+		}
+
+		if !cmd.Flags().Changed(name) {
+			missing = append(missing, "--"+name)
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required flag(s): %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
 func makeRunFunc(op model.Operation) func(*cobra.Command, []string) error {
 	pathParams := op.PathParams()
 
 	return func(cmd *cobra.Command, args []string) error {
 		cfg := getConfig()
+		if err := checkConfig(cfg); err != nil {
+			cmd.SilenceUsage = true
+			return err
+		}
 		if len(args) < len(pathParams) {
 			return fmt.Errorf("expected %d argument(s): %s", len(pathParams), pathParamNames(pathParams))
 		}
+		if err := validateRequiredFlags(cmd, op.Input); err != nil {
+			return err
+		}
+		cmd.SilenceUsage = true
 
 		url := cfg.ServerURL + op.Path
 		for i, p := range pathParams {
@@ -326,7 +418,7 @@ func makeRunFunc(op model.Operation) func(*cobra.Command, []string) error {
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return fmt.Errorf("request failed: %w", err)
+			return friendlyRequestError(err, cfg.ServerURL)
 		}
 		defer resp.Body.Close()
 

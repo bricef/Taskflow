@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -11,7 +12,8 @@ import (
 )
 
 func main() {
-	root := cli.BuildCLI(nil) // config resolved lazily via Viper
+	root := cli.BuildCLI(nil)
+	root.SilenceErrors = true // we handle error printing in main
 
 	// Global flags — bound to Viper so they override config file and env vars.
 	root.PersistentFlags().String("url", "http://localhost:8374", "TaskFlow server URL")
@@ -33,8 +35,8 @@ func main() {
 	// Resolve config before each command runs.
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		cli.SetConfig(cli.Config{
-			ServerURL: viper.GetString("url"),
-			APIKey:    viper.GetString("api_key"),
+			ServerURL: strings.TrimSpace(viper.GetString("url")),
+			APIKey:    strings.TrimSpace(viper.GetString("api_key")),
 		})
 	}
 

@@ -40,9 +40,9 @@ type Task struct {
 type CreateTaskParams struct {
 	BoardSlug   string     `json:"-"`
 	Title       string     `json:"title"`
-	Description string     `json:"description"`
+	Description string     `json:"description,omitempty"`
 	Priority    Priority   `json:"priority"`
-	Tags        []string   `json:"tags"`
+	Tags        []string   `json:"tags,omitempty"`
 	Assignee    *string    `json:"assignee"`
 	DueDate     *time.Time `json:"due_date"`
 	CreatedBy   string     `json:"-"`

@@ -33,7 +33,7 @@ type Board struct {
 type CreateBoardParams struct {
 	Slug        string          `json:"slug"`
 	Name        string          `json:"name"`
-	Description string          `json:"description"`
+	Description string          `json:"description,omitempty"`
 	Workflow    json.RawMessage `json:"workflow"`
 }
 

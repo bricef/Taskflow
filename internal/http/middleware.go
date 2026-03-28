@@ -130,7 +130,7 @@ func extractBearerToken(r *http.Request) string {
 	if !strings.HasPrefix(auth, "Bearer ") {
 		return ""
 	}
-	return strings.TrimPrefix(auth, "Bearer ")
+	return strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
 }
 
 // hashAPIKey produces a SHA-256 hex digest of the API key.

@@ -239,3 +239,36 @@ func TestCLINoArgs(t *testing.T) {
 		t.Errorf("expected argument error, got: %v", err)
 	}
 }
+
+func TestCLIMissingAPIKey(t *testing.T) {
+	root := cli.BuildCLI(&cli.Config{ServerURL: "http://localhost:8374"})
+	out := &bytes.Buffer{}
+	root.SetOut(out)
+	root.SetErr(out)
+	root.SetArgs([]string{"actor", "list"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for missing API key")
+	}
+	if !strings.Contains(err.Error(), "API key") {
+		t.Errorf("expected helpful API key message, got: %v", err)
+	}
+}
+
+func TestCLIServerNotReachable(t *testing.T) {
+	root := cli.BuildCLI(&cli.Config{
+		ServerURL: "http://localhost:19999",
+		APIKey:    "some-key",
+	})
+	out := &bytes.Buffer{}
+	root.SetOut(out)
+	root.SetErr(out)
+	root.SetArgs([]string{"actor", "list"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for unreachable server")
+	}
+	if !strings.Contains(err.Error(), "could not connect") {
+		t.Errorf("expected connection error with help text, got: %v", err)
+	}
+}

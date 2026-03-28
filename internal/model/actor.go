@@ -47,7 +47,7 @@ type Actor struct {
 
 type CreateActorParams struct {
 	Name        string    `json:"name"`
-	DisplayName string    `json:"display_name"`
+	DisplayName string    `json:"display_name,omitempty"`
 	Type        ActorType `json:"type"`
 	Role        Role      `json:"role"`
 	APIKeyHash  string    `json:"-"`
