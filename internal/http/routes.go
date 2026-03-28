@@ -113,10 +113,11 @@ func (s *Server) registerRoutes() {
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware(s.svc))
 
-		// Aggregate views (not domain operations — convenience endpoints).
+		// Aggregate views and utilities (not domain operations).
 		r.Get("/boards/{slug}/detail", s.boardDetailHandler)
 		r.Get("/admin/stats", s.systemStatsHandler)
 		r.Get("/search", s.searchHandler)
+		r.Post("/batch", s.batchHandler)
 
 		// Domain operations — derived from model.Operations().
 		for _, rt := range s.allRoutes() {

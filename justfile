@@ -12,7 +12,8 @@ test-v *args:
 
 # Build all binaries
 build:
-    go build ./...
+    go build -o taskflow-server ./cmd/taskflow-server
+    go build -o taskflow ./cmd/taskflow
 
 # Format all Go files
 fmt:
@@ -35,3 +36,27 @@ check: fmt-check vet test
 
 # Run all checks with verbose test output
 check-v: fmt-check vet test-v
+
+# Run the server locally
+run:
+    TASKFLOW_SEED_ADMIN_NAME=admin go run ./cmd/taskflow-server
+
+# Build Docker image
+docker-build:
+    docker build -t taskflow .
+
+# Run with Docker Compose
+docker-up:
+    docker compose up -d
+
+# Stop Docker Compose
+docker-down:
+    docker compose down
+
+# View Docker Compose logs
+docker-logs:
+    docker compose logs -f
+
+# Clean build artifacts
+clean:
+    rm -f taskflow taskflow-server *.db seed-admin-key.txt

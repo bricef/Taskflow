@@ -5,10 +5,16 @@ TaskFlow is a single-user task tracker designed for fluid collaboration between 
 ## Quick Start
 
 ```bash
-# Start the server (creates DB and seed admin on first run)
-TASKFLOW_SEED_ADMIN_NAME=admin ./taskflow-server
+# Option 1: Docker Compose (recommended)
+just docker-up
+docker compose exec taskflow cat /data/seed-admin-key.txt
 
-# Use the CLI (reads API key from env)
+# Option 2: Run locally
+just build
+just run
+cat seed-admin-key.txt
+
+# Use the CLI
 export TASKFLOW_API_KEY=$(cat seed-admin-key.txt)
 taskflow board create --slug my-board --name "My Board" --workflow '...'
 taskflow task create my-board --title "Fix auth bug" --priority high
@@ -102,13 +108,18 @@ migrations/             Embedded SQL migrations
 
 ## Development
 
-Requires Go 1.23+ and [just](https://github.com/casey/just).
+Requires Go 1.25+ and [just](https://github.com/casey/just).
 
 ```
-just test       # run tests
-just test-v     # run tests (verbose)
-just build      # build all packages
-just fmt        # format code
-just vet        # go vet
-just check      # fmt-check + vet + test
+just check          # fmt-check + vet + test
+just test           # run tests
+just build          # build server + CLI binaries
+just run            # start the server locally
+just fmt            # format code
+
+just docker-build   # build Docker image
+just docker-up      # start with Docker Compose
+just docker-down    # stop
+just docker-logs    # follow logs
+just clean          # remove build artifacts
 ```

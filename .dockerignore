@@ -1,0 +1,6 @@
+*.db
+seed-admin-key.txt
+backups/
+taskflow
+taskflow-server
+.git

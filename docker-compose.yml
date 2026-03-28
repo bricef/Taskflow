@@ -1,0 +1,15 @@
+services:
+  taskflow:
+    build: .
+    ports:
+      - "8374:8374"
+    volumes:
+      - taskflow-data:/data
+    environment:
+      - TASKFLOW_SEED_ADMIN_NAME=admin
+      - TASKFLOW_SEED_ADMIN_DISPLAY_NAME=Admin
+      - TASKFLOW_SEED_KEY_FILE=/data/seed-admin-key.txt
+    restart: unless-stopped
+
+volumes:
+  taskflow-data:

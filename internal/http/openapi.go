@@ -128,9 +128,124 @@ func generateOpenAPISpec(routes []Route) []byte {
 		paths[rt.Path].(map[string]any)[method] = op
 	}
 
+	// Convenience endpoints (not derived from domain operations).
+	addConvenienceEndpoints(paths)
+
 	spec["paths"] = paths
 	b, _ := json.MarshalIndent(spec, "", "  ")
 	return b
+}
+
+func addConvenienceEndpoints(paths map[string]any) {
+	secured := []any{map[string]any{"bearerAuth": []any{}}}
+
+	paths["/boards/{slug}/detail"] = map[string]any{
+		"get": map[string]any{
+			"summary":  "Get complete board with all tasks, comments, attachments, dependencies, and audit",
+			"tags":     []string{"boards"},
+			"security": secured,
+			"parameters": []any{
+				map[string]any{"name": "slug", "in": "path", "required": true, "schema": map[string]any{"type": "string"}},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Complete board detail"},
+			},
+		},
+	}
+
+	paths["/admin/stats"] = map[string]any{
+		"get": map[string]any{
+			"summary":  "System-wide statistics (actors, boards, tasks, activity)",
+			"tags":     []string{"admin"},
+			"security": secured,
+			"responses": map[string]any{
+				"200": map[string]any{"description": "System statistics"},
+			},
+		},
+	}
+
+	paths["/search"] = map[string]any{
+		"get": map[string]any{
+			"summary":  "Search tasks across all boards",
+			"tags":     []string{"search"},
+			"security": secured,
+			"parameters": []any{
+				map[string]any{"name": "q", "in": "query", "required": true, "schema": map[string]any{"type": "string"}, "description": "Full-text search query"},
+				map[string]any{"name": "state", "in": "query", "schema": map[string]any{"type": "string"}, "description": "Filter by state"},
+				map[string]any{"name": "assignee", "in": "query", "schema": map[string]any{"type": "string"}, "description": "Filter by assignee (supports @me)"},
+				map[string]any{"name": "priority", "in": "query", "schema": map[string]any{"type": "string"}, "description": "Filter by priority"},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Search results",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Task"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	paths["/batch"] = map[string]any{
+		"post": map[string]any{
+			"summary":  "Execute multiple operations in a single request (max 50)",
+			"tags":     []string{"batch"},
+			"security": secured,
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{
+							"type":     "object",
+							"required": []string{"operations"},
+							"properties": map[string]any{
+								"operations": map[string]any{
+									"type":     "array",
+									"maxItems": 50,
+									"items": map[string]any{
+										"type":     "object",
+										"required": []string{"method", "path"},
+										"properties": map[string]any{
+											"method":          map[string]any{"type": "string", "description": "HTTP method"},
+											"path":            map[string]any{"type": "string", "description": "API path"},
+											"body":            map[string]any{"type": "object", "description": "Request body"},
+											"idempotency_key": map[string]any{"type": "string", "description": "Per-operation idempotency key"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Batch results",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"results": map[string]any{
+										"type": "array",
+										"items": map[string]any{
+											"type": "object",
+											"properties": map[string]any{
+												"status": map[string]any{"type": "integer"},
+												"body":   map[string]any{},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 }
 
 // typeToSchema converts a Go struct type to a JSON Schema object.

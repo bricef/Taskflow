@@ -99,6 +99,76 @@ func (e *testEnv) decode(t *testing.T, resp *http.Response, v any) {
 	}
 }
 
+// --- Idempotency ---
+
+func TestIdempotencyKey(t *testing.T) {
+	env := newTestEnv(t)
+
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "my-board", "name": "My Board",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+
+	// First request with idempotency key.
+	body := map[string]any{"title": "Idempotent Task", "priority": "none"}
+	b, _ := json.Marshal(body)
+
+	req1, _ := http.NewRequest("POST", env.server.URL+"/boards/my-board/tasks", bytes.NewReader(b))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Authorization", "Bearer "+env.memberKey)
+	req1.Header.Set("Idempotency-Key", "test-key-123")
+	resp1, err := http.DefaultClient.Do(req1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	body1, _ := io.ReadAll(resp1.Body)
+	resp1.Body.Close()
+	if resp1.StatusCode != 201 {
+		t.Fatalf("expected 201, got %d: %s", resp1.StatusCode, body1)
+	}
+
+	// Second request with same key — should get cached response, not create a second task.
+	req2, _ := http.NewRequest("POST", env.server.URL+"/boards/my-board/tasks", bytes.NewReader(b))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Authorization", "Bearer "+env.memberKey)
+	req2.Header.Set("Idempotency-Key", "test-key-123")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	body2, _ := io.ReadAll(resp2.Body)
+	resp2.Body.Close()
+
+	if resp2.StatusCode != 201 {
+		t.Fatalf("expected cached 201, got %d", resp2.StatusCode)
+	}
+	if string(body1) != string(body2) {
+		t.Error("expected identical response bodies for idempotent request")
+	}
+
+	// Verify only one task was created.
+	resp := env.request(t, "GET", "/boards/my-board/tasks", nil, env.memberKey)
+	var tasks []model.Task
+	env.decode(t, resp, &tasks)
+	if len(tasks) != 1 {
+		t.Errorf("expected 1 task (idempotent), got %d", len(tasks))
+	}
+}
+
+func TestIdempotencyKeyNotUsedForGET(t *testing.T) {
+	env := newTestEnv(t)
+
+	// GET requests should not be cached even with an idempotency key.
+	req, _ := http.NewRequest("GET", env.server.URL+"/actors", nil)
+	req.Header.Set("Authorization", "Bearer "+env.adminKey)
+	req.Header.Set("Idempotency-Key", "get-key")
+	resp, _ := http.DefaultClient.Do(req)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
 // --- Health ---
 
 func TestHealth(t *testing.T) {
@@ -126,8 +196,11 @@ func TestOpenAPISpec(t *testing.T) {
 	if !ok {
 		t.Fatal("expected paths in spec")
 	}
-	// Verify key endpoints exist.
-	for _, path := range []string{"/actors", "/boards", "/boards/{slug}/tasks", "/webhooks"} {
+	// Verify key endpoints exist (domain operations + convenience).
+	for _, path := range []string{
+		"/actors", "/boards", "/boards/{slug}/tasks", "/webhooks",
+		"/boards/{slug}/detail", "/admin/stats", "/search", "/batch",
+	} {
 		if _, ok := paths[path]; !ok {
 			t.Errorf("expected path %s in spec", path)
 		}
@@ -645,5 +718,106 @@ func TestTransitionErrorContext(t *testing.T) {
 	}
 	if ctx["current_state"] != "backlog" {
 		t.Errorf("expected current_state backlog, got %v", ctx["current_state"])
+	}
+}
+
+// --- Batch ---
+
+func TestBatch(t *testing.T) {
+	env := newTestEnv(t)
+
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "my-board", "name": "My Board",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+
+	resp := env.request(t, "POST", "/batch", map[string]any{
+		"operations": []map[string]any{
+			{"method": "POST", "path": "/boards/my-board/tasks", "body": map[string]any{"title": "Task 1", "priority": "high"}},
+			{"method": "POST", "path": "/boards/my-board/tasks", "body": map[string]any{"title": "Task 2", "priority": "none"}},
+			{"method": "GET", "path": "/boards/my-board/tasks"},
+		},
+	}, env.memberKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var batch map[string]any
+	env.decode(t, resp, &batch)
+	results := batch["results"].([]any)
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	// First two should be 201 (create).
+	r0 := results[0].(map[string]any)
+	if r0["status"].(float64) != 201 {
+		t.Errorf("expected result 0 status 201, got %v", r0["status"])
+	}
+	r1 := results[1].(map[string]any)
+	if r1["status"].(float64) != 201 {
+		t.Errorf("expected result 1 status 201, got %v", r1["status"])
+	}
+
+	// Third should be 200 (list) with 2 tasks.
+	r2 := results[2].(map[string]any)
+	if r2["status"].(float64) != 200 {
+		t.Errorf("expected result 2 status 200, got %v", r2["status"])
+	}
+	tasks := r2["body"].([]any)
+	if len(tasks) != 2 {
+		t.Errorf("expected 2 tasks in list result, got %d", len(tasks))
+	}
+}
+
+func TestBatchPartialFailure(t *testing.T) {
+	env := newTestEnv(t)
+
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "my-board", "name": "My Board",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+
+	resp := env.request(t, "POST", "/batch", map[string]any{
+		"operations": []map[string]any{
+			{"method": "POST", "path": "/boards/my-board/tasks", "body": map[string]any{"title": "Good task", "priority": "none"}},
+			{"method": "GET", "path": "/boards/nonexistent"},
+			{"method": "POST", "path": "/boards/my-board/tasks", "body": map[string]any{"title": "Also good", "priority": "none"}},
+		},
+	}, env.memberKey)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var batch map[string]any
+	env.decode(t, resp, &batch)
+	results := batch["results"].([]any)
+
+	r0 := results[0].(map[string]any)
+	if r0["status"].(float64) != 201 {
+		t.Errorf("expected result 0 status 201, got %v", r0["status"])
+	}
+	r1 := results[1].(map[string]any)
+	if r1["status"].(float64) != 404 {
+		t.Errorf("expected result 1 status 404, got %v", r1["status"])
+	}
+	r2 := results[2].(map[string]any)
+	if r2["status"].(float64) != 201 {
+		t.Errorf("expected result 2 status 201 (continued after failure), got %v", r2["status"])
+	}
+}
+
+func TestBatchTooManyOperations(t *testing.T) {
+	env := newTestEnv(t)
+
+	ops := make([]map[string]any, 51)
+	for i := range ops {
+		ops[i] = map[string]any{"method": "GET", "path": "/actors"}
+	}
+	resp := env.request(t, "POST", "/batch", map[string]any{"operations": ops}, env.memberKey)
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 }

@@ -22,6 +22,37 @@ GET /openapi.json
 
 No authentication required.
 
+## Idempotency
+
+Mutating requests (POST, PATCH, PUT, DELETE) support idempotency keys for safe retries. Include the header:
+
+```
+Idempotency-Key: <unique-string>
+```
+
+If a request with the same key has been seen before, the server returns the cached response (same status code and body) without re-executing the operation. This prevents duplicate creates when a client retries after a timeout.
+
+- GET requests are never cached, even with the header present.
+- The cache is bounded by total memory (default 50 MB). Oldest entries are evicted when the budget is exceeded.
+- Keys are scoped to the server process — they reset on restart.
+- Use a UUID or similar unique string per logical operation.
+
+Example:
+
+```bash
+# First request — creates the task
+curl -X POST /boards/my-board/tasks \
+  -H "Authorization: Bearer $KEY" \
+  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+  -d '{"title": "Fix bug", "priority": "high"}'
+
+# Retry with same key — returns cached 201, no duplicate task created
+curl -X POST /boards/my-board/tasks \
+  -H "Authorization: Bearer $KEY" \
+  -H "Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000" \
+  -d '{"title": "Fix bug", "priority": "high"}'
+```
+
 ## Error Responses
 
 All errors return a consistent JSON format:
@@ -42,6 +73,20 @@ All errors return a consistent JSON format:
 | 404 | Not found |
 | 409 | Conflict — duplicate or referential integrity violation |
 | 500 | Internal server error |
+
+## `@me` Actor Alias
+
+Any field that accepts an actor name (`assignee` in task create/update, `assignee` query filter) supports the special value `@me`, which resolves to the authenticated actor's name. This avoids requiring the client to know its own identity.
+
+```bash
+# Create a task assigned to myself
+curl -X POST /boards/my-board/tasks \
+  -H "Authorization: Bearer $KEY" \
+  -d '{"title": "My task", "priority": "none", "assignee": "@me"}'
+
+# List my tasks
+curl "/boards/my-board/tasks?assignee=@me" -H "Authorization: Bearer $KEY"
+```
 
 ## Role-Based Access Control
 
@@ -132,6 +177,22 @@ Query params for list: `state`, `assignee`, `priority`, `tag`, `q` (full-text se
 |--------|------|-------------|----------|
 | GET | `/boards/{slug}/tasks/{num}/audit` | Get audit log for a task | read_only |
 | GET | `/boards/{slug}/audit` | Get audit log for a board | read_only |
+
+### Tags
+
+| Method | Path | Description | Min Role |
+|--------|------|-------------|----------|
+| GET | `/boards/{slug}/tags` | List tags in use on a board with counts | read_only |
+
+### Convenience Endpoints
+
+These are aggregate views, not domain operations. They combine data from multiple resources into a single response.
+
+| Method | Path | Description | Min Role |
+|--------|------|-------------|----------|
+| GET | `/boards/{slug}/detail` | Complete board with all tasks, comments, attachments, dependencies, and audit | read_only |
+| GET | `/admin/stats` | System-wide statistics (actor/board/task counts, activity by actor) | any |
+| GET | `/search?q=<query>` | Cross-board full-text search (supports `&state=`, `&assignee=`, `&priority=` filters) | any |
 
 ## Server Configuration
 

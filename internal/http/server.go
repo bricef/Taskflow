@@ -8,19 +8,37 @@ import (
 	"github.com/bricef/taskflow/internal/taskflow"
 )
 
+// ServerConfig holds configuration for the HTTP server.
+type ServerConfig struct {
+	// IdempotencyCacheBytes is the maximum memory budget for the idempotency
+	// key cache in bytes. Defaults to 1 MB if zero.
+	IdempotencyCacheBytes int
+}
+
 // Server is the HTTP API server for TaskFlow.
 type Server struct {
 	svc         taskflow.TaskFlow
 	router      *chi.Mux
-	openAPISpec []byte // cached, generated once at startup
+	openAPISpec []byte
 }
 
 // NewServer creates a new HTTP server backed by the given TaskFlow service.
-func NewServer(svc taskflow.TaskFlow) *Server {
+func NewServer(svc taskflow.TaskFlow, cfg ...ServerConfig) *Server {
+	var c ServerConfig
+	if len(cfg) > 0 {
+		c = cfg[0]
+	}
+	if c.IdempotencyCacheBytes == 0 {
+		c.IdempotencyCacheBytes = 50 << 20 // 50 MB
+	}
+
 	s := &Server{
 		svc:    svc,
 		router: chi.NewRouter(),
 	}
+
+	s.router.Use(idempotencyMiddleware(newIdempotencyCache(c.IdempotencyCacheBytes)))
+
 	routes := s.allRoutes()
 	s.openAPISpec = generateOpenAPISpec(routes)
 	s.registerRoutes()
