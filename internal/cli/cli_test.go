@@ -50,7 +50,7 @@ func newTestEnv(t *testing.T) *testEnv {
 // run executes a CLI command and returns stdout and the error.
 func (e *testEnv) run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
-	root := cli.BuildCLI(e.cfg)
+	root := cli.BuildCLI(&e.cfg)
 	out := &bytes.Buffer{}
 	root.SetOut(out)
 	root.SetErr(out)

@@ -4,17 +4,26 @@ The `taskflow` CLI is a thin HTTP client that calls the TaskFlow server. Command
 
 ## Configuration
 
-| Env Variable | Default | Description |
-|--------------|---------|-------------|
-| `TASKFLOW_URL` | `http://localhost:8374` | Server URL |
-| `TASKFLOW_API_KEY` | — | API key for authentication |
+Configuration is resolved in precedence order (highest first):
+
+1. **Command-line flags**: `--url`, `--api-key`
+2. **Environment variables**: `TASKFLOW_URL`, `TASKFLOW_API_KEY`
+3. **Config file**: `~/.config/taskflow/config.yaml` (or `./config.yaml`)
+4. **Defaults**: `http://localhost:8374`
+
+Example config file (`~/.config/taskflow/config.yaml`):
+
+```yaml
+url: http://localhost:8374
+api_key: your-api-key-here
+```
 
 ## Global Flags
 
-All commands support:
-
 | Flag | Description |
 |------|-------------|
+| `--url` | TaskFlow server URL |
+| `--api-key` | API key for authentication |
 | `--json` | Output raw JSON instead of formatted tables |
 | `--help` | Show help for any command |
 

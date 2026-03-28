@@ -25,8 +25,27 @@ type Config struct {
 	APIKey    string
 }
 
+var activeConfig *Config
+
+// SetConfig sets the active CLI configuration. Called by the root command's
+// PersistentPreRun after Viper resolves flags, env vars, and config file.
+func SetConfig(cfg Config) {
+	activeConfig = &cfg
+}
+
+func getConfig() Config {
+	if activeConfig != nil {
+		return *activeConfig
+	}
+	return Config{ServerURL: "http://localhost:8374"}
+}
+
 // BuildCLI generates a Cobra command tree from model.Operations().
-func BuildCLI(cfg Config) *cobra.Command {
+// Config is resolved lazily via SetConfig before commands run.
+func BuildCLI(cfg *Config) *cobra.Command {
+	if cfg != nil {
+		SetConfig(*cfg)
+	}
 	root := &cobra.Command{
 		Use:   "taskflow",
 		Short: "TaskFlow CLI — human/AI collaborative task tracker",
@@ -51,7 +70,7 @@ func BuildCLI(cfg Config) *cobra.Command {
 		cmd := &cobra.Command{
 			Use:   buildUsageLine(verb, pathParams),
 			Short: op.Summary,
-			RunE:  makeRunFunc(cfg, op),
+			RunE:  makeRunFunc(op),
 		}
 
 		if op.Input != nil {
@@ -149,10 +168,11 @@ func addFlags(cmd *cobra.Command, input any) {
 	}
 }
 
-func makeRunFunc(cfg Config, op model.Operation) func(*cobra.Command, []string) error {
+func makeRunFunc(op model.Operation) func(*cobra.Command, []string) error {
 	pathParams := op.PathParams()
 
 	return func(cmd *cobra.Command, args []string) error {
+		cfg := getConfig()
 		if len(args) < len(pathParams) {
 			return fmt.Errorf("expected %d argument(s): %s", len(pathParams), pathParamNames(pathParams))
 		}

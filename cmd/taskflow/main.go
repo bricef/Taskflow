@@ -4,25 +4,42 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/bricef/taskflow/internal/cli"
 )
 
 func main() {
-	cfg := cli.Config{
-		ServerURL: envOr("TASKFLOW_URL", "http://localhost:8374"),
-		APIKey:    os.Getenv("TASKFLOW_API_KEY"),
+	root := cli.BuildCLI(nil) // config resolved lazily via Viper
+
+	// Global flags — bound to Viper so they override config file and env vars.
+	root.PersistentFlags().String("url", "http://localhost:8374", "TaskFlow server URL")
+	root.PersistentFlags().String("api-key", "", "API key for authentication")
+	viper.BindPFlag("url", root.PersistentFlags().Lookup("url"))
+	viper.BindPFlag("api_key", root.PersistentFlags().Lookup("api-key"))
+
+	// Env vars: TASKFLOW_URL, TASKFLOW_API_KEY
+	viper.SetEnvPrefix("TASKFLOW")
+	viper.AutomaticEnv()
+
+	// Config file: ~/.config/taskflow/config.yaml (or .json, .toml)
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath("$HOME/.config/taskflow")
+	viper.AddConfigPath(".")
+	viper.ReadInConfig() // ignore error — config file is optional
+
+	// Resolve config before each command runs.
+	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		cli.SetConfig(cli.Config{
+			ServerURL: viper.GetString("url"),
+			APIKey:    viper.GetString("api_key"),
+		})
 	}
 
-	root := cli.BuildCLI(cfg)
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
