@@ -30,9 +30,17 @@ taskflow task transition my-board 1 --transition start --comment "On it"
 
 ## Status
 
-**Increments 1–4 are complete.** The server and CLI are functional for full task management: actors, boards, tasks, comments, dependencies, attachments, webhooks, and audit. 127 tests passing.
+**Phase 1 is complete.** All 6 increments delivered — the server, CLI, and Docker deployment are functional. 140 tests passing across 4 test suites.
 
-See [docs/](docs/) for the PRD and implementation plans.
+What's built:
+- 37 domain operations (actors, boards, tasks, workflows, comments, dependencies, attachments, webhooks, audit, tags)
+- HTTP API with auth (SHA-256 keys), RBAC (admin/member/read_only), idempotency keys, and batch operations
+- CLI derived from the same operation definitions, with Viper-based config (flags + env + config file)
+- OpenAPI 3.1 spec auto-generated at startup
+- Convenience endpoints: board detail, system stats, cross-board search
+- Docker deployment with seed admin bootstrap
+
+See [docs/](docs/) for the PRD, API reference, and CLI reference.
 
 ## Architecture
 

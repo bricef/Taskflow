@@ -186,13 +186,42 @@ Query params for list: `state`, `assignee`, `priority`, `tag`, `q` (full-text se
 
 ### Convenience Endpoints
 
-These are aggregate views, not domain operations. They combine data from multiple resources into a single response.
+These are aggregate views and utilities, not domain operations.
 
 | Method | Path | Description | Min Role |
 |--------|------|-------------|----------|
 | GET | `/boards/{slug}/detail` | Complete board with all tasks, comments, attachments, dependencies, and audit | read_only |
 | GET | `/admin/stats` | System-wide statistics (actor/board/task counts, activity by actor) | any |
 | GET | `/search?q=<query>` | Cross-board full-text search (supports `&state=`, `&assignee=`, `&priority=` filters) | any |
+| POST | `/batch` | Execute multiple operations in a single request (max 50) | any |
+
+### Batch Operations
+
+`POST /batch` accepts an array of operations and executes them sequentially. Each operation is replayed through the router with full middleware (auth inherited, RBAC, idempotency). Partial failures don't stop execution — each result has its own status code.
+
+```json
+{
+  "operations": [
+    {"method": "POST", "path": "/boards/my-board/tasks", "body": {"title": "Task 1", "priority": "high"}},
+    {"method": "POST", "path": "/boards/my-board/tasks", "body": {"title": "Task 2", "priority": "none"}},
+    {"method": "GET", "path": "/boards/my-board/tasks"}
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "results": [
+    {"status": 201, "body": {"board_slug": "my-board", "num": 1, ...}},
+    {"status": 201, "body": {"board_slug": "my-board", "num": 2, ...}},
+    {"status": 200, "body": [{...}, {...}]}
+  ]
+}
+```
+
+Each operation can include an optional `idempotency_key` field for per-operation idempotency.
 
 ## Server Configuration
 

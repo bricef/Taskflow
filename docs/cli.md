@@ -110,6 +110,28 @@ taskflow audit list <slug> <num>       # task audit log
 taskflow audit list <slug>             # board audit log
 ```
 
+### Convenience commands
+
+```
+taskflow board detail <slug>                         # complete board dump (tasks, comments, deps, audit)
+taskflow admin stats                                 # system-wide statistics
+taskflow search --q <query> [--state] [--assignee] [--priority]  # cross-board search
+```
+
+## Input Validation
+
+The CLI validates required flags before making HTTP requests. Missing required flags show an error with usage:
+
+```
+$ taskflow webhook create
+Usage:
+  taskflow webhook create [flags]
+...
+missing required flag(s): --url, --events, --secret
+```
+
+Optional fields (like `--description`, `--tags`) are not required.
+
 ## Output Formats
 
 By default, list commands produce a table and single-item commands produce key-value pairs:
