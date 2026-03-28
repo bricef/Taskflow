@@ -13,6 +13,9 @@ func (s *Service) CreateTask(ctx context.Context, params model.CreateTaskParams)
 	if err := params.Validate(); err != nil {
 		return model.Task{}, err
 	}
+	if params.Priority == "" {
+		params.Priority = model.PriorityNone
+	}
 
 	// Derive initial state from the board's workflow.
 	board, err := s.store.BoardGet(ctx, params.BoardSlug)

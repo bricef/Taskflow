@@ -124,15 +124,13 @@ func TestCLIBoardGet(t *testing.T) {
 
 func TestCLIBoardCreate(t *testing.T) {
 	env := newTestEnv(t)
-	// Board creation requires a workflow JSON — use --json flag for raw input.
-	// For now, test that the command exists and gives a useful error without required fields.
-	_, err := env.run(t, "board", "create", "--name", "New Board", "--slug", "new-board")
-	// This will fail because workflow is missing, but the command should exist and make the HTTP call.
-	if err == nil {
-		t.Fatal("expected error due to missing workflow, got success")
+	// Creating a board without a workflow should succeed — default workflow applied.
+	out, err := env.run(t, "board", "create", "--name", "New Board", "--slug", "new-board")
+	if err != nil {
+		t.Fatalf("unexpected error: %v\noutput: %s", err, out)
 	}
-	if !strings.Contains(err.Error(), "400") && !strings.Contains(err.Error(), "workflow") {
-		t.Errorf("expected validation error about workflow, got: %v", err)
+	if !strings.Contains(out, "new-board") {
+		t.Errorf("expected output to contain 'new-board', got: %s", out)
 	}
 }
 

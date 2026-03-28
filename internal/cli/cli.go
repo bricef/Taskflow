@@ -290,15 +290,17 @@ func addFlags(cmd *cobra.Command, input any) {
 			ft = ft.Field(0).Type
 		}
 
+		desc := flagDescription(name, ft)
+
 		switch ft.Kind() {
 		case reflect.String:
-			cmd.Flags().String(name, "", f.Name)
+			cmd.Flags().String(name, "", desc)
 		case reflect.Int:
-			cmd.Flags().Int(name, 0, f.Name)
+			cmd.Flags().Int(name, 0, desc)
 		case reflect.Bool:
-			cmd.Flags().Bool(name, false, f.Name)
+			cmd.Flags().Bool(name, false, desc)
 		case reflect.Slice:
-			cmd.Flags().StringSlice(name, nil, f.Name)
+			cmd.Flags().StringSlice(name, nil, desc)
 		}
 	}
 }
@@ -355,6 +357,23 @@ func validateRequiredFlags(cmd *cobra.Command, input any) error {
 		return fmt.Errorf("missing required flag(s): %s", strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+// flagDescription returns a help description for a flag, including valid values for known enums.
+var enumDescriptions = map[string]string{
+	"priority": "Priority (critical, high, medium, low, none)",
+	"role":     "Role (admin, member, read_only)",
+	"type":     "Actor type (human, ai_agent)",
+	"ref_type": "Reference type (url, file, git_commit, git_branch, git_pr)",
+	"dep_type": "Dependency type (depends_on, relates_to)",
+}
+
+func flagDescription(name string, _ reflect.Type) string {
+	if desc, ok := enumDescriptions[name]; ok {
+		return desc
+	}
+	// Use the flag name as-is for unknown fields.
+	return strings.ReplaceAll(name, "_", " ")
 }
 
 func makeRunFunc(op model.Operation) func(*cobra.Command, []string) error {

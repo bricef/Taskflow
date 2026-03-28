@@ -13,6 +13,9 @@ func (s *Service) CreateBoard(ctx context.Context, params model.CreateBoardParam
 	if err := params.Validate(); err != nil {
 		return model.Board{}, err
 	}
+	if len(params.Workflow) == 0 {
+		params.Workflow = workflow.DefaultWorkflowJSON
+	}
 	if _, err := workflow.Parse(params.Workflow); err != nil {
 		return model.Board{}, &model.ValidationError{Field: "workflow", Message: err.Error()}
 	}

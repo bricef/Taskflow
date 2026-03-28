@@ -41,7 +41,7 @@ type CreateTaskParams struct {
 	BoardSlug   string     `json:"-"`
 	Title       string     `json:"title"`
 	Description string     `json:"description,omitempty"`
-	Priority    Priority   `json:"priority"`
+	Priority    Priority   `json:"priority,omitempty"`
 	Tags        []string   `json:"tags,omitempty"`
 	Assignee    *string    `json:"assignee"`
 	DueDate     *time.Time `json:"due_date"`
@@ -55,8 +55,10 @@ func (p CreateTaskParams) Validate() error {
 	if p.Title == "" {
 		return &ValidationError{Field: "title", Message: "must not be empty"}
 	}
-	if err := ValidatePriority(p.Priority); err != nil {
-		return err
+	if p.Priority != "" {
+		if err := ValidatePriority(p.Priority); err != nil {
+			return err
+		}
 	}
 	if p.CreatedBy == "" {
 		return &ValidationError{Field: "created_by", Message: "must not be empty"}

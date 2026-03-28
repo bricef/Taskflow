@@ -302,6 +302,41 @@ func TestCreateAndGetBoard(t *testing.T) {
 	}
 }
 
+func TestCreateBoardWithDefaultWorkflow(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Create board without a workflow — should use default.
+	resp := env.request(t, "POST", "/boards", map[string]any{
+		"slug": "default-wf", "name": "Default Workflow Board",
+	}, env.memberKey)
+	if resp.StatusCode != 201 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, body)
+	}
+
+	// Verify the board has a workflow with the default initial state.
+	resp = env.request(t, "GET", "/boards/default-wf", nil, env.memberKey)
+	var board model.Board
+	env.decode(t, resp, &board)
+	if len(board.Workflow) == 0 {
+		t.Fatal("expected board to have a workflow")
+	}
+
+	// Create a task — should start in "backlog" (default workflow initial state).
+	resp = env.request(t, "POST", "/boards/default-wf/tasks", map[string]any{
+		"title": "Test Task", "priority": "none",
+	}, env.memberKey)
+	if resp.StatusCode != 201 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, body)
+	}
+	var task model.Task
+	env.decode(t, resp, &task)
+	if task.State != "backlog" {
+		t.Errorf("expected state 'backlog' from default workflow, got %s", task.State)
+	}
+}
+
 func TestListBoards(t *testing.T) {
 	env := newTestEnv(t)
 

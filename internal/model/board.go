@@ -34,7 +34,7 @@ type CreateBoardParams struct {
 	Slug        string          `json:"slug"`
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
-	Workflow    json.RawMessage `json:"workflow"`
+	Workflow    json.RawMessage `json:"workflow,omitempty"`
 }
 
 func (p CreateBoardParams) Validate() error {
@@ -44,10 +44,7 @@ func (p CreateBoardParams) Validate() error {
 	if p.Name == "" {
 		return &ValidationError{Field: "name", Message: "must not be empty"}
 	}
-	if len(p.Workflow) == 0 {
-		return &ValidationError{Field: "workflow", Message: "must not be empty"}
-	}
-	if !json.Valid(p.Workflow) {
+	if len(p.Workflow) > 0 && !json.Valid(p.Workflow) {
 		return &ValidationError{Field: "workflow", Message: "must be valid JSON"}
 	}
 	return nil

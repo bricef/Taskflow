@@ -4,6 +4,9 @@
 
 # Database
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 
 # Seed key files
 seed-admin-key.txt
