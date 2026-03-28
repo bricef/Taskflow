@@ -57,6 +57,18 @@ docker-down:
 docker-logs:
     docker compose logs -f
 
+# Generate a test database with realistic content
+seed:
+    go run ./cmd/taskflow-seed
+
+# Run the server with the test database
+run-test: seed
+    TASKFLOW_DB_PATH=./taskflow-test.db TASKFLOW_LISTEN_ADDR=:8374 go run ./cmd/taskflow-server
+
+# Run the TUI against the test database
+tui-test:
+    TASKFLOW_API_KEY=seed-admin-key-for-testing go run ./cmd/taskflow-tui
+
 # Clean build artifacts
 clean:
     rm -f taskflow taskflow-server *.db seed-admin-key.txt

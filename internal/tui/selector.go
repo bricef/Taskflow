@@ -143,6 +143,5 @@ func (m selectorModel) view(width int) string {
 		b.WriteString(style.Render(line) + "\n")
 	}
 
-	b.WriteString("\n" + dimStyle.Render("↑↓ navigate  Enter select  type to filter  q quit") + "\n")
 	return b.String()
 }

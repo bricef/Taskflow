@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -38,6 +39,7 @@ var tabNames = []string{"Events"}
 type Model struct {
 	cfg    Config
 	client *Client
+	help   help.Model
 	view   viewMode
 	width  int
 	height int
@@ -56,19 +58,18 @@ type Model struct {
 // New creates a new TUI model.
 func New(cfg Config) Model {
 	client := NewClient(cfg.ServerURL, cfg.APIKey)
-	m := Model{
+	return Model{
 		cfg:       cfg,
 		client:    client,
+		help:      newHelp(),
 		selector:  newSelector(),
 		view:      viewSelector,
 		sseStatus: "disconnected",
 	}
-	return m
 }
 
 func (m Model) Init() tea.Cmd {
 	if m.cfg.BoardSlug != "" {
-		// Skip selector — go directly to board.
 		return func() tea.Msg {
 			board, err := m.client.GetBoard(m.cfg.BoardSlug)
 			if err != nil {
@@ -89,32 +90,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "q":
-			if m.view == viewSelector {
-				return m, tea.Quit
+		case "esc":
+			if m.view == viewBoard {
+				m.view = viewSelector
+				m.activeBoard = nil
+				m.sseStatus = "disconnected"
+				m.eventLog = eventLogModel{}
+				return m, fetchBoards(m.client)
 			}
-			// From board view, q goes back to selector.
-			m.view = viewSelector
-			m.activeBoard = nil
-			m.sseStatus = "disconnected"
-			m.eventLog = eventLogModel{}
-			return m, fetchBoards(m.client)
 		case "tab":
 			if m.view == viewBoard {
 				m.activeTab = (m.activeTab + 1) % tabCount
-			}
-		case "b":
-			if m.view == viewBoard {
-				m.view = viewSelector
-				return m, fetchBoards(m.client)
 			}
 		}
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.help.Width = msg.Width
 		return m, nil
 
 	case boardSelected:
@@ -171,11 +166,18 @@ var (
 func (m Model) View() string {
 	switch m.view {
 	case viewSelector:
-		return m.selector.view(m.width)
+		return m.selectorView()
 	case viewBoard:
 		return m.boardView()
 	}
 	return ""
+}
+
+func (m Model) selectorView() string {
+	var b strings.Builder
+	b.WriteString(m.selector.view(m.width))
+	b.WriteString("\n" + m.help.View(selectorKeyMap))
+	return b.String()
 }
 
 func (m Model) boardView() string {
@@ -222,7 +224,7 @@ func (m Model) boardView() string {
 		b.WriteString(m.eventLog.view(m.height))
 	}
 
-	// Footer
-	b.WriteString("\n" + dimStyle.Render("Tab switch view  b boards  q back  ctrl+c quit") + "\n")
+	// Help footer
+	b.WriteString("\n" + m.help.View(boardKeyMap))
 	return b.String()
 }
