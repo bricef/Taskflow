@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -29,20 +30,26 @@ const (
 type boardTab int
 
 const (
-	tabEventLog boardTab = iota
-	tabCount             // keep last for cycling
+	tabKanban boardTab = iota
+	tabEventLog
+	tabCount // keep last for cycling
 )
 
-var tabNames = []string{"Events"}
+var tabNames = []string{"Board", "Events"}
+
+// chromeLines is the total number of lines used by header, tabs, padding, and footer
+// that are rendered outside the viewport. Header(1) + Tabs(1) + padding(1) + footer newline(1) + help(1) = 5
+const chromeLines = 5
 
 // Model is the root Bubble Tea model.
 type Model struct {
-	cfg    Config
-	client *Client
-	help   help.Model
-	view   viewMode
-	width  int
-	height int
+	cfg      Config
+	client   *Client
+	help     help.Model
+	viewport viewport.Model
+	view     viewMode
+	width    int
+	height   int
 
 	// Board selector
 	selector selectorModel
@@ -53,6 +60,7 @@ type Model struct {
 	sseStatus   string
 	lastError   string
 	eventLog    eventLogModel
+	kanban      kanbanModel
 }
 
 // New creates a new TUI model.
@@ -62,6 +70,7 @@ func New(cfg Config) Model {
 		cfg:       cfg,
 		client:    client,
 		help:      newHelp(),
+		viewport:  viewport.New(80, 20),
 		selector:  newSelector(),
 		view:      viewSelector,
 		sseStatus: "disconnected",
@@ -86,6 +95,19 @@ type boardSelected struct {
 	board model.Board
 }
 
+func (m *Model) resizeViewport() {
+	extra := 0
+	if m.lastError != "" {
+		extra = 1
+	}
+	contentHeight := m.height - chromeLines - extra
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+	m.viewport.Width = m.width
+	m.viewport.Height = contentHeight
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -103,6 +125,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			if m.view == viewBoard {
 				m.activeTab = (m.activeTab + 1) % tabCount
+				m.viewport.GotoTop()
 			}
 		}
 
@@ -110,17 +133,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.help.Width = msg.Width
+		m.resizeViewport()
 		return m, nil
 
 	case boardSelected:
 		m.activeBoard = &msg.board
 		m.view = viewBoard
-		m.activeTab = tabEventLog
+		m.activeTab = tabKanban
 		m.sseStatus = "connecting..."
 		m.eventLog = eventLogModel{}
+		m.kanban = newKanban()
+		m.resizeViewport()
 		if m.cfg.Program != nil && *m.cfg.Program != nil {
 			startSSE(*m.cfg.Program, m.cfg.ServerURL, msg.board.Slug, m.cfg.APIKey)
 		}
+		return m, fetchBoardData(m.client, msg.board.Slug)
+
+	case boardDataLoaded:
+		m.kanban.load(msg)
+		m.eventLog.seedFromAudit(msg.audit)
 		return m, nil
 
 	case SSEConnected:
@@ -143,11 +174,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Delegate to sub-views.
-	if m.view == viewSelector {
+	switch {
+	case m.view == viewSelector:
 		var selected *model.Board
 		m.selector, selected = m.selector.update(msg)
 		if selected != nil {
 			return m, func() tea.Msg { return boardSelected{board: *selected} }
+		}
+	case m.view == viewBoard && m.activeTab == tabKanban:
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			m.kanban.update(keyMsg)
+		}
+	case m.view == viewBoard && m.activeTab == tabEventLog:
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.String() {
+			case "up", "k":
+				m.eventLog.moveUp()
+			case "down", "j":
+				m.eventLog.moveDown()
+			}
 		}
 	}
 
@@ -183,7 +228,7 @@ func (m Model) selectorView() string {
 func (m Model) boardView() string {
 	var b strings.Builder
 
-	// Header with board name and SSE status.
+	// Header.
 	var status string
 	switch m.sseStatus {
 	case "live":
@@ -193,15 +238,13 @@ func (m Model) boardView() string {
 	default:
 		status = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("◌ " + m.sseStatus)
 	}
-
 	boardName := m.activeBoard.Slug
 	if m.activeBoard.Name != "" {
 		boardName = m.activeBoard.Name
 	}
-	header := fmt.Sprintf("%s  %s", titleStyle.Render("TaskFlow — "+boardName), status)
-	b.WriteString(header + "\n")
+	b.WriteString(fmt.Sprintf("%s  %s", titleStyle.Render("TaskFlow — "+boardName), status) + "\n")
 
-	// Tabs
+	// Tabs.
 	var tabs []string
 	for i, name := range tabNames {
 		if boardTab(i) == m.activeTab {
@@ -215,16 +258,26 @@ func (m Model) boardView() string {
 	if m.lastError != "" {
 		b.WriteString(errorStyle.Render(m.lastError) + "\n")
 	}
-
 	b.WriteString("\n")
 
-	// Tab content
+	// Tab content rendered into the viewport.
+	var content string
 	switch m.activeTab {
+	case tabKanban:
+		content = m.kanban.view(m.viewport.Width, m.viewport.Height)
 	case tabEventLog:
-		b.WriteString(m.eventLog.view(m.height))
+		content = m.eventLog.view(m.viewport.Height)
 	}
-
-	// Help footer
-	b.WriteString("\n" + m.help.View(boardKeyMap))
+	m.viewport.SetContent(content)
+	b.WriteString(m.viewport.View())
+	// Tab-specific help.
+	var keyMap help.KeyMap
+	switch m.activeTab {
+	case tabKanban:
+		keyMap = kanbanKeyMap
+	case tabEventLog:
+		keyMap = eventLogKeyMap
+	}
+	b.WriteString("\n" + m.help.View(keyMap))
 	return b.String()
 }

@@ -33,27 +33,72 @@ var selectorKeyMap = selectorKeys{
 	Quit:  key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }
 
-// boardKeys defines key bindings for the board view.
-type boardKeys struct {
+// Shared board-level keys (present on all tabs).
+var (
+	keyTab  = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch tab"))
+	keyEsc  = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
+	keyQuit = key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit"))
+)
+
+// kanbanKeys defines key bindings for the kanban board tab.
+type kanbanKeys struct {
+	Left    key.Binding
+	Right   key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	ToggleD key.Binding
+	Tab     key.Binding
+	Esc     key.Binding
+	Quit    key.Binding
+}
+
+func (k kanbanKeys) ShortHelp() []key.Binding {
+	return []key.Binding{k.Left, k.Up, k.ToggleD, k.Tab, k.Esc, k.Quit}
+}
+
+func (k kanbanKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Left, k.Right, k.Up, k.Down},
+		{k.ToggleD, k.Tab, k.Esc, k.Quit},
+	}
+}
+
+var kanbanKeyMap = kanbanKeys{
+	Left:    key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "prev column")),
+	Right:   key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "next column")),
+	Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "prev task")),
+	Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "next task")),
+	ToggleD: key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle done")),
+	Tab:     keyTab,
+	Esc:     keyEsc,
+	Quit:    keyQuit,
+}
+
+// eventLogKeys defines key bindings for the event log tab.
+type eventLogKeys struct {
+	Up   key.Binding
+	Down key.Binding
 	Tab  key.Binding
 	Esc  key.Binding
 	Quit key.Binding
 }
 
-func (k boardKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Tab, k.Esc, k.Quit}
+func (k eventLogKeys) ShortHelp() []key.Binding {
+	return []key.Binding{k.Up, k.Down, k.Tab, k.Esc, k.Quit}
 }
 
-func (k boardKeys) FullHelp() [][]key.Binding {
+func (k eventLogKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Tab, k.Esc, k.Quit},
+		{k.Up, k.Down, k.Tab, k.Esc, k.Quit},
 	}
 }
 
-var boardKeyMap = boardKeys{
-	Tab:  key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch tab")),
-	Esc:  key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back to boards")),
-	Quit: key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+var eventLogKeyMap = eventLogKeys{
+	Up:   key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
+	Down: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
+	Tab:  keyTab,
+	Esc:  keyEsc,
+	Quit: keyQuit,
 }
 
 func newHelp() help.Model {

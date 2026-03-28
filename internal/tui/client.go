@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/workflow"
 )
 
 // Client is a thin HTTP client for the TaskFlow API.
@@ -31,6 +32,16 @@ func (c *Client) GetBoard(slug string) (model.Board, error) {
 func (c *Client) ListTasks(boardSlug string) ([]model.Task, error) {
 	var tasks []model.Task
 	return tasks, c.get("/boards/"+boardSlug+"/tasks?include_closed=true", &tasks)
+}
+
+func (c *Client) GetBoardAudit(boardSlug string) ([]model.AuditEntry, error) {
+	var entries []model.AuditEntry
+	return entries, c.get("/boards/"+boardSlug+"/audit", &entries)
+}
+
+func (c *Client) GetWorkflow(boardSlug string) (*workflow.Workflow, error) {
+	var wf workflow.Workflow
+	return &wf, c.get("/boards/"+boardSlug+"/workflow", &wf)
 }
 
 func (c *Client) get(path string, out any) error {
