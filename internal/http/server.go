@@ -18,11 +18,12 @@ type Server struct {
 // NewServer creates a new HTTP server backed by the given TaskFlow service.
 func NewServer(svc taskflow.TaskFlow) *Server {
 	s := &Server{
-		svc:         svc,
-		router:      chi.NewRouter(),
-		openAPISpec: generateOpenAPISpec(),
+		svc:    svc,
+		router: chi.NewRouter(),
 	}
-	s.routes()
+	routes := s.allRoutes()
+	s.openAPISpec = generateOpenAPISpec(routes)
+	s.registerRoutes()
 	return s
 }
 

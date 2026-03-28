@@ -47,23 +47,6 @@ func authMiddleware(svc taskflow.TaskFlow) func(http.Handler) http.Handler {
 	}
 }
 
-// requireRole returns middleware that checks the actor's role against a minimum role.
-func requireRole(minRole model.Role) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			actor := ActorFrom(r.Context())
-			if !roleAtLeast(actor.Role, minRole) {
-				writeError(w, http.StatusForbidden, "forbidden", "insufficient permissions", map[string]any{
-					"required_role": minRole,
-					"actor_role":    actor.Role,
-				})
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 // roleAtLeast returns true if the actor's role meets or exceeds the required role.
 func roleAtLeast(actorRole, required model.Role) bool {
 	hierarchy := map[model.Role]int{

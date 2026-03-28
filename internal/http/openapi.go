@@ -5,172 +5,10 @@ import (
 	"reflect"
 	"strings"
 	"time"
-
-	"github.com/bricef/taskflow/internal/model"
 )
 
-// routeMeta describes an API route for OpenAPI spec generation.
-type routeMeta struct {
-	Method  string
-	Path    string
-	Summary string
-	MinRole model.Role
-	Status  int
-	Input   any // nil, or a zero-value instance of the request body type
-	Output  any // nil, or a zero-value instance of the response type
-	Params  []paramMeta
-}
-
-type paramMeta struct {
-	Name     string
-	In       string // "path" or "query"
-	Type     string // "string", "integer", "boolean"
-	Required bool
-	Desc     string
-}
-
-// routeMetadata returns the metadata for all API routes.
-// This is the single source of truth that drives both chi registration and OpenAPI generation.
-func routeMetadata() []routeMeta {
-	return []routeMeta{
-		// Actors
-		{Method: "POST", Path: "/actors", Summary: "Create an actor", MinRole: model.RoleAdmin, Status: 201,
-			Input: model.CreateActorParams{}, Output: model.Actor{}},
-		{Method: "GET", Path: "/actors", Summary: "List all actors", MinRole: model.RoleReadOnly, Status: 200,
-			Output: []model.Actor{}},
-		{Method: "GET", Path: "/actors/{name}", Summary: "Get an actor by name", MinRole: model.RoleReadOnly, Status: 200,
-			Output: model.Actor{}, Params: []paramMeta{{Name: "name", In: "path", Type: "string", Required: true}}},
-		{Method: "PATCH", Path: "/actors/{name}", Summary: "Update an actor", MinRole: model.RoleAdmin, Status: 200,
-			Input: model.UpdateActorParams{}, Output: model.Actor{}, Params: []paramMeta{{Name: "name", In: "path", Type: "string", Required: true}}},
-
-		// Boards
-		{Method: "POST", Path: "/boards", Summary: "Create a board", MinRole: model.RoleMember, Status: 201,
-			Input: model.CreateBoardParams{}, Output: model.Board{}},
-		{Method: "GET", Path: "/boards", Summary: "List boards", MinRole: model.RoleReadOnly, Status: 200,
-			Output: []model.Board{}, Params: []paramMeta{
-				{Name: "include_deleted", In: "query", Type: "boolean", Desc: "Include soft-deleted boards"},
-			}},
-		{Method: "GET", Path: "/boards/{slug}", Summary: "Get a board", MinRole: model.RoleReadOnly, Status: 200,
-			Output: model.Board{}, Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-		{Method: "PATCH", Path: "/boards/{slug}", Summary: "Update a board", MinRole: model.RoleMember, Status: 200,
-			Input: model.UpdateBoardParams{}, Output: model.Board{}, Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-		{Method: "DELETE", Path: "/boards/{slug}", Summary: "Delete a board (soft-delete)", MinRole: model.RoleAdmin, Status: 204,
-			Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-		{Method: "POST", Path: "/boards/{slug}/reassign", Summary: "Reassign tasks to another board", MinRole: model.RoleAdmin, Status: 200,
-			Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-
-		// Workflows
-		{Method: "GET", Path: "/boards/{slug}/workflow", Summary: "Get the board's workflow definition", MinRole: model.RoleReadOnly, Status: 200,
-			Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-		{Method: "PUT", Path: "/boards/{slug}/workflow", Summary: "Replace the board's workflow", MinRole: model.RoleMember, Status: 204,
-			Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-		{Method: "GET", Path: "/boards/{slug}/workflow/health", Summary: "Check workflow health", MinRole: model.RoleReadOnly, Status: 200,
-			Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-
-		// Tasks
-		{Method: "POST", Path: "/boards/{slug}/tasks", Summary: "Create a task", MinRole: model.RoleMember, Status: 201,
-			Input: model.CreateTaskParams{}, Output: model.Task{}, Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-		{Method: "GET", Path: "/boards/{slug}/tasks", Summary: "List tasks (with filters and search)", MinRole: model.RoleReadOnly, Status: 200,
-			Output: []model.Task{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "state", In: "query", Type: "string", Desc: "Filter by workflow state"},
-				{Name: "assignee", In: "query", Type: "string", Desc: "Filter by assignee name"},
-				{Name: "priority", In: "query", Type: "string", Desc: "Filter by priority (critical/high/medium/low/none)"},
-				{Name: "tag", In: "query", Type: "string", Desc: "Filter by tag"},
-				{Name: "q", In: "query", Type: "string", Desc: "Full-text search query"},
-				{Name: "include_closed", In: "query", Type: "boolean", Desc: "Include tasks in terminal states"},
-				{Name: "include_deleted", In: "query", Type: "boolean", Desc: "Include soft-deleted tasks"},
-				{Name: "sort", In: "query", Type: "string", Desc: "Sort field (created_at/updated_at/priority/due_date)"},
-				{Name: "order", In: "query", Type: "string", Desc: "Sort order (asc/desc)"},
-			}},
-		{Method: "GET", Path: "/boards/{slug}/tasks/{num}", Summary: "Get a task", MinRole: model.RoleReadOnly, Status: 200,
-			Output: model.Task{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "PATCH", Path: "/boards/{slug}/tasks/{num}", Summary: "Update a task", MinRole: model.RoleMember, Status: 200,
-			Input: model.UpdateTaskParams{}, Output: model.Task{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "POST", Path: "/boards/{slug}/tasks/{num}/transition", Summary: "Transition a task to a new state", MinRole: model.RoleMember, Status: 200,
-			Input: model.TransitionTaskParams{}, Output: model.Task{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "DELETE", Path: "/boards/{slug}/tasks/{num}", Summary: "Delete a task (soft-delete)", MinRole: model.RoleMember, Status: 204,
-			Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-
-		// Comments
-		{Method: "POST", Path: "/boards/{slug}/tasks/{num}/comments", Summary: "Add a comment to a task", MinRole: model.RoleMember, Status: 201,
-			Input: model.CreateCommentParams{}, Output: model.Comment{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "GET", Path: "/boards/{slug}/tasks/{num}/comments", Summary: "List comments on a task", MinRole: model.RoleReadOnly, Status: 200,
-			Output: []model.Comment{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "PATCH", Path: "/comments/{id}", Summary: "Edit a comment", MinRole: model.RoleMember, Status: 200,
-			Input: model.UpdateCommentParams{}, Output: model.Comment{}, Params: []paramMeta{{Name: "id", In: "path", Type: "integer", Required: true}}},
-
-		// Dependencies
-		{Method: "POST", Path: "/boards/{slug}/tasks/{num}/dependencies", Summary: "Add a dependency", MinRole: model.RoleMember, Status: 201,
-			Input: model.CreateDependencyParams{}, Output: model.Dependency{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "GET", Path: "/boards/{slug}/tasks/{num}/dependencies", Summary: "List dependencies for a task", MinRole: model.RoleReadOnly, Status: 200,
-			Output: []model.Dependency{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "DELETE", Path: "/dependencies/{id}", Summary: "Remove a dependency", MinRole: model.RoleMember, Status: 204,
-			Params: []paramMeta{{Name: "id", In: "path", Type: "integer", Required: true}}},
-
-		// Attachments
-		{Method: "POST", Path: "/boards/{slug}/tasks/{num}/attachments", Summary: "Add an attachment", MinRole: model.RoleMember, Status: 201,
-			Input: model.CreateAttachmentParams{}, Output: model.Attachment{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "GET", Path: "/boards/{slug}/tasks/{num}/attachments", Summary: "List attachments on a task", MinRole: model.RoleReadOnly, Status: 200,
-			Output: []model.Attachment{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "DELETE", Path: "/attachments/{id}", Summary: "Remove an attachment", MinRole: model.RoleMember, Status: 204,
-			Params: []paramMeta{{Name: "id", In: "path", Type: "integer", Required: true}}},
-
-		// Webhooks
-		{Method: "POST", Path: "/webhooks", Summary: "Create a webhook", MinRole: model.RoleAdmin, Status: 201,
-			Input: model.CreateWebhookParams{}, Output: model.Webhook{}},
-		{Method: "GET", Path: "/webhooks", Summary: "List webhooks", MinRole: model.RoleAdmin, Status: 200,
-			Output: []model.Webhook{}},
-		{Method: "GET", Path: "/webhooks/{id}", Summary: "Get a webhook", MinRole: model.RoleAdmin, Status: 200,
-			Output: model.Webhook{}, Params: []paramMeta{{Name: "id", In: "path", Type: "integer", Required: true}}},
-		{Method: "PATCH", Path: "/webhooks/{id}", Summary: "Update a webhook", MinRole: model.RoleAdmin, Status: 200,
-			Input: model.UpdateWebhookParams{}, Output: model.Webhook{}, Params: []paramMeta{{Name: "id", In: "path", Type: "integer", Required: true}}},
-		{Method: "DELETE", Path: "/webhooks/{id}", Summary: "Delete a webhook", MinRole: model.RoleAdmin, Status: 204,
-			Params: []paramMeta{{Name: "id", In: "path", Type: "integer", Required: true}}},
-
-		// Audit
-		{Method: "GET", Path: "/boards/{slug}/tasks/{num}/audit", Summary: "Get audit log for a task", MinRole: model.RoleReadOnly, Status: 200,
-			Output: []model.AuditEntry{}, Params: []paramMeta{
-				{Name: "slug", In: "path", Type: "string", Required: true},
-				{Name: "num", In: "path", Type: "integer", Required: true},
-			}},
-		{Method: "GET", Path: "/boards/{slug}/audit", Summary: "Get audit log for a board", MinRole: model.RoleReadOnly, Status: 200,
-			Output: []model.AuditEntry{}, Params: []paramMeta{{Name: "slug", In: "path", Type: "string", Required: true}}},
-	}
-}
-
-// generateOpenAPISpec walks the route metadata and generates an OpenAPI 3.1 JSON document.
-func generateOpenAPISpec() []byte {
+// generateOpenAPISpec walks the route list and generates an OpenAPI 3.1 JSON document.
+func generateOpenAPISpec(routes []route) []byte {
 	spec := map[string]any{
 		"openapi": "3.1.0",
 		"info": map[string]any{
@@ -201,16 +39,16 @@ func generateOpenAPISpec() []byte {
 	paths := map[string]any{}
 	schemas := spec["components"].(map[string]any)["schemas"].(map[string]any)
 
-	for _, rm := range routeMetadata() {
+	for _, rt := range routes {
 		op := map[string]any{
-			"summary":  rm.Summary,
+			"summary":  rt.Summary,
 			"security": []any{map[string]any{"bearerAuth": []any{}}},
-			"tags":     []string{tagFromPath(rm.Path)},
+			"tags":     []string{tagFromPath(rt.Path)},
 		}
 
 		// Parameters
 		var params []any
-		for _, p := range rm.Params {
+		for _, p := range rt.Params {
 			param := map[string]any{
 				"name":     p.Name,
 				"in":       p.In,
@@ -227,9 +65,9 @@ func generateOpenAPISpec() []byte {
 		}
 
 		// Request body
-		if rm.Input != nil {
-			schemaName := typeName(rm.Input)
-			schemas[schemaName] = typeToSchema(reflect.TypeOf(rm.Input))
+		if rt.Input != nil {
+			schemaName := typeName(rt.Input)
+			schemas[schemaName] = typeToSchema(reflect.TypeOf(rt.Input))
 			op["requestBody"] = map[string]any{
 				"required": true,
 				"content": map[string]any{
@@ -242,9 +80,9 @@ func generateOpenAPISpec() []byte {
 
 		// Responses
 		responses := map[string]any{}
-		statusStr := statusString(rm.Status)
-		if rm.Output != nil {
-			outType := reflect.TypeOf(rm.Output)
+		statusStr := statusString(rt.Status)
+		if rt.Output != nil {
+			outType := reflect.TypeOf(rt.Output)
 			var responseSchema map[string]any
 			if outType.Kind() == reflect.Slice {
 				elemName := typeName(reflect.New(outType.Elem()).Elem().Interface())
@@ -254,7 +92,7 @@ func generateOpenAPISpec() []byte {
 					"items": map[string]any{"$ref": "#/components/schemas/" + elemName},
 				}
 			} else {
-				schemaName := typeName(rm.Output)
+				schemaName := typeName(rt.Output)
 				schemas[schemaName] = typeToSchema(outType)
 				responseSchema = map[string]any{"$ref": "#/components/schemas/" + schemaName}
 			}
@@ -278,12 +116,11 @@ func generateOpenAPISpec() []byte {
 		op["responses"] = responses
 
 		// Add to paths
-		oaPath := chiPathToOpenAPI(rm.Path)
-		method := strings.ToLower(rm.Method)
-		if _, ok := paths[oaPath]; !ok {
-			paths[oaPath] = map[string]any{}
+		method := strings.ToLower(rt.Method)
+		if _, ok := paths[rt.Path]; !ok {
+			paths[rt.Path] = map[string]any{}
 		}
-		paths[oaPath].(map[string]any)[method] = op
+		paths[rt.Path].(map[string]any)[method] = op
 	}
 
 	spec["paths"] = paths
@@ -358,7 +195,6 @@ func goTypeToProperty(t reflect.Type) map[string]any {
 		return map[string]any{"type": "boolean"}
 	case reflect.Slice:
 		if t.Elem().Kind() == reflect.Uint8 {
-			// json.RawMessage or []byte
 			return map[string]any{}
 		}
 		return map[string]any{"type": "array", "items": goTypeToProperty(t.Elem())}
@@ -407,12 +243,6 @@ func statusString(code int) string {
 	}
 }
 
-// chiPathToOpenAPI converts chi path params {name} to OpenAPI {name} (same format, no change needed).
-func chiPathToOpenAPI(path string) string {
-	return path
-}
-
-// tagFromPath extracts a tag name from the path for grouping in docs.
 func tagFromPath(path string) string {
 	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	if len(parts) == 0 {
@@ -420,7 +250,6 @@ func tagFromPath(path string) string {
 	}
 	tag := parts[0]
 	if tag == "boards" && len(parts) >= 4 {
-		// /boards/{slug}/tasks/... → tasks
 		switch parts[2] {
 		case "tasks":
 			if len(parts) >= 5 {
