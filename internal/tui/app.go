@@ -266,7 +266,7 @@ func (m Model) boardView() string {
 	case tabKanban:
 		content = m.kanban.view(m.viewport.Width, m.viewport.Height)
 	case tabEventLog:
-		content = m.eventLog.view(m.viewport.Height)
+		content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
 	}
 	m.viewport.SetContent(content)
 	b.WriteString(m.viewport.View())

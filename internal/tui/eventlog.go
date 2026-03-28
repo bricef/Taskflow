@@ -76,19 +76,23 @@ func (m *eventLogModel) seedFromAudit(entries []model.AuditEntry) {
 	m.cursor = len(m.entries) - 1
 }
 
-func (m eventLogModel) view(height int) string {
+func (m eventLogModel) view(width, height int) string {
 	if len(m.entries) == 0 {
 		return dimStyle.Render("No events yet.") + "\n"
 	}
 
-	// Split: event list on top, detail pane below.
-	detailHeight := 8
-	listHeight := height - detailHeight - 1
-	if listHeight < 3 {
-		listHeight = 3
+	// Side-by-side: event list (2/3) | detail pane (1/3).
+	detailWidth := width / 3
+	if detailWidth < 30 {
+		detailWidth = 30
+	}
+	listWidth := width - detailWidth - 3 // 2 for spacer, 1 for safety
+	if listWidth < 20 {
+		listWidth = 20
 	}
 
 	// Render event list with scrolling window around cursor.
+	listHeight := height
 	var listB strings.Builder
 	start := 0
 	if m.cursor >= listHeight {
@@ -109,13 +113,15 @@ func (m eventLogModel) view(height int) string {
 		listB.WriteString("\n")
 	}
 
-	// Render detail pane for selected entry.
-	detail := m.renderDetail()
+	detail := m.renderDetail(detailWidth, height)
 
-	return listB.String() + "\n" + detail
+	// Drop the list down one line relative to the detail panel.
+	list := "\n" + listB.String()
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, list, "  ", detail)
 }
 
-func (m eventLogModel) renderDetail() string {
+func (m eventLogModel) renderDetail(width, height int) string {
 	if m.cursor < 0 || m.cursor >= len(m.entries) {
 		return ""
 	}
@@ -161,7 +167,7 @@ func (m eventLogModel) renderDetail() string {
 	}
 
 	content := strings.Join(rows, "\n")
-	return detailBorder.Render(content)
+	return detailBorder.Width(width - 4).Render(content)
 }
 
 func detailRow(label, value string) string {
