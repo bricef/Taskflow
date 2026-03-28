@@ -2,13 +2,14 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
 )
 
-// generateOpenAPISpec walks the route list and generates an OpenAPI 3.1 JSON document.
-func generateOpenAPISpec(routes []route) []byte {
+// generateOpenAPISpec generates an OpenAPI 3.1 JSON document from the route list.
+func generateOpenAPISpec(routes []Route) []byte {
 	spec := map[string]any{
 		"openapi": "3.1.0",
 		"info": map[string]any{
@@ -46,14 +47,19 @@ func generateOpenAPISpec(routes []route) []byte {
 			"tags":     []string{tagFromPath(rt.Path)},
 		}
 
-		// Parameters
+		// Path parameters (inferred from path).
 		var params []any
+		for _, p := range rt.PathParams() {
+			params = append(params, map[string]any{
+				"name": p.Name, "in": "path", "required": true,
+				"schema": map[string]any{"type": p.Type},
+			})
+		}
+		// Query parameters.
 		for _, p := range rt.Params {
 			param := map[string]any{
-				"name":     p.Name,
-				"in":       p.In,
-				"required": p.Required,
-				"schema":   map[string]any{"type": p.Type},
+				"name": p.Name, "in": "query",
+				"schema": map[string]any{"type": p.Type},
 			}
 			if p.Desc != "" {
 				param["description"] = p.Desc
@@ -64,7 +70,7 @@ func generateOpenAPISpec(routes []route) []byte {
 			op["parameters"] = params
 		}
 
-		// Request body
+		// Request body.
 		if rt.Input != nil {
 			schemaName := typeName(rt.Input)
 			schemas[schemaName] = typeToSchema(reflect.TypeOf(rt.Input))
@@ -78,9 +84,9 @@ func generateOpenAPISpec(routes []route) []byte {
 			}
 		}
 
-		// Responses
+		// Responses.
 		responses := map[string]any{}
-		statusStr := statusString(rt.Status)
+		statusStr := fmt.Sprintf("%d", statusForAction(rt.Action))
 		if rt.Output != nil {
 			outType := reflect.TypeOf(rt.Output)
 			var responseSchema map[string]any
@@ -115,8 +121,7 @@ func generateOpenAPISpec(routes []route) []byte {
 		}
 		op["responses"] = responses
 
-		// Add to paths
-		method := strings.ToLower(rt.Method)
+		method := strings.ToLower(MethodForAction(rt.Action))
 		if _, ok := paths[rt.Path]; !ok {
 			paths[rt.Path] = map[string]any{}
 		}
@@ -124,7 +129,6 @@ func generateOpenAPISpec(routes []route) []byte {
 	}
 
 	spec["paths"] = paths
-
 	b, _ := json.MarshalIndent(spec, "", "  ")
 	return b
 }
@@ -156,8 +160,7 @@ func typeToSchema(t reflect.Type) map[string]any {
 		ft := f.Type
 		isOptional := false
 
-		// Unwrap Optional[T]
-		if ft.Name() == "Optional" || (ft.Kind() == reflect.Struct && ft.NumField() == 2 && ft.Field(0).Name == "Value" && ft.Field(1).Name == "Set") {
+		if ft.Kind() == reflect.Struct && ft.NumField() == 2 && ft.Field(0).Name == "Value" && ft.Field(1).Name == "Set" {
 			ft = ft.Field(0).Type
 			isOptional = true
 		}
@@ -228,19 +231,6 @@ func typeName(v any) string {
 		return t.Elem().Name()
 	}
 	return t.Name()
-}
-
-func statusString(code int) string {
-	switch code {
-	case 200:
-		return "200"
-	case 201:
-		return "201"
-	case 204:
-		return "204"
-	default:
-		return "200"
-	}
 }
 
 func tagFromPath(path string) string {

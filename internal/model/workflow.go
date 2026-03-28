@@ -29,3 +29,10 @@ type WorkflowToAll struct {
 	From string `json:"from"`
 	Name string `json:"name"`
 }
+
+// WorkflowHealthIssue describes a problem found during a workflow health check.
+type WorkflowHealthIssue struct {
+	State   string `json:"state"`
+	Problem string `json:"problem"` // "orphaned" or "stuck"
+	Count   int    `json:"count"`
+}

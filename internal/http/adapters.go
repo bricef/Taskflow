@@ -12,6 +12,36 @@ import (
 	"github.com/bricef/taskflow/internal/model"
 )
 
+// MethodForAction maps a domain action to an HTTP method.
+func MethodForAction(action model.Action) string {
+	switch action {
+	case model.ActionCreate:
+		return "POST"
+	case model.ActionList, model.ActionGet:
+		return "GET"
+	case model.ActionUpdate:
+		return "PATCH"
+	case model.ActionDelete:
+		return "DELETE"
+	case model.ActionSet:
+		return "PUT"
+	default:
+		return "POST"
+	}
+}
+
+// statusForAction maps a domain action to a default HTTP success status code.
+func statusForAction(action model.Action) int {
+	switch action {
+	case model.ActionCreate:
+		return 201
+	case model.ActionDelete, model.ActionSet:
+		return 204
+	default:
+		return 200
+	}
+}
+
 // handler is the inner function signature that all adapters produce.
 // It takes the request context and the HTTP request, and returns a result to serialize.
 type handler func(ctx context.Context, r *http.Request) (any, error)

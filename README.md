@@ -2,115 +2,103 @@
 
 TaskFlow is a single-user task tracker designed for fluid collaboration between a human operator and multiple AI agents. It provides a durable server as the single source of truth, with tasks organized on kanban boards that have explicitly configured workflow state machines. Any actor -- human or AI -- can create, advance, review, and manage tasks, with a full audit trail recording every action with actor attribution and timestamps.
 
-The system exposes multiple interface surfaces -- a CLI for scripting and automation, a TUI for interactive visual management, and an MCP server for AI agent integration -- all derived mechanically from a shared operation registry. Each operation is defined once as a typed Go struct, and the framework handles auth, RBAC, input parsing, validation, output formatting, and audit logging uniformly across all interfaces. The server is built with Go and SQLite (WAL mode + FTS5), deployed as a single binary or Docker container.
+## Quick Start
+
+```bash
+# Start the server (creates DB and seed admin on first run)
+TASKFLOW_SEED_ADMIN_NAME=admin ./taskflow-server
+
+# Use the CLI (reads API key from env)
+export TASKFLOW_API_KEY=$(cat seed-admin-key.txt)
+taskflow board create --slug my-board --name "My Board" --workflow '...'
+taskflow task create my-board --title "Fix auth bug" --priority high
+taskflow task list my-board
+taskflow task transition my-board 1 --transition start --comment "On it"
+```
+
+## Documentation
+
+- **[HTTP API Reference](docs/http-api.md)** — all endpoints, authentication, error handling, configuration
+- **[CLI Reference](docs/cli.md)** — all commands, flags, output formats
+- **[OpenAPI Spec](http://localhost:8374/openapi.json)** — machine-readable, auto-generated from operation definitions
 
 ## Status
 
-**Increment 1 is complete.** This provides the domain model, service layer, SQLite storage, and 74 passing tests. There is no HTTP server or CLI yet -- those come in later increments.
+**Increments 1–4 are complete.** The server and CLI are functional for full task management: actors, boards, tasks, comments, dependencies, attachments, webhooks, and audit. 127 tests passing.
 
-See [docs/](docs/) for the PRD and phase plans.
+See [docs/](docs/) for the PRD and implementation plans.
 
 ## Architecture
 
-The codebase has a clean three-layer architecture that separates domain logic from storage. To swap the storage backend (e.g., PostgreSQL), implement `repo.Store` in a new package -- nothing in `model/`, `service/`, or `taskflow/` changes.
+Operations are defined once in `model.Operations()` and consumed by three layers:
 
 ```
-                    ┌─────────────────────┐
-                    │  taskflow.TaskFlow   │  Canonical interface (35 operations)
-                    │  (interface)         │  Consumers depend on this, not on concrete types
-                    └──────────┬──────────┘
-                               │ implements
-                    ┌──────────▼──────────┐
-                    │  service.Service     │  Business logic: validation, audit recording,
-                    │                     │  task numbering, change tracking, reassignment
-                    └──────────┬──────────┘
-                               │ calls
-                    ┌──────────▼──────────┐
-                    │  repo.Store          │  Storage-agnostic interfaces + Transactor/Tx
-                    │  (interface)         │  Service passes opaque Tx through, never imports a driver
-                    └──────────┬──────────┘
-                               │ implements
-                    ┌──────────▼──────────┐
-                    │  sqlite.Store        │  SQLite via sqlx, generic struct mapper,
-                    │                     │  Scanner/Valuer types for row↔model conversion
-                    └─────────────────────┘
+model.Operations()              ← canonical domain operations (action, path, role, input/output)
+      │              │              │
+      ▼              ▼              ▼
+internal/http    internal/cli    openapi.json
+Derives:         Derives:        Derives:
+ HTTP method      command tree    endpoint docs
+ routes           flags/args      schemas
+ handlers         HTTP calls      parameters
 ```
+
+The codebase separates business logic from storage:
+
+```
+taskflow.TaskFlow  (Go interface for compile-time safety)
+      │
+service.Service    (business logic: validation, audit, orchestration)
+      │
+repo.Store         (storage-agnostic CRUD interfaces + Transactor)
+      │
+sqlite.Store       (SQLite via sqlx, generic struct mapper)
+```
+
+To swap the storage backend, implement `repo.Store` in a new package — nothing in `model/`, `service/`, or `taskflow/` changes.
 
 ## Project Structure
 
 ```
 internal/
-├── model/              Domain types — the shared language of the system
-│   ├── actor.go            Actor, ActorType (human/ai_agent), Role (admin/member/read_only)
-│   ├── board.go            Board, slug validation, workflow as JSON blob
-│   ├── task.go             Task, Priority, TaskFilter, TaskSort
-│   ├── comment.go          Comment (attributed to an actor, not necessarily the task creator)
-│   ├── dependency.go       Dependency, DependencyType (depends_on/relates_to)
-│   ├── attachment.go       Attachment — a typed reference (URL, file, git branch, commit, PR)
-│   ├── webhook.go          Webhook (event subscriptions, optionally board-scoped)
-│   ├── audit.go            AuditEntry, AuditAction (16 action types)
-│   ├── workflow.go         Workflow state machine definition (data type; engine is Increment 2)
-│   ├── optional.go         Optional[T] — distinguishes "not provided" from "provided nil"
+├── model/              Domain types and operation definitions
+│   ├── operations.go       Canonical operation list (action, path, role, input/output)
+│   ├── actor.go            Actor, ActorType, Role
+│   ├── board.go            Board, slug validation
+│   ├── task.go             Task, Priority, TaskFilter, TaskSort, TransitionTaskParams
+│   ├── comment.go          Comment
+│   ├── dependency.go       Dependency, DependencyType
+│   ├── attachment.go       Attachment, RefType
+│   ├── webhook.go          Webhook
+│   ├── audit.go            AuditEntry, AuditAction
+│   ├── workflow.go         Workflow definition, WorkflowHealthIssue
+│   ├── optional.go         Optional[T] with JSON marshaling
 │   └── errors.go           ValidationError, NotFoundError, ConflictError
 │
-├── taskflow/           The canonical interface — what the system can do
-│   └── taskflow.go         TaskFlow interface: 35 business operations grouped by entity
-│
-├── repo/               Storage contract — what the service layer needs from persistence
-│   └── repo.go             CRUD interfaces per entity + Transactor/Tx for transactions
-│
-├── service/            Business logic — storage-agnostic, owns all domain rules
-│   ├── service.go          Service struct, New() returns taskflow.TaskFlow, audit helper
-│   ├── actors.go           Validation, role checking
-│   ├── boards.go           Validation, soft-delete, task reassignment with related data migration
-│   ├── tasks.go            Validation, sequential numbering, change tracking for audit
-│   ├── comments.go         Validation, task existence check
-│   ├── dependencies.go     Validation, self-dependency prevention
-│   ├── attachments.go      Validation (ref_type + reference required)
-│   ├── webhooks.go         Validation
-│   └── audit.go            Audit query pass-through
-│
-├── sqlite/             SQLite implementation of repo.Store
-│   ├── store.go            *sqlx.DB, InTransaction, interface satisfaction check
-│   ├── migrate.go          Embedded SQL migration runner with schema_version tracking
-│   ├── mapper.go           Generic toModel/fromModel via reflection + dispatch table
-│   ├── types.go            SQLiteBool, Timestamp, NullTimestamp, StringList, JSONRaw
-│   ├── helpers.go          insertRow, queryBuilder, error helpers
-│   ├── actors.go           actorRow + CRUD
-│   ├── boards.go           boardRow + CRUD + AllocateTaskNum
-│   ├── tasks.go            taskRow + CRUD + FTS5 search + dynamic filters
-│   ├── comments.go         commentRow + CRUD
-│   ├── dependencies.go     dependencyRow + CRUD + bidirectional ref updates
-│   ├── attachments.go      attachmentRow + CRUD
-│   ├── webhooks.go         webhookRow + CRUD
-│   └── audit.go            auditRow + insert + queries
-│
-└── testutil/           Test infrastructure
-    └── testutil.go         NewTestService (returns taskflow.TaskFlow), seed helpers
+├── taskflow/           Go interface for all business operations
+├── service/            Business logic (storage-agnostic)
+├── repo/               Storage-agnostic repository interfaces
+├── sqlite/             SQLite implementation (sqlx, generic mapper)
+├── workflow/           Workflow engine (state machine, JSON Schema validation)
+├── http/               HTTP server (derived routes, middleware, OpenAPI generation)
+├── cli/                CLI client (derived commands, HTTP calls)
+└── testutil/           Test helpers
 
-migrations/
-├── embed.go                //go:embed *.sql
-├── 001_initial_schema.sql  8 tables with constraints and indexes
-└── 002_fts5.sql            FTS5 virtual table + sync triggers
+cmd/
+├── taskflow-server/    Server binary
+└── taskflow/           CLI binary
+
+migrations/             Embedded SQL migrations
 ```
-
-## Data Model
-
-- **Actors** -- humans or AI agents, identified by name, with roles (admin/member/read_only)
-- **Boards** -- kanban boards with slug identifiers and embedded workflow state machines
-- **Tasks** -- identified by `board-slug/N` (sequential per board), with priority, tags, assignee, due date
-- **Comments** -- on tasks, attributed to actors, chronologically ordered
-- **Dependencies** -- `depends_on` or `relates_to` links between tasks, can cross boards
-- **Attachments** -- typed references linking tasks to URLs, files, git branches, commits, or PRs
-- **Webhooks** -- event subscriptions with HMAC signing, optionally scoped to a board
-- **Audit Log** -- append-only record of every mutation with actor attribution
 
 ## Key Design Decisions
 
-- **`Optional[T]`** for partial updates — cleanly distinguishes "not provided" from "set to nil" without pointer hacks
-- **Attachments are references** — all attachments (including files) are typed references. File storage is an infrastructure concern outside the domain.
-- **Generic struct mapper** — `toModel`/`fromModel` use reflection with a cached dispatch table to convert between DB row types and model types. Field name mismatches panic at first use, not at query time.
-- **Scanner/Valuer types** (`SQLiteBool`, `Timestamp`, `StringList`, etc.) — contained in the sqlite package so model types stay clean (`bool`, `time.Time`, `[]string`)
+- **Operations as data** — `model.Operations()` defines every operation once; HTTP routes, CLI commands, and OpenAPI docs are all derived from it
+- **`Optional[T]`** for partial updates — cleanly distinguishes "not provided" from "set to nil" with JSON marshaling support
+- **Typed actions** — `model.Action` enum with constants; HTTP method and status are derived by the transport layer
+- **Attachments are references** — all attachments (including files) are typed references; file storage is infrastructure, not domain
+- **Generic struct mapper** — `toModel`/`fromModel` use reflection with a cached dispatch table; field mismatches panic at startup
+- **Workflow engine** — pure state machine with JSON Schema validation; workflows are validated on board creation
 
 ## Development
 

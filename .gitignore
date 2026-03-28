@@ -1,6 +1,6 @@
-# Binaries
-taskflow-server
-taskflow
+# Binaries (in repo root only)
+/taskflow-server
+/taskflow
 
 # Database
 *.db

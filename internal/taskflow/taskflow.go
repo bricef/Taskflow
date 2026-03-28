@@ -1,7 +1,11 @@
-// Package taskflow defines the canonical interface for all TaskFlow
-// business operations. The service package provides the concrete
-// implementation; consumers (HTTP handlers, CLI, tests) should depend
-// on this interface rather than the concrete type.
+// Package taskflow defines the Go interface for all TaskFlow business
+// operations. The service package provides the concrete implementation;
+// consumers (HTTP handlers, CLI, tests) should depend on this interface
+// rather than the concrete type.
+//
+// Note: model.Operations() describes the same operations as runtime metadata
+// (paths, roles, input/output types) for the HTTP, CLI, and OpenAPI layers.
+// Both must be kept in sync when operations are added or changed.
 package taskflow
 
 import (

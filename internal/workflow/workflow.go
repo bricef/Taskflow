@@ -10,24 +10,24 @@ import (
 
 // Transition is an expanded, resolved transition between two states.
 type Transition struct {
-	Name string
-	From string
-	To   string
+	Name string `json:"name"`
+	From string `json:"from"`
+	To   string `json:"to"`
 }
 
 // Workflow is a parsed, validated, and expanded state machine.
 type Workflow struct {
-	States         []string
-	InitialState   string
-	TerminalStates []string
-	Transitions    []Transition
+	States         []string     `json:"states"`
+	InitialState   string       `json:"initial_state"`
+	TerminalStates []string     `json:"terminal_states"`
+	Transitions    []Transition `json:"transitions"`
 }
 
 // HealthIssue describes a problem found during a workflow health check.
 type HealthIssue struct {
-	State   string
-	Problem string // "orphaned" (state not in workflow) or "stuck" (no outbound transitions)
-	Count   int
+	State   string `json:"state"`
+	Problem string `json:"problem"` // "orphaned" (state not in workflow) or "stuck" (no outbound transitions)
+	Count   int    `json:"count"`
 }
 
 // Parse parses a JSON workflow definition, validates it, and expands
