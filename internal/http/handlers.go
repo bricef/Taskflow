@@ -75,14 +75,17 @@ func (s *Server) createTask(ctx context.Context, r *http.Request) (any, error) {
 	}
 	p.BoardSlug = urlParamStr(r, "slug")
 	p.CreatedBy = ActorFrom(ctx).Name
+	resolveAtMe(ctx, p.Assignee)
 	return s.svc.CreateTask(ctx, p)
 }
 
 func (s *Server) listTasks(ctx context.Context, r *http.Request) (any, error) {
+	assignee := queryStr(r, "assignee")
+	resolveAtMe(ctx, assignee)
 	filter := model.TaskFilter{
 		BoardSlug:      urlParamStr(r, "slug"),
 		State:          queryStr(r, "state"),
-		Assignee:       queryStr(r, "assignee"),
+		Assignee:       assignee,
 		Tag:            queryStr(r, "tag"),
 		Query:          queryStr(r, "q"),
 		IncludeClosed:  queryBool(r, "include_closed"),
@@ -112,6 +115,9 @@ func (s *Server) updateTask(ctx context.Context, r *http.Request) (any, error) {
 	p.Num, err = urlParamInt(r, "num")
 	if err != nil {
 		return nil, err
+	}
+	if p.Assignee.Set {
+		resolveAtMe(ctx, p.Assignee.Value)
 	}
 	return s.svc.UpdateTask(ctx, p, ActorFrom(ctx).Name)
 }
@@ -249,4 +255,10 @@ func (s *Server) deleteWebhook(ctx context.Context, r *http.Request) (any, error
 		return nil, err
 	}
 	return nil, s.svc.DeleteWebhook(ctx, id)
+}
+
+// --- Tags ---
+
+func (s *Server) listTags(ctx context.Context, r *http.Request) (any, error) {
+	return s.svc.ListTags(ctx, urlParamStr(r, "slug"))
 }

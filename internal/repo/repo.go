@@ -49,6 +49,7 @@ type TaskRepo interface {
 	TaskUpdate(ctx context.Context, tx Tx, params model.UpdateTaskParams) (model.Task, error)
 	TaskSetDeleted(ctx context.Context, tx Tx, boardSlug string, num int) error
 	TaskDeleteByBoardAndNums(ctx context.Context, tx Tx, boardSlug string, nums []int) error
+	TaskListTags(ctx context.Context, boardSlug string) ([]model.TagCount, error)
 }
 
 type CommentRepo interface {

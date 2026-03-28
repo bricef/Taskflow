@@ -44,6 +44,7 @@ type TaskFlow interface {
 	UpdateTask(ctx context.Context, params model.UpdateTaskParams, actor string) (model.Task, error)
 	TransitionTask(ctx context.Context, params model.TransitionTaskParams) (model.Task, error)
 	DeleteTask(ctx context.Context, boardSlug string, num int, actor string) error
+	ListTags(ctx context.Context, boardSlug string) ([]model.TagCount, error)
 
 	// Comments
 	CreateComment(ctx context.Context, params model.CreateCommentParams) (model.Comment, error)

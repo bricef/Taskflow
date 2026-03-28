@@ -96,9 +96,11 @@ func writeServiceError(w http.ResponseWriter, err error) {
 
 	switch {
 	case errors.As(err, &ve):
-		writeError(w, http.StatusBadRequest, "validation_error", ve.Error(), map[string]any{
-			"field": ve.Field,
-		})
+		detail := map[string]any{"field": ve.Field}
+		if ve.Detail != nil {
+			detail["context"] = ve.Detail
+		}
+		writeError(w, http.StatusBadRequest, "validation_error", ve.Error(), detail)
 	case errors.As(err, &nfe):
 		writeError(w, http.StatusNotFound, "not_found", nfe.Error(), nil)
 	case errors.As(err, &ce):

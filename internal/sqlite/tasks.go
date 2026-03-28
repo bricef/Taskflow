@@ -213,3 +213,27 @@ func (s *Store) TaskDeleteByBoardAndNums(ctx context.Context, tx repo.Tx, boardS
 	_, err := asTx(tx).ExecContext(ctx, query, args...)
 	return err
 }
+
+func (s *Store) TaskListTags(ctx context.Context, boardSlug string) ([]model.TagCount, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT value AS tag, COUNT(*) AS count
+		 FROM tasks, json_each(tasks.tags)
+		 WHERE tasks.board_slug = ? AND tasks.deleted = 0
+		 GROUP BY value
+		 ORDER BY count DESC, value ASC`,
+		boardSlug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []model.TagCount
+	for rows.Next() {
+		var tc model.TagCount
+		if err := rows.Scan(&tc.Tag, &tc.Count); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tc)
+	}
+	return tags, rows.Err()
+}

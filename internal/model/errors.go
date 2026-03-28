@@ -3,9 +3,11 @@ package model
 import "fmt"
 
 // ValidationError indicates invalid input for a specific field.
+// Detail optionally carries structured context (e.g., available transitions).
 type ValidationError struct {
 	Field   string
 	Message string
+	Detail  any
 }
 
 func (e *ValidationError) Error() string {

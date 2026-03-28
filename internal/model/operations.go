@@ -184,6 +184,10 @@ func Operations() []Operation {
 			Input(TransitionTaskParams{}).Output(Task{}).Build(),
 		Remove("/boards/{slug}/tasks/{num}", "Delete a task (soft-delete)").Build(),
 
+		// Tags
+		List("/boards/{slug}/tags", "List tags in use on a board with counts").
+			Output([]TagCount{}).Build(),
+
 		// Comments
 		Create("/boards/{slug}/tasks/{num}/comments", "Add a comment to a task").
 			Input(CreateCommentParams{}).Output(Comment{}).Build(),

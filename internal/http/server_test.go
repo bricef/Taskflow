@@ -433,3 +433,217 @@ func TestWebhookCRUD(t *testing.T) {
 		t.Fatalf("expected 204, got %d", resp.StatusCode)
 	}
 }
+
+// --- Board Detail ---
+
+func TestBoardDetail(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Create board with a task and a comment.
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "my-board", "name": "My Board",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+
+	resp := env.request(t, "POST", "/boards/my-board/tasks", map[string]any{
+		"title": "Task 1", "priority": "high",
+	}, env.memberKey)
+	var task model.Task
+	env.decode(t, resp, &task)
+
+	env.request(t, "POST", fmt.Sprintf("/boards/my-board/tasks/%d/comments", task.Num), map[string]any{
+		"body": "A comment",
+	}, env.memberKey)
+
+	// Fetch board detail.
+	resp = env.request(t, "GET", "/boards/my-board/detail", nil, env.memberKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var detail map[string]any
+	env.decode(t, resp, &detail)
+
+	// Board present.
+	board := detail["board"].(map[string]any)
+	if board["slug"] != "my-board" {
+		t.Errorf("expected slug my-board, got %v", board["slug"])
+	}
+
+	// Workflow present.
+	if detail["workflow"] == nil {
+		t.Error("expected workflow in detail")
+	}
+
+	// Tasks with nested comments.
+	tasks := detail["tasks"].([]any)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	taskObj := tasks[0].(map[string]any)
+	comments := taskObj["comments"].([]any)
+	if len(comments) != 1 {
+		t.Errorf("expected 1 comment, got %d", len(comments))
+	}
+}
+
+// --- System Stats ---
+
+func TestSystemStats(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Create a board and task.
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "my-board", "name": "My Board",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+	env.request(t, "POST", "/boards/my-board/tasks", map[string]any{
+		"title": "Task 1", "priority": "none",
+	}, env.memberKey)
+
+	resp := env.request(t, "GET", "/admin/stats", nil, env.adminKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+
+	var stats map[string]any
+	env.decode(t, resp, &stats)
+
+	actors := stats["actors"].(map[string]any)
+	if actors["total"].(float64) < 2 {
+		t.Errorf("expected at least 2 actors, got %v", actors["total"])
+	}
+
+	boards := stats["boards"].(map[string]any)
+	if boards["active"].(float64) != 1 {
+		t.Errorf("expected 1 active board, got %v", boards["active"])
+	}
+
+	tasks := stats["tasks"].(map[string]any)
+	if tasks["total"].(float64) != 1 {
+		t.Errorf("expected 1 total task, got %v", tasks["total"])
+	}
+
+	activity := stats["activity"].(map[string]any)
+	if activity["total_events"].(float64) < 1 {
+		t.Errorf("expected at least 1 event, got %v", activity["total_events"])
+	}
+}
+
+// --- Cross-board Search ---
+
+func TestSearch(t *testing.T) {
+	env := newTestEnv(t)
+
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "board-a", "name": "A",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "board-b", "name": "B",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+
+	env.request(t, "POST", "/boards/board-a/tasks", map[string]any{
+		"title": "Fix authentication bug", "priority": "high",
+	}, env.memberKey)
+	env.request(t, "POST", "/boards/board-b/tasks", map[string]any{
+		"title": "Update authentication docs", "priority": "none",
+	}, env.memberKey)
+	env.request(t, "POST", "/boards/board-b/tasks", map[string]any{
+		"title": "Unrelated task", "priority": "none",
+	}, env.memberKey)
+
+	resp := env.request(t, "GET", "/search?q=authentication", nil, env.memberKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+	var results []model.Task
+	env.decode(t, resp, &results)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results across boards, got %d", len(results))
+	}
+}
+
+func TestSearchRequiresQuery(t *testing.T) {
+	env := newTestEnv(t)
+	resp := env.request(t, "GET", "/search", nil, env.memberKey)
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected 400 without q param, got %d", resp.StatusCode)
+	}
+}
+
+// --- @me alias ---
+
+func TestAtMeAlias(t *testing.T) {
+	env := newTestEnv(t)
+
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "my-board", "name": "My Board",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+
+	// Create a task assigned to @me.
+	resp := env.request(t, "POST", "/boards/my-board/tasks", map[string]any{
+		"title": "My task", "priority": "none", "assignee": "@me",
+	}, env.memberKey)
+	if resp.StatusCode != 201 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, body)
+	}
+	var task model.Task
+	env.decode(t, resp, &task)
+	if task.Assignee == nil || *task.Assignee != "member" {
+		t.Errorf("expected assignee 'member', got %v", task.Assignee)
+	}
+
+	// Filter by @me.
+	resp = env.request(t, "GET", "/boards/my-board/tasks?assignee=@me", nil, env.memberKey)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var tasks []model.Task
+	env.decode(t, resp, &tasks)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task for @me, got %d", len(tasks))
+	}
+}
+
+// --- Transition error context ---
+
+func TestTransitionErrorContext(t *testing.T) {
+	env := newTestEnv(t)
+
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "my-board", "name": "My Board",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.memberKey)
+	resp := env.request(t, "POST", "/boards/my-board/tasks", map[string]any{
+		"title": "Task", "priority": "none",
+	}, env.memberKey)
+	var task model.Task
+	env.decode(t, resp, &task)
+
+	// Try an invalid transition.
+	resp = env.request(t, "POST", fmt.Sprintf("/boards/my-board/tasks/%d/transition", task.Num), map[string]any{
+		"transition": "approve",
+	}, env.memberKey)
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+	var errResp map[string]any
+	env.decode(t, resp, &errResp)
+
+	detail := errResp["detail"].(map[string]any)
+	ctx := detail["context"].(map[string]any)
+	available := ctx["available"].([]any)
+	if len(available) == 0 {
+		t.Error("expected available transitions in error context")
+	}
+	if ctx["current_state"] != "backlog" {
+		t.Errorf("expected current_state backlog, got %v", ctx["current_state"])
+	}
+}

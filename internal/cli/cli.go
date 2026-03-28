@@ -89,7 +89,112 @@ func BuildCLI(cfg *Config) *cobra.Command {
 		getGroup(group).AddCommand(cmd)
 	}
 
+	// Convenience commands (not derived from domain operations).
+	addConvenienceCommands(root, getGroup)
+
 	return root
+}
+
+func addConvenienceCommands(root *cobra.Command, getGroup func(string) *cobra.Command) {
+	// taskflow board detail <slug>
+	getGroup("board").AddCommand(&cobra.Command{
+		Use:   "detail <slug>",
+		Short: "Get complete board with all tasks, comments, attachments, and audit",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := getConfig()
+			return doGet(cmd, cfg, "/boards/"+args[0]+"/detail")
+		},
+	})
+
+	// taskflow admin stats
+	adminCmd := &cobra.Command{Use: "admin", Short: "Administrative commands"}
+	adminCmd.AddCommand(&cobra.Command{
+		Use:   "stats",
+		Short: "Show system-wide statistics",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := getConfig()
+			return doGet(cmd, cfg, "/admin/stats")
+		},
+	})
+	root.AddCommand(adminCmd)
+
+	// taskflow search --q <query>
+	searchCmd := &cobra.Command{
+		Use:   "search",
+		Short: "Search tasks across all boards",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := getConfig()
+			q, _ := cmd.Flags().GetString("q")
+			if q == "" {
+				return fmt.Errorf("--q flag is required")
+			}
+			url := "/search?q=" + q
+			if v, _ := cmd.Flags().GetString("state"); v != "" {
+				url += "&state=" + v
+			}
+			if v, _ := cmd.Flags().GetString("assignee"); v != "" {
+				url += "&assignee=" + v
+			}
+			if v, _ := cmd.Flags().GetString("priority"); v != "" {
+				url += "&priority=" + v
+			}
+			return doGet(cmd, cfg, url)
+		},
+	}
+	searchCmd.Flags().String("q", "", "Search query (required)")
+	searchCmd.Flags().String("state", "", "Filter by state")
+	searchCmd.Flags().String("assignee", "", "Filter by assignee (supports @me)")
+	searchCmd.Flags().String("priority", "", "Filter by priority")
+	searchCmd.Flags().Bool("json", false, "Output raw JSON")
+	root.AddCommand(searchCmd)
+}
+
+// doGet is a helper for convenience commands that make a simple GET request.
+func doGet(cmd *cobra.Command, cfg Config, path string) error {
+	req, err := http.NewRequest("GET", cfg.ServerURL+path, nil)
+	if err != nil {
+		return err
+	}
+	if cfg.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode >= 400 {
+		var errResp map[string]any
+		json.Unmarshal(body, &errResp)
+		msg := "unknown error"
+		if m, ok := errResp["message"].(string); ok {
+			msg = m
+		}
+		return fmt.Errorf("error %d: %s", resp.StatusCode, msg)
+	}
+
+	w := cmd.OutOrStdout()
+	useJSON, _ := cmd.Flags().GetBool("json")
+	if useJSON || resp.StatusCode == 204 {
+		fmt.Fprintln(w, string(body))
+		return nil
+	}
+
+	// Pretty-print JSON.
+	var obj any
+	if err := json.Unmarshal(body, &obj); err != nil {
+		fmt.Fprintln(w, string(body))
+		return nil
+	}
+	pretty, _ := json.MarshalIndent(obj, "", "  ")
+	fmt.Fprintln(w, string(pretty))
+	return nil
 }
 
 func deriveCommandName(action model.Action, path string) (group, verb string) {

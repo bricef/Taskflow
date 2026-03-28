@@ -42,6 +42,14 @@ func statusForAction(action model.Action) int {
 	}
 }
 
+// resolveAtMe replaces "@me" with the authenticated actor's name.
+func resolveAtMe(ctx context.Context, s *string) {
+	if s != nil && *s == "@me" {
+		name := ActorFrom(ctx).Name
+		*s = name
+	}
+}
+
 // handler is the inner function signature that all adapters produce.
 // It takes the request context and the HTTP request, and returns a result to serialize.
 type handler func(ctx context.Context, r *http.Request) (any, error)

@@ -83,7 +83,19 @@ func (s *Service) TransitionTask(ctx context.Context, params model.TransitionTas
 
 	newState, err := w.ExecuteTransition(task.State, params.TransitionName)
 	if err != nil {
-		return model.Task{}, &model.ValidationError{Field: "transition", Message: err.Error()}
+		available := w.AvailableTransitions(task.State)
+		names := make([]string, len(available))
+		for i, t := range available {
+			names[i] = t.Name
+		}
+		return model.Task{}, &model.ValidationError{
+			Field:   "transition",
+			Message: err.Error(),
+			Detail: map[string]any{
+				"current_state": task.State,
+				"available":     names,
+			},
+		}
 	}
 
 	var updated model.Task
@@ -192,4 +204,8 @@ func (s *Service) DeleteTask(ctx context.Context, boardSlug string, num int, act
 		}
 		return s.audit(ctx, tx, boardSlug, &num, actor, model.AuditActionDeleted, nil)
 	})
+}
+
+func (s *Service) ListTags(ctx context.Context, boardSlug string) ([]model.TagCount, error) {
+	return s.store.TaskListTags(ctx, boardSlug)
 }

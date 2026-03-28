@@ -64,6 +64,9 @@ func (s *Server) routeHandlers() []handler {
 		s.transitionTask,
 		s.deleteTask,
 
+		// Tags
+		s.listTags,
+
 		// Comments
 		s.createComment,
 		pathStrInt("slug", "num", s.svc.ListComments),
@@ -110,6 +113,12 @@ func (s *Server) registerRoutes() {
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware(s.svc))
 
+		// Aggregate views (not domain operations — convenience endpoints).
+		r.Get("/boards/{slug}/detail", s.boardDetailHandler)
+		r.Get("/admin/stats", s.systemStatsHandler)
+		r.Get("/search", s.searchHandler)
+
+		// Domain operations — derived from model.Operations().
 		for _, rt := range s.allRoutes() {
 			h := s.handle(rt.MinRole, statusForAction(rt.Action), rt.Handler)
 			switch MethodForAction(rt.Action) {
