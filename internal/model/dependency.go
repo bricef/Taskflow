@@ -30,12 +30,12 @@ type Dependency struct {
 }
 
 type CreateDependencyParams struct {
-	BoardSlug      string
-	TaskNum        int
-	DependsOnBoard string
-	DependsOnNum   int
-	DependencyType DependencyType
-	CreatedBy      string
+	BoardSlug      string         `json:"-"`
+	TaskNum        int            `json:"-"`
+	DependsOnBoard string         `json:"depends_on_board"`
+	DependsOnNum   int            `json:"depends_on_num"`
+	DependencyType DependencyType `json:"dep_type"`
+	CreatedBy      string         `json:"-"`
 }
 
 func (p CreateDependencyParams) Validate() error {

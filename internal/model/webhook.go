@@ -15,11 +15,11 @@ type Webhook struct {
 }
 
 type CreateWebhookParams struct {
-	URL       string
-	Events    []string
-	BoardSlug *string
-	Secret    string
-	CreatedBy string
+	URL       string   `json:"url"`
+	Events    []string `json:"events"`
+	BoardSlug *string  `json:"board_slug"`
+	Secret    string   `json:"secret"`
+	CreatedBy string   `json:"-"`
 }
 
 func (p CreateWebhookParams) Validate() error {
@@ -36,8 +36,8 @@ func (p CreateWebhookParams) Validate() error {
 }
 
 type UpdateWebhookParams struct {
-	ID     int
-	URL    Optional[string]
-	Events Optional[[]string]
-	Active Optional[bool]
+	ID     int                `json:"-"`
+	URL    Optional[string]   `json:"url"`
+	Events Optional[[]string] `json:"events"`
+	Active Optional[bool]     `json:"active"`
 }

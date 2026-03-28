@@ -31,10 +31,10 @@ type Board struct {
 }
 
 type CreateBoardParams struct {
-	Slug        string
-	Name        string
-	Description string
-	Workflow    json.RawMessage
+	Slug        string          `json:"slug"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Workflow    json.RawMessage `json:"workflow"`
 }
 
 func (p CreateBoardParams) Validate() error {
@@ -54,9 +54,9 @@ func (p CreateBoardParams) Validate() error {
 }
 
 type UpdateBoardParams struct {
-	Slug        string
-	Name        Optional[string]
-	Description Optional[string]
+	Slug        string           `json:"-"`
+	Name        Optional[string] `json:"name"`
+	Description Optional[string] `json:"description"`
 }
 
 type ListBoardsParams struct {

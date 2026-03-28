@@ -1,0 +1,12 @@
+# Binaries
+taskflow-server
+taskflow
+
+# Database
+*.db
+
+# Seed key files
+seed-admin-key.txt
+
+# Backups
+backups/

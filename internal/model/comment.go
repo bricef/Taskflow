@@ -13,10 +13,10 @@ type Comment struct {
 }
 
 type CreateCommentParams struct {
-	BoardSlug string
-	TaskNum   int
-	Actor     string
-	Body      string
+	BoardSlug string `json:"-"`
+	TaskNum   int    `json:"-"`
+	Actor     string `json:"-"`
+	Body      string `json:"body"`
 }
 
 func (p CreateCommentParams) Validate() error {
@@ -38,6 +38,6 @@ func (p CreateCommentParams) Validate() error {
 // UpdateCommentParams always requires a new body — there is no partial
 // update for comments, so Body is a plain value rather than Optional.
 type UpdateCommentParams struct {
-	ID   int
-	Body string
+	ID   int    `json:"-"`
+	Body string `json:"body"`
 }

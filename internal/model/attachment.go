@@ -34,12 +34,12 @@ type Attachment struct {
 }
 
 type CreateAttachmentParams struct {
-	BoardSlug string
-	TaskNum   int
-	RefType   RefType
-	Reference string
-	Label     string
-	CreatedBy string
+	BoardSlug string  `json:"-"`
+	TaskNum   int     `json:"-"`
+	RefType   RefType `json:"ref_type"`
+	Reference string  `json:"reference"`
+	Label     string  `json:"label"`
+	CreatedBy string  `json:"-"`
 }
 
 func (p CreateAttachmentParams) Validate() error {

@@ -46,11 +46,11 @@ type Actor struct {
 }
 
 type CreateActorParams struct {
-	Name        string
-	DisplayName string
-	Type        ActorType
-	Role        Role
-	APIKeyHash  string
+	Name        string    `json:"name"`
+	DisplayName string    `json:"display_name"`
+	Type        ActorType `json:"type"`
+	Role        Role      `json:"role"`
+	APIKeyHash  string    `json:"-"`
 }
 
 func (p CreateActorParams) Validate() error {
@@ -67,8 +67,8 @@ func (p CreateActorParams) Validate() error {
 }
 
 type UpdateActorParams struct {
-	Name        string
-	DisplayName Optional[string]
-	Role        Optional[Role]
-	Active      Optional[bool]
+	Name        string           `json:"-"`
+	DisplayName Optional[string] `json:"display_name"`
+	Role        Optional[Role]   `json:"role"`
+	Active      Optional[bool]   `json:"active"`
 }

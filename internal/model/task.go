@@ -38,14 +38,14 @@ type Task struct {
 }
 
 type CreateTaskParams struct {
-	BoardSlug   string
-	Title       string
-	Description string
-	Priority    Priority
-	Tags        []string
-	Assignee    *string
-	DueDate     *time.Time
-	CreatedBy   string
+	BoardSlug   string     `json:"-"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Priority    Priority   `json:"priority"`
+	Tags        []string   `json:"tags"`
+	Assignee    *string    `json:"assignee"`
+	DueDate     *time.Time `json:"due_date"`
+	CreatedBy   string     `json:"-"`
 }
 
 func (p CreateTaskParams) Validate() error {
@@ -66,23 +66,23 @@ func (p CreateTaskParams) Validate() error {
 
 // TransitionTaskParams describes a task state transition.
 type TransitionTaskParams struct {
-	BoardSlug      string
-	Num            int
-	TransitionName string
-	Comment        string // Optional comment recorded with the transition.
-	Actor          string
+	BoardSlug      string `json:"-"`
+	Num            int    `json:"-"`
+	TransitionName string `json:"transition"`
+	Comment        string `json:"comment,omitempty"`
+	Actor          string `json:"-"`
 }
 
 type UpdateTaskParams struct {
-	BoardSlug   string
-	Num         int
-	Title       Optional[string]
-	Description Optional[string]
-	State       Optional[string]
-	Priority    Optional[Priority]
-	Tags        Optional[[]string]
-	Assignee    Optional[*string]    // Set with nil value clears the assignee.
-	DueDate     Optional[*time.Time] // Set with nil value clears the due date.
+	BoardSlug   string               `json:"-"`
+	Num         int                  `json:"-"`
+	Title       Optional[string]     `json:"title"`
+	Description Optional[string]     `json:"description"`
+	State       Optional[string]     `json:"state"`
+	Priority    Optional[Priority]   `json:"priority"`
+	Tags        Optional[[]string]   `json:"tags"`
+	Assignee    Optional[*string]    `json:"assignee"` // Set with nil value clears the assignee.
+	DueDate     Optional[*time.Time] `json:"due_date"` // Set with nil value clears the due date.
 }
 
 type TaskFilter struct {
