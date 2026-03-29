@@ -111,25 +111,46 @@ var eventLogKeyMap = eventLogKeys{
 type detailKeys struct {
 	Up         key.Binding
 	Down       key.Binding
+	Comment    key.Binding
 	Transition key.Binding
 	Esc        key.Binding
 	Quit       key.Binding
 }
 
 func (k detailKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Transition, k.Esc, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Comment, k.Transition, k.Esc, k.Quit}
 }
 
 func (k detailKeys) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Up, k.Down, k.Transition, k.Esc, k.Quit}}
+	return [][]key.Binding{{k.Up, k.Down, k.Comment, k.Transition, k.Esc, k.Quit}}
 }
 
 var detailKeyMap = detailKeys{
 	Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
 	Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
+	Comment:    key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
 	Esc:        key.NewBinding(key.WithKeys("esc", "backspace"), key.WithHelp("esc/⌫", "close")),
 	Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+}
+
+// commentKeys defines key bindings shown when the comment textarea is active.
+type commentKeys struct {
+	Submit key.Binding
+	Cancel key.Binding
+}
+
+func (k commentKeys) ShortHelp() []key.Binding {
+	return []key.Binding{k.Submit, k.Cancel}
+}
+
+func (k commentKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{k.Submit, k.Cancel}}
+}
+
+var commentKeyMap = commentKeys{
+	Submit: key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "submit")),
+	Cancel: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 }
 
 func newHelp() help.Model {

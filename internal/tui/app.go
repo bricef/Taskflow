@@ -209,6 +209,24 @@ func (m *Model) resizeViewport() {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// When the comment input is active, all keys go to the textarea.
+		if m.detail != nil && m.detail.commenting {
+			switch msg.String() {
+			case "ctrl+c":
+				return m, tea.Quit
+			case "esc":
+				m.detail.commenting = false
+				m.detail.postErr = ""
+				return m, nil
+			case "ctrl+s":
+				cmd := m.detail.submitComment(m.client, m.cfg.APIKey)
+				return m, cmd
+			default:
+				cmd := m.detail.update(msg)
+				return m, cmd
+			}
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -236,6 +254,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "t":
 			if m.view == viewBoard && m.transition == nil {
 				return m, m.openTransitionFromContext()
+			}
+		case "c":
+			if m.detail != nil && m.detail.data != nil && !m.detail.commenting {
+				m.detail.startComment()
+				return m, m.detail.input.Focus()
 			}
 		case "enter":
 			if m.view == viewBoard && m.detail == nil && m.transition == nil {
@@ -287,6 +310,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.transition = nil
 			}
 			return m, cmd
+		}
+		return m, nil
+
+	case commentPosted:
+		if m.detail != nil {
+			if msg.err != nil {
+				m.detail.postErr = msg.err.Error()
+			} else {
+				m.detail.data.comments = append(m.detail.data.comments, msg.comment)
+				m.detail.commenting = false
+				m.detail.postErr = ""
+			}
 		}
 		return m, nil
 
@@ -432,7 +467,9 @@ func (m Model) boardView() string {
 
 	// Context-specific help.
 	var keyMap help.KeyMap
-	if m.detail != nil {
+	if m.detail != nil && m.detail.commenting {
+		keyMap = commentKeyMap
+	} else if m.detail != nil {
 		keyMap = detailKeyMap
 	} else {
 		switch m.activeTab {

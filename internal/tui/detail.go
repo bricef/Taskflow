@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/bricef/taskflow/internal/model"
@@ -49,11 +50,55 @@ func fetchTaskDetail(client *Client, boardSlug string, num int) tea.Cmd {
 	}
 }
 
+// commentPosted is sent when a comment is successfully created.
+type commentPosted struct {
+	comment model.Comment
+	err     error
+}
+
 // detailModel is the task detail overlay.
 type detailModel struct {
-	data    *taskDetailData
-	loading bool
-	err     error
+	data     *taskDetailData
+	loading  bool
+	err      error
+	// Comment input
+	commenting bool
+	input      textarea.Model
+	postErr    string
+}
+
+func (m *detailModel) startComment() {
+	ti := textarea.New()
+	ti.Placeholder = "Write a comment..."
+	ti.CharLimit = 4000
+	ti.SetWidth(60)
+	ti.SetHeight(4)
+	ti.Focus()
+	m.input = ti
+	m.commenting = true
+	m.postErr = ""
+}
+
+func (m *detailModel) submitComment(client *Client, apiKey string) tea.Cmd {
+	body := strings.TrimSpace(m.input.Value())
+	if body == "" {
+		m.commenting = false
+		return nil
+	}
+	task := m.data.task
+	return func() tea.Msg {
+		comment, err := client.CreateComment(task.BoardSlug, task.Num, body)
+		return commentPosted{comment: comment, err: err}
+	}
+}
+
+func (m *detailModel) update(msg tea.Msg) tea.Cmd {
+	if !m.commenting {
+		return nil
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return cmd
 }
 
 func (m detailModel) view(width, height int) string {
@@ -124,6 +169,15 @@ func (m detailModel) view(width, height int) string {
 		for _, c := range d.comments {
 			ts := c.CreatedAt.Format("01/02 15:04")
 			b.WriteString(fmt.Sprintf("  %s %s: %s\n", dimStyle.Render(ts), c.Actor, c.Body))
+		}
+	}
+
+	// Comment input.
+	if m.commenting {
+		b.WriteString(detailSectionStyle.Render("New Comment") + "\n")
+		b.WriteString(m.input.View() + "\n")
+		if m.postErr != "" {
+			b.WriteString(errorStyle.Render(m.postErr) + "\n")
 		}
 	}
 

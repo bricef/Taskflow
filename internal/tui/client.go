@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -67,6 +68,42 @@ func (c *Client) GetBoardAudit(boardSlug string) ([]model.AuditEntry, error) {
 func (c *Client) GetWorkflow(boardSlug string) (*workflow.Workflow, error) {
 	var wf workflow.Workflow
 	return &wf, c.get("/boards/"+boardSlug+"/workflow", &wf)
+}
+
+func (c *Client) CreateComment(boardSlug string, num int, body string) (model.Comment, error) {
+	var comment model.Comment
+	return comment, c.post(fmt.Sprintf("/boards/%s/tasks/%d/comments", boardSlug, num), map[string]string{"body": body}, &comment)
+}
+
+func (c *Client) post(path string, payload any, out any) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", c.baseURL+path, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		var errResp map[string]any
+		json.NewDecoder(resp.Body).Decode(&errResp)
+		msg := fmt.Sprintf("API error: status %d", resp.StatusCode)
+		if m, ok := errResp["message"].(string); ok {
+			msg = m
+		}
+		return fmt.Errorf("%s", msg)
+	}
+
+	return json.NewDecoder(resp.Body).Decode(out)
 }
 
 func (c *Client) get(path string, out any) error {
