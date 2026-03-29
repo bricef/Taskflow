@@ -493,7 +493,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.listView.update(keyMsg)
 		}
 	case m.view == viewBoard && m.activeTab == tabWorkflow:
-		m.viewport, _ = m.viewport.Update(msg)
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.String() {
+			case "down", "j":
+				m.viewport.ScrollDown(1)
+			case "up", "k":
+				m.viewport.ScrollUp(1)
+			}
+		}
 	case m.view == viewBoard && m.activeTab == tabEventLog:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			switch keyMsg.String() {
