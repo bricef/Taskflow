@@ -38,9 +38,9 @@ const (
 
 var tabNames = []string{"Board", "Events"}
 
-// chromeFixed is the lines used by header, tabs, padding, and footer newline
-// (excludes help, which varies by view). Header(1) + Tabs(1) + padding(1) + footer newline(1) = 4
-const chromeFixed = 4
+// chromeFixed is the lines used by header, tabs, and footer newline
+// (excludes help, which varies by view). Header(1) + Tabs(1) + footer newline(1) = 3
+const chromeFixed = 3
 
 // Model is the root Bubble Tea model.
 type Model struct {
@@ -208,12 +208,8 @@ func parseNumFromRef(ref string) int {
 }
 
 func (m *Model) resizeViewport() {
-	extra := 0
-	if m.lastError != "" {
-		extra = 1
-	}
 	helpHeight := strings.Count(m.help.View(m.activeKeyMap()), "\n") + 1
-	contentHeight := m.height - chromeFixed - extra - helpHeight
+	contentHeight := m.height - chromeFixed - helpHeight
 	if contentHeight < 1 {
 		contentHeight = 1
 	}
@@ -474,7 +470,7 @@ func (m Model) boardView() string {
 
 	var b strings.Builder
 
-	// Header.
+	// Header: title + SSE status + last error.
 	var status string
 	switch m.sseStatus {
 	case "live":
@@ -488,7 +484,11 @@ func (m Model) boardView() string {
 	if m.activeBoard.Name != "" {
 		boardName = m.activeBoard.Name
 	}
-	b.WriteString(fmt.Sprintf("%s  %s", titleStyle.Render("TaskFlow — "+boardName), status) + "\n")
+	header := fmt.Sprintf("%s  %s", titleStyle.Render("TaskFlow — "+boardName), status)
+	if m.lastError != "" {
+		header += "  " + errorStyle.Render(m.lastError)
+	}
+	b.WriteString(header + "\n")
 
 	// Tabs (hidden when an overlay is open).
 	if m.detail == nil && m.transition == nil && m.assign == nil {
@@ -504,11 +504,6 @@ func (m Model) boardView() string {
 	} else {
 		b.WriteString("\n")
 	}
-
-	if m.lastError != "" {
-		b.WriteString(errorStyle.Render(m.lastError) + "\n")
-	}
-	b.WriteString("\n")
 
 	// Tab content rendered into the viewport.
 	var content string
