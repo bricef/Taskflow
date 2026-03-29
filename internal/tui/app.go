@@ -98,14 +98,21 @@ type boardSelected struct {
 	board model.Board
 }
 
-func (m *Model) openTransition() tea.Cmd {
+func (m *Model) openTransitionFromContext() tea.Cmd {
 	if m.activeBoard == nil {
 		return nil
 	}
-	task := m.kanban.selectedTask()
+
+	var task *model.Task
+	if m.detail != nil && m.detail.data != nil {
+		task = &m.detail.data.task
+	} else {
+		task = m.kanban.selectedTask()
+	}
 	if task == nil {
 		return nil
 	}
+
 	tm, cmd := newTransition(m.client, m.activeBoard.Slug, *task)
 	m.transition = tm
 	return cmd
@@ -227,8 +234,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.GotoTop()
 			}
 		case "t":
-			if m.view == viewBoard && m.detail == nil && m.transition == nil {
-				return m, m.openTransition()
+			if m.view == viewBoard && m.transition == nil {
+				return m, m.openTransitionFromContext()
 			}
 		case "enter":
 			if m.view == viewBoard && m.detail == nil && m.transition == nil {
