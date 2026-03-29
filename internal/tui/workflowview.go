@@ -50,7 +50,8 @@ func (m *workflowViewModel) load(wf *workflow.Workflow) {
 	m.content = "" // invalidate cache
 }
 
-func (m *workflowViewModel) update(msg tea.KeyMsg) {
+func (m *workflowViewModel) update(msg tea.KeyMsg, width, height int) {
+	m.ensureContent(width, height)
 	switch msg.String() {
 	case "down", "j":
 		m.vp.ScrollDown(1)
@@ -59,10 +60,16 @@ func (m *workflowViewModel) update(msg tea.KeyMsg) {
 	}
 }
 
-func (m *workflowViewModel) resize(width, height int) {
-	m.vp.Width = width
-	m.vp.Height = height
-	m.content = "" // invalidate cache so it re-renders at new width
+func (m *workflowViewModel) ensureContent(width, height int) {
+	if m.vp.Width != width || m.vp.Height != height {
+		m.vp.Width = width
+		m.vp.Height = height
+		m.content = ""
+	}
+	if m.content == "" && m.ready {
+		m.content = m.render(width)
+		m.vp.SetContent(m.content)
+	}
 }
 
 func (m *workflowViewModel) render(width int) string {
@@ -127,17 +134,7 @@ func (m *workflowViewModel) render(width int) string {
 }
 
 func (m *workflowViewModel) view(width, height int) string {
-	// Resize viewport if dimensions changed.
-	if m.vp.Width != width || m.vp.Height != height {
-		m.resize(width, height)
-	}
-
-	// Render content if not cached.
-	if m.content == "" {
-		m.content = m.render(width)
-		m.vp.SetContent(m.content)
-	}
-
+	m.ensureContent(width, height)
 	return m.vp.View()
 }
 
