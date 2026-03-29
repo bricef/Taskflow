@@ -62,7 +62,8 @@ type Model struct {
 	lastError   string
 	eventLog    eventLogModel
 	kanban      kanbanModel
-	detail      *detailModel // non-nil when detail overlay is open
+	detail     *detailModel     // non-nil when detail overlay is open
+	transition *transitionModel // non-nil when transition overlay is open
 }
 
 // New creates a new TUI model.
@@ -95,6 +96,19 @@ func (m Model) Init() tea.Cmd {
 // boardSelected is sent when a board is chosen.
 type boardSelected struct {
 	board model.Board
+}
+
+func (m *Model) openTransition() tea.Cmd {
+	if m.activeBoard == nil {
+		return nil
+	}
+	task := m.kanban.selectedTask()
+	if task == nil {
+		return nil
+	}
+	tm, cmd := newTransition(m.client, m.activeBoard.Slug, *task)
+	m.transition = tm
+	return cmd
 }
 
 func (m *Model) openDetail() tea.Cmd {
@@ -192,8 +206,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "esc", "backspace":
+			if m.transition != nil {
+				m.transition = nil
+				return m, nil
+			}
 			if m.detail != nil {
-				// Close detail overlay.
 				m.detail = nil
 				return m, nil
 			}
@@ -209,13 +226,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeTab = (m.activeTab + 1) % tabCount
 				m.viewport.GotoTop()
 			}
+		case "t":
+			if m.view == viewBoard && m.detail == nil && m.transition == nil {
+				return m, m.openTransition()
+			}
 		case "enter":
-			if m.view == viewBoard && m.detail == nil {
+			if m.view == viewBoard && m.detail == nil && m.transition == nil {
 				return m, m.openDetail()
 			}
 		}
 
-		// When detail is open, don't pass keys to sub-views.
+		// When an overlay is open, delegate to it.
+		if m.transition != nil {
+			closed, cmd := m.transition.update(msg, m.client, m.cfg.APIKey)
+			if closed {
+				m.transition = nil
+			}
+			return m, cmd
+		}
 		if m.detail != nil {
 			return m, nil
 		}
@@ -243,6 +271,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case boardDataLoaded:
 		m.kanban.load(msg)
 		m.eventLog.seedFromAudit(msg.audit)
+		return m, nil
+
+	case transitionsLoaded, transitionResult:
+		if m.transition != nil {
+			closed, cmd := m.transition.update(msg, m.client, m.cfg.APIKey)
+			if closed {
+				m.transition = nil
+			}
+			return m, cmd
+		}
 		return m, nil
 
 	case taskDetailLoaded:
@@ -371,8 +409,10 @@ func (m Model) boardView() string {
 	case tabEventLog:
 		content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
 	}
-	// Detail overlay replaces tab content when open.
-	if m.detail != nil {
+	// Overlays replace tab content when open.
+	if m.transition != nil {
+		content = m.transition.view(m.viewport.Width)
+	} else if m.detail != nil {
 		content = m.detail.view(m.viewport.Width, m.viewport.Height)
 	}
 

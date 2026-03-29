@@ -42,38 +42,40 @@ var (
 
 // kanbanKeys defines key bindings for the kanban board tab.
 type kanbanKeys struct {
-	Left    key.Binding
-	Right   key.Binding
-	Up      key.Binding
-	Down    key.Binding
-	Enter   key.Binding
-	ToggleD key.Binding
-	Tab     key.Binding
-	Esc     key.Binding
-	Quit    key.Binding
+	Left       key.Binding
+	Right      key.Binding
+	Up         key.Binding
+	Down       key.Binding
+	Enter      key.Binding
+	Transition key.Binding
+	ToggleD    key.Binding
+	Tab        key.Binding
+	Esc        key.Binding
+	Quit       key.Binding
 }
 
 func (k kanbanKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Left, k.Up, k.Enter, k.ToggleD, k.Tab, k.Esc, k.Quit}
+	return []key.Binding{k.Left, k.Up, k.Enter, k.Transition, k.ToggleD, k.Tab, k.Esc, k.Quit}
 }
 
 func (k kanbanKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Left, k.Right, k.Up, k.Down},
-		{k.ToggleD, k.Tab, k.Esc, k.Quit},
+		{k.Enter, k.Transition, k.ToggleD, k.Tab, k.Esc, k.Quit},
 	}
 }
 
 var kanbanKeyMap = kanbanKeys{
-	Left:    key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "prev column")),
-	Right:   key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "next column")),
-	Up:      key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "prev task")),
-	Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "next task")),
-	Enter:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
-	ToggleD: key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle done")),
-	Tab:     keyTab,
-	Esc:     keyEsc,
-	Quit:    keyQuit,
+	Left:       key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "prev column")),
+	Right:      key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "next column")),
+	Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "prev task")),
+	Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "next task")),
+	Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
+	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
+	ToggleD:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle done")),
+	Tab:        keyTab,
+	Esc:        keyEsc,
+	Quit:       keyQuit,
 }
 
 // eventLogKeys defines key bindings for the event log tab.
