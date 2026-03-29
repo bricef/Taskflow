@@ -127,6 +127,24 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 			b.WriteString(line + "\n")
 		}
 
+		// Draw vertical drops into the next layer's boxes.
+		if len(forward) > 0 {
+			drops := make([]rune, width)
+			for i := range drops {
+				drops[i] = ' '
+			}
+			for _, t := range forward {
+				x := stateCenter[t.To]
+				if x >= 0 && x < width {
+					drops[x] = '│'
+				}
+			}
+			dropLine := strings.TrimRight(string(drops), " ")
+			if strings.TrimSpace(dropLine) != "" {
+				b.WriteString(dropLine + "\n")
+			}
+		}
+
 		// Back-edges and skip-edges as labeled text, centered.
 		for _, t := range back {
 			label := styles.Label.Render(t.Name)
