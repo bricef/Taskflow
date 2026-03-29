@@ -61,6 +61,7 @@ type Model struct {
 	lastError   string
 	eventLog    eventLogModel
 	kanban      kanbanModel
+	detail      *detailModel // non-nil when detail overlay is open
 }
 
 // New creates a new TUI model.
@@ -95,6 +96,43 @@ type boardSelected struct {
 	board model.Board
 }
 
+func (m *Model) openDetail() tea.Cmd {
+	var boardSlug string
+	var num int
+
+	if m.activeBoard != nil {
+		boardSlug = m.activeBoard.Slug
+	}
+
+	switch m.activeTab {
+	case tabKanban:
+		if t := m.kanban.selectedTask(); t != nil {
+			num = t.Num
+		}
+	case tabEventLog:
+		// Try to get task num from the selected event.
+		if m.eventLog.cursor >= 0 && m.eventLog.cursor < len(m.eventLog.entries) {
+			entry := m.eventLog.entries[m.eventLog.cursor]
+			if entry.event != nil && entry.event.Task != nil {
+				// Parse num from ref "board/num".
+				ref := entry.event.Task.Ref
+				if idx := strings.LastIndex(ref, "/"); idx >= 0 {
+					fmt.Sscanf(ref[idx+1:], "%d", &num)
+				}
+			} else if entry.audit != nil && entry.audit.TaskNum != nil {
+				num = *entry.audit.TaskNum
+			}
+		}
+	}
+
+	if boardSlug == "" || num == 0 {
+		return nil
+	}
+
+	m.detail = &detailModel{loading: true}
+	return fetchTaskDetail(m.client, boardSlug, num)
+}
+
 func (m *Model) resizeViewport() {
 	extra := 0
 	if m.lastError != "" {
@@ -114,7 +152,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "esc":
+		case "esc", "backspace":
+			if m.detail != nil {
+				// Close detail overlay.
+				m.detail = nil
+				return m, nil
+			}
 			if m.view == viewBoard {
 				m.view = viewSelector
 				m.activeBoard = nil
@@ -123,10 +166,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, fetchBoards(m.client)
 			}
 		case "tab":
-			if m.view == viewBoard {
+			if m.view == viewBoard && m.detail == nil {
 				m.activeTab = (m.activeTab + 1) % tabCount
 				m.viewport.GotoTop()
 			}
+		case "enter":
+			if m.view == viewBoard && m.detail == nil {
+				return m, m.openDetail()
+			}
+		}
+
+		// When detail is open, don't pass keys to sub-views.
+		if m.detail != nil {
+			return m, nil
 		}
 
 	case tea.WindowSizeMsg:
@@ -152,6 +204,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case boardDataLoaded:
 		m.kanban.load(msg)
 		m.eventLog.seedFromAudit(msg.audit)
+		return m, nil
+
+	case taskDetailLoaded:
+		if m.detail != nil {
+			if msg.err != nil {
+				m.detail.err = msg.err
+			} else {
+				m.detail.data = &msg.data
+			}
+			m.detail.loading = false
+		}
 		return m, nil
 
 	case SSEConnected:
@@ -268,15 +331,25 @@ func (m Model) boardView() string {
 	case tabEventLog:
 		content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
 	}
+	// Detail overlay replaces tab content when open.
+	if m.detail != nil {
+		content = m.detail.view(m.viewport.Width, m.viewport.Height)
+	}
+
 	m.viewport.SetContent(content)
 	b.WriteString(m.viewport.View())
-	// Tab-specific help.
+
+	// Context-specific help.
 	var keyMap help.KeyMap
-	switch m.activeTab {
-	case tabKanban:
-		keyMap = kanbanKeyMap
-	case tabEventLog:
-		keyMap = eventLogKeyMap
+	if m.detail != nil {
+		keyMap = detailKeyMap
+	} else {
+		switch m.activeTab {
+		case tabKanban:
+			keyMap = kanbanKeyMap
+		case tabEventLog:
+			keyMap = eventLogKeyMap
+		}
 	}
 	b.WriteString("\n" + m.help.View(keyMap))
 	return b.String()

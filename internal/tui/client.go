@@ -34,6 +34,31 @@ func (c *Client) ListTasks(boardSlug string) ([]model.Task, error) {
 	return tasks, c.get("/boards/"+boardSlug+"/tasks?include_closed=true", &tasks)
 }
 
+func (c *Client) GetTask(boardSlug string, num int) (model.Task, error) {
+	var task model.Task
+	return task, c.get(fmt.Sprintf("/boards/%s/tasks/%d", boardSlug, num), &task)
+}
+
+func (c *Client) ListComments(boardSlug string, num int) ([]model.Comment, error) {
+	var comments []model.Comment
+	return comments, c.get(fmt.Sprintf("/boards/%s/tasks/%d/comments", boardSlug, num), &comments)
+}
+
+func (c *Client) ListDependencies(boardSlug string, num int) ([]model.Dependency, error) {
+	var deps []model.Dependency
+	return deps, c.get(fmt.Sprintf("/boards/%s/tasks/%d/dependencies", boardSlug, num), &deps)
+}
+
+func (c *Client) ListAttachments(boardSlug string, num int) ([]model.Attachment, error) {
+	var atts []model.Attachment
+	return atts, c.get(fmt.Sprintf("/boards/%s/tasks/%d/attachments", boardSlug, num), &atts)
+}
+
+func (c *Client) GetTaskAudit(boardSlug string, num int) ([]model.AuditEntry, error) {
+	var entries []model.AuditEntry
+	return entries, c.get(fmt.Sprintf("/boards/%s/tasks/%d/audit", boardSlug, num), &entries)
+}
+
 func (c *Client) GetBoardAudit(boardSlug string) ([]model.AuditEntry, error) {
 	var entries []model.AuditEntry
 	return entries, c.get("/boards/"+boardSlug+"/audit", &entries)
