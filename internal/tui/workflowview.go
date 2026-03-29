@@ -45,15 +45,6 @@ func (m workflowViewModel) view(width, height int) string {
 	wf := m.workflow
 	var b strings.Builder
 
-	// Title and legend.
-	b.WriteString(wfHeaderStyle.Render("Workflow") + "\n\n")
-	legend := []string{
-		wfInitialBox.Render("Initial"),
-		wfTerminalBox.Render("Terminal"),
-		wfStateBox.Render("Intermediate"),
-	}
-	b.WriteString(wrapBoxes(legend, width, "  ") + "\n")
-
 	// States section.
 	b.WriteString(wfHeaderStyle.Render("States") + "\n")
 	var stateBoxes []string
