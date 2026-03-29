@@ -494,12 +494,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case m.view == viewBoard && m.activeTab == tabWorkflow:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			switch keyMsg.String() {
-			case "down", "j":
-				m.viewport.ScrollDown(1)
-			case "up", "k":
-				m.viewport.ScrollUp(1)
-			}
+			m.workflowView.update(keyMsg)
 		}
 	case m.view == viewBoard && m.activeTab == tabEventLog:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
@@ -581,28 +576,31 @@ func (m Model) boardView() string {
 	}
 
 	// Tab content rendered into the viewport.
-	var content string
-	switch m.activeTab {
-	case tabKanban:
-		content = m.kanban.view(m.viewport.Width, m.viewport.Height)
-	case tabList:
-		content = m.listView.view(m.viewport.Width, m.viewport.Height)
-	case tabWorkflow:
-		content = m.workflowView.view(m.viewport.Width, m.viewport.Height)
-	case tabEventLog:
-		content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
-	}
-	// Overlays replace tab content when open.
-	if m.assign != nil {
-		content = m.assign.view(m.viewport.Width)
-	} else if m.transition != nil {
-		content = m.transition.view(m.viewport.Width)
-	} else if m.detail != nil {
-		content = m.detail.view(m.viewport.Width, m.viewport.Height)
-	}
+	// The workflow tab has its own viewport for independent scrolling.
+	if m.activeTab == tabWorkflow && m.detail == nil && m.transition == nil && m.assign == nil {
+		b.WriteString(m.workflowView.view(m.viewport.Width, m.viewport.Height))
+	} else {
+		var content string
+		switch m.activeTab {
+		case tabKanban:
+			content = m.kanban.view(m.viewport.Width, m.viewport.Height)
+		case tabList:
+			content = m.listView.view(m.viewport.Width, m.viewport.Height)
+		case tabEventLog:
+			content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
+		}
+		// Overlays replace tab content when open.
+		if m.assign != nil {
+			content = m.assign.view(m.viewport.Width)
+		} else if m.transition != nil {
+			content = m.transition.view(m.viewport.Width)
+		} else if m.detail != nil {
+			content = m.detail.view(m.viewport.Width, m.viewport.Height)
+		}
 
-	m.viewport.SetContent(content)
-	b.WriteString(m.viewport.View())
+		m.viewport.SetContent(content)
+		b.WriteString(m.viewport.View())
+	}
 
 	// Context-specific help.
 	b.WriteString("\n" + m.help.View(m.activeKeyMap()))

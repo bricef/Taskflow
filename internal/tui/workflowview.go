@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/bricef/taskflow/internal/workflow"
@@ -37,15 +39,33 @@ var (
 
 type workflowViewModel struct {
 	workflow *workflow.Workflow
+	vp       viewport.Model
+	content  string // cached rendered content
 	ready    bool
 }
 
 func (m *workflowViewModel) load(wf *workflow.Workflow) {
 	m.workflow = wf
 	m.ready = true
+	m.content = "" // invalidate cache
 }
 
-func (m workflowViewModel) view(width, height int) string {
+func (m *workflowViewModel) update(msg tea.KeyMsg) {
+	switch msg.String() {
+	case "down", "j":
+		m.vp.ScrollDown(1)
+	case "up", "k":
+		m.vp.ScrollUp(1)
+	}
+}
+
+func (m *workflowViewModel) resize(width, height int) {
+	m.vp.Width = width
+	m.vp.Height = height
+	m.content = "" // invalidate cache so it re-renders at new width
+}
+
+func (m *workflowViewModel) render(width int) string {
 	if !m.ready || m.workflow == nil {
 		return dimStyle.Render("Loading workflow...") + "\n"
 	}
@@ -104,6 +124,21 @@ func (m workflowViewModel) view(width, height int) string {
 	b.WriteString(RenderWorkflowGraph(wf, width, wfGraphStyles))
 
 	return b.String()
+}
+
+func (m *workflowViewModel) view(width, height int) string {
+	// Resize viewport if dimensions changed.
+	if m.vp.Width != width || m.vp.Height != height {
+		m.resize(width, height)
+	}
+
+	// Render content if not cached.
+	if m.content == "" {
+		m.content = m.render(width)
+		m.vp.SetContent(m.content)
+	}
+
+	return m.vp.View()
 }
 
 // wrapBoxes lays out rendered boxes horizontally, wrapping to new lines
