@@ -168,7 +168,13 @@ func (m detailModel) view(width, height int) string {
 		b.WriteString(detailSectionStyle.Render(fmt.Sprintf("Comments (%d)", len(d.comments))) + "\n")
 		for _, c := range d.comments {
 			ts := c.CreatedAt.Format("01/02 15:04")
-			b.WriteString(fmt.Sprintf("  %s %s: %s\n", dimStyle.Render(ts), c.Actor, c.Body))
+			prefix := fmt.Sprintf("  %s %s: ", dimStyle.Render(ts), c.Actor)
+			indent := strings.Repeat(" ", 2+11+1+len(c.Actor)+2) // "  " + "MM/DD HH:MM" + " " + actor + ": "
+			lines := strings.Split(c.Body, "\n")
+			b.WriteString(prefix + lines[0] + "\n")
+			for _, line := range lines[1:] {
+				b.WriteString(indent + line + "\n")
+			}
 		}
 	}
 
