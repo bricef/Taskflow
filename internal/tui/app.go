@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/model"
 )
 
@@ -133,6 +134,44 @@ func (m *Model) openDetail() tea.Cmd {
 	return fetchTaskDetail(m.client, boardSlug, num)
 }
 
+func (m *Model) applySSEToKanban(evt eventbus.Event) {
+	if evt.Task == nil || m.activeBoard == nil {
+		return
+	}
+	ref := evt.Task.Ref
+	boardSlug := m.activeBoard.Slug
+
+	switch evt.Type {
+	case eventbus.EventTaskCreated:
+		// Add a minimal task from the event data — enough to display a card.
+		m.kanban.updateTask(model.Task{
+			BoardSlug: boardSlug,
+			Num:       parseNumFromRef(ref),
+			Title:     evt.Task.Title,
+			State:     evt.Task.State,
+			Priority:  model.PriorityNone,
+		})
+	case eventbus.EventTaskTransitioned:
+		m.kanban.updateTaskState(parseNumFromRef(ref), evt.Task.State)
+	case eventbus.EventTaskUpdated, eventbus.EventTaskAssigned:
+		// For updates we don't have the full data — refetch would be ideal
+		// but for now just update state if present.
+		if evt.Task.State != "" {
+			m.kanban.updateTaskState(parseNumFromRef(ref), evt.Task.State)
+		}
+	case eventbus.EventTaskDeleted:
+		m.kanban.removeTask(boardSlug, parseNumFromRef(ref))
+	}
+}
+
+func parseNumFromRef(ref string) int {
+	var num int
+	if idx := strings.LastIndex(ref, "/"); idx >= 0 {
+		fmt.Sscanf(ref[idx+1:], "%d", &num)
+	}
+	return num
+}
+
 func (m *Model) resizeViewport() {
 	extra := 0
 	if m.lastError != "" {
@@ -224,6 +263,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SSEEvent:
 		m.eventLog.addEvent(msg.Event)
+		m.applySSEToKanban(msg.Event)
 		return m, nil
 
 	case SSEError:
