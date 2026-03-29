@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/workflow"
 )
 
 type sortField int
@@ -27,6 +28,7 @@ var sortFieldNames = []string{"#", "Title", "State", "Priority", "Assignee"}
 
 type listViewModel struct {
 	tasks    []model.Task
+	workflow *workflow.Workflow
 	table    table.Model
 	sortBy   sortField
 	sortAsc  bool
@@ -72,6 +74,7 @@ func (m *listViewModel) load(data boardDataLoaded) {
 		return
 	}
 	m.tasks = data.tasks
+	m.workflow = data.workflow
 	m.ready = true
 	m.rebuild()
 }
@@ -164,6 +167,15 @@ func (m *listViewModel) rebuild() {
 		}
 	}
 	m.table.SetRows(rows)
+
+	// Update column headers to show sort indicator.
+	cols := m.table.Columns()
+	for i := range cols {
+		if i < int(sortFieldCount) {
+			cols[i].Title = m.colHeader(sortField(i))
+		}
+	}
+	m.table.SetColumns(cols)
 }
 
 func (m *listViewModel) filteredTasks() []model.Task {
@@ -172,23 +184,12 @@ func (m *listViewModel) filteredTasks() []model.Task {
 		if t.Deleted {
 			continue
 		}
-		if !m.showDone && isTerminalState(t.State) {
+		if !m.showDone && m.workflow != nil && m.workflow.IsTerminal(t.State) {
 			continue
 		}
 		result = append(result, t)
 	}
 	return result
-}
-
-func isTerminalState(state string) bool {
-	// Match the common terminal states. The kanban view uses workflow.IsTerminal
-	// but we don't have the workflow here — these cover the defaults and the
-	// product board's custom workflow.
-	switch state {
-	case "done", "cancelled", "shipped", "wontfix":
-		return true
-	}
-	return false
 }
 
 func (m *listViewModel) sortTasks(tasks []model.Task) {

@@ -153,6 +153,10 @@ func (m *Model) openDetail() tea.Cmd {
 		if t := m.kanban.selectedTask(); t != nil {
 			num = t.Num
 		}
+	case tabList:
+		if t := m.listView.selectedTask(); t != nil {
+			num = t.Num
+		}
 	case tabEventLog:
 		// Try to get task num from the selected event.
 		if m.eventLog.cursor >= 0 && m.eventLog.cursor < len(m.eventLog.entries) {
