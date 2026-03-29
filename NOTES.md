@@ -2,6 +2,13 @@
 
 - [ ] **TUI resize**: Resizing the terminal (especially making it larger) causes layout issues. The kanban columns, event log, and viewport don't reliably recalculate their dimensions. Needs a deeper investigation into how Bubble Tea's value-receiver model interacts with viewport sizing.
 
+## Planned TUI Features
+
+- [ ] **List view**: Sortable table as an alternative to kanban (tab to switch). Columns: num, title, state, priority, assignee, due date.
+- [ ] **Filter bar**: Filter tasks by assignee, priority, tags, state — applies to both kanban and list views.
+- [ ] **Dependency tree**: Show a visual dependency tree in the task detail view.
+- [ ] **Workflow visualisation**: A board tab showing the workflow graph (states and transitions).
+
 ---
 
 ### Q: this system might be used for someone (something?) like you in the future. what would you like to see out of it? any design decisions that would make your life easier?

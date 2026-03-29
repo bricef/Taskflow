@@ -32,11 +32,12 @@ type boardTab int
 
 const (
 	tabKanban boardTab = iota
+	tabList
 	tabEventLog
 	tabCount // keep last for cycling
 )
 
-var tabNames = []string{"Board", "Events"}
+var tabNames = []string{"Board", "List", "Events"}
 
 // chromeFixed is the lines used by header, tabs, and footer newline
 // (excludes help, which varies by view). Header(1) + Tabs(1) + footer newline(1) = 3
@@ -62,6 +63,7 @@ type Model struct {
 	lastError   string
 	eventLog    eventLogModel
 	kanban      kanbanModel
+	listView    listViewModel
 	detail     *detailModel     // non-nil when detail overlay is open
 	transition *transitionModel // non-nil when transition overlay is open
 	assign     *assignModel     // non-nil when assign overlay is open
@@ -103,7 +105,13 @@ func (m *Model) selectedTaskFromContext() *model.Task {
 	if m.detail != nil && m.detail.data != nil {
 		return &m.detail.data.task
 	}
-	return m.kanban.selectedTask()
+	switch m.activeTab {
+	case tabKanban:
+		return m.kanban.selectedTask()
+	case tabList:
+		return m.listView.selectedTask()
+	}
+	return nil
 }
 
 func (m *Model) openAssignFromContext() tea.Cmd {
@@ -213,6 +221,25 @@ func (m *Model) refreshDetailIfAffected(evt eventbus.Event) tea.Cmd {
 	return fetchTaskDetail(m.client, m.activeBoard.Slug, task.Num)
 }
 
+func (m *Model) applySSEToList(evt eventbus.Event) {
+	if m.activeBoard == nil {
+		return
+	}
+	boardSlug := m.activeBoard.Slug
+
+	switch evt.Type {
+	case eventbus.EventTaskCreated, eventbus.EventTaskTransitioned,
+		eventbus.EventTaskUpdated, eventbus.EventTaskAssigned:
+		if evt.After != nil {
+			m.listView.updateTask(snapshotToTask(boardSlug, evt.After))
+		}
+	case eventbus.EventTaskDeleted:
+		if evt.Before != nil {
+			m.listView.removeTask(boardSlug, evt.Before.Num)
+		}
+	}
+}
+
 func snapshotToTask(boardSlug string, snap *eventbus.TaskSnapshot) model.Task {
 	return model.Task{
 		BoardSlug: boardSlug,
@@ -245,6 +272,8 @@ func (m Model) activeKeyMap() help.KeyMap {
 	switch m.activeTab {
 	case tabKanban:
 		return kanbanKeyMap
+	case tabList:
+		return listKeyMap
 	case tabEventLog:
 		return eventLogKeyMap
 	}
@@ -357,6 +386,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sseStatus = "connecting..."
 		m.eventLog = eventLogModel{}
 		m.kanban = newKanban()
+		m.listView = newListView()
 		m.resizeViewport()
 		if m.cfg.Program != nil && *m.cfg.Program != nil {
 			startSSE(*m.cfg.Program, m.cfg.ServerURL, msg.board.Slug, m.cfg.APIKey)
@@ -365,6 +395,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case boardDataLoaded:
 		m.kanban.load(msg)
+		m.listView.load(msg)
 		m.eventLog.seedFromAudit(msg.audit)
 		return m, nil
 
@@ -419,6 +450,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SSEEvent:
 		m.eventLog.addEvent(msg.Event)
 		m.applySSEToKanban(msg.Event)
+		m.applySSEToList(msg.Event)
 		// Refresh the detail overlay if it's showing the affected task.
 		if cmd := m.refreshDetailIfAffected(msg.Event); cmd != nil {
 			return m, cmd
@@ -446,6 +478,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case m.view == viewBoard && m.activeTab == tabKanban:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			m.kanban.update(keyMsg)
+		}
+	case m.view == viewBoard && m.activeTab == tabList:
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			m.listView.update(keyMsg)
 		}
 	case m.view == viewBoard && m.activeTab == tabEventLog:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
@@ -531,6 +567,8 @@ func (m Model) boardView() string {
 	switch m.activeTab {
 	case tabKanban:
 		content = m.kanban.view(m.viewport.Width, m.viewport.Height)
+	case tabList:
+		content = m.listView.view(m.viewport.Width, m.viewport.Height)
 	case tabEventLog:
 		content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
 	}

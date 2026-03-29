@@ -82,6 +82,48 @@ var kanbanKeyMap = kanbanKeys{
 	Quit:       keyQuit,
 }
 
+// listKeys defines key bindings for the list view tab.
+type listKeys struct {
+	Up         key.Binding
+	Down       key.Binding
+	Enter      key.Binding
+	Sort       key.Binding
+	SortDir    key.Binding
+	Transition key.Binding
+	Assign     key.Binding
+	ToggleD    key.Binding
+	Tab        key.Binding
+	Esc        key.Binding
+	Quit       key.Binding
+}
+
+func (k listKeys) ShortHelp() []key.Binding {
+	return []key.Binding{keyHelp, k.Up, k.Enter, k.Sort, k.Transition, k.Assign, k.Tab, k.Quit}
+}
+
+func (k listKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down},
+		{k.Enter, k.Transition, k.Assign},
+		{k.Sort, k.SortDir, k.ToggleD},
+		{k.Tab, k.Esc, k.Quit},
+	}
+}
+
+var listKeyMap = listKeys{
+	Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "prev task")),
+	Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "next task")),
+	Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
+	Sort:       key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "cycle sort")),
+	SortDir:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "reverse sort")),
+	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
+	Assign:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign")),
+	ToggleD:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle done")),
+	Tab:        keyTab,
+	Esc:        keyEsc,
+	Quit:       keyQuit,
+}
+
 // eventLogKeys defines key bindings for the event log tab.
 type eventLogKeys struct {
 	Up    key.Binding
