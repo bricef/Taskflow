@@ -127,6 +127,20 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 			b.WriteString(line + "\n")
 		}
 
+		// Back-edges and skip-edges as labeled text, centered.
+		for _, t := range back {
+			label := styles.Label.Render(t.Name)
+			arrow := styles.Arrow.Render("↩")
+			line := fmt.Sprintf("%s %s %s  %s", t.From, arrow, t.To, label)
+			b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, line) + "\n")
+		}
+		for _, t := range skip {
+			label := styles.Label.Render(t.Name)
+			arrow := styles.Arrow.Render("→")
+			line := fmt.Sprintf("%s %s %s  %s", t.From, arrow, t.To, label)
+			b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, line) + "\n")
+		}
+
 		// Draw vertical drops into the next layer's boxes.
 		if len(forward) > 0 {
 			drops := make([]rune, width)
@@ -143,20 +157,6 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 			if strings.TrimSpace(dropLine) != "" {
 				b.WriteString(dropLine + "\n")
 			}
-		}
-
-		// Back-edges and skip-edges as labeled text, centered.
-		for _, t := range back {
-			label := styles.Label.Render(t.Name)
-			arrow := styles.Arrow.Render("↩")
-			line := fmt.Sprintf("%s %s %s  %s", t.From, arrow, t.To, label)
-			b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, line) + "\n")
-		}
-		for _, t := range skip {
-			label := styles.Label.Render(t.Name)
-			arrow := styles.Arrow.Render("→")
-			line := fmt.Sprintf("%s %s %s  %s", t.From, arrow, t.To, label)
-			b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, line) + "\n")
 		}
 	}
 
