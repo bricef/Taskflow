@@ -149,7 +149,7 @@ func (k commentKeys) FullHelp() [][]key.Binding {
 }
 
 var commentKeyMap = commentKeys{
-	Submit: key.NewBinding(key.WithKeys("ctrl+enter"), key.WithHelp("ctrl+enter", "submit")),
+	Submit: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "submit")),
 	Cancel: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 }
 
