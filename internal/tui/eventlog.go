@@ -103,8 +103,8 @@ func (m eventLogModel) view(width, height int) string {
 		end = len(m.entries)
 	}
 
-	lineStyle := lipgloss.NewStyle().Width(listWidth).MaxWidth(listWidth)
-	selStyle := selectedLineStyle.Width(listWidth).MaxWidth(listWidth)
+	lineStyle := lipgloss.NewStyle().MaxWidth(listWidth)
+	selStyle := selectedLineStyle.MaxWidth(listWidth)
 	for i := start; i < end; i++ {
 		line := m.entries[i].line
 		if i == m.cursor {
