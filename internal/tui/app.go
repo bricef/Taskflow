@@ -443,7 +443,7 @@ var (
 	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	eventStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("76"))
 	errorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	tabActive   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Background(lipgloss.Color("39")).Padding(0, 1)
+	tabActive   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Background(lipgloss.Color("24")).Padding(0, 1)
 	tabInactive = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Padding(0, 1)
 )
 
