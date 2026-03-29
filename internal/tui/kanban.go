@@ -247,9 +247,9 @@ func (m kanbanModel) view(width, height int) string {
 	}
 
 	// Each card is ~4 lines tall (2 content + 2 border).
-	maxRows := height / 4
-	if maxRows < 2 {
-		maxRows = 2
+	maxVisible := height / 4
+	if maxVisible < 2 {
+		maxVisible = 2
 	}
 
 	var cols []string
@@ -259,13 +259,25 @@ func (m kanbanModel) view(width, height int) string {
 
 		header := columnHeaderStyle.Width(colWidth).Render(fmt.Sprintf("%s (%d)", state, len(tasks)))
 
+		// Compute scroll window for the selected column.
+		scrollStart := 0
+		if isSelectedCol && m.rowCursor >= maxVisible {
+			scrollStart = m.rowCursor - maxVisible + 1
+		}
+		scrollEnd := scrollStart + maxVisible
+		if scrollEnd > len(tasks) {
+			scrollEnd = len(tasks)
+		}
+
 		var cards []string
-		for ri, task := range tasks {
-			if ri >= maxRows {
-				cards = append(cards, dimStyle.Render(fmt.Sprintf("  +%d more", len(tasks)-maxRows)))
-				break
-			}
-			cards = append(cards, renderCard(task, cardWidth, isSelectedCol && ri == m.rowCursor))
+		if scrollStart > 0 {
+			cards = append(cards, dimStyle.Render(fmt.Sprintf("  ↑ %d more", scrollStart)))
+		}
+		for ri := scrollStart; ri < scrollEnd; ri++ {
+			cards = append(cards, renderCard(tasks[ri], cardWidth, isSelectedCol && ri == m.rowCursor))
+		}
+		if scrollEnd < len(tasks) {
+			cards = append(cards, dimStyle.Render(fmt.Sprintf("  ↓ %d more", len(tasks)-scrollEnd)))
 		}
 		if len(tasks) == 0 {
 			cards = append(cards, dimStyle.Width(colWidth).Render("  (empty)"))
