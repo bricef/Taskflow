@@ -492,6 +492,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			m.listView.update(keyMsg)
 		}
+	case m.view == viewBoard && m.activeTab == tabWorkflow:
+		m.viewport, _ = m.viewport.Update(msg)
 	case m.view == viewBoard && m.activeTab == tabEventLog:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			switch keyMsg.String() {

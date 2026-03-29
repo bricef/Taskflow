@@ -126,22 +126,27 @@ var listKeyMap = listKeys{
 
 // workflowKeys defines key bindings for the workflow visualisation tab.
 type workflowKeys struct {
+	Up   key.Binding
+	Down key.Binding
 	Tab  key.Binding
 	Esc  key.Binding
 	Quit key.Binding
 }
 
 func (k workflowKeys) ShortHelp() []key.Binding {
-	return []key.Binding{keyHelp, k.Tab, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Down, k.Tab, k.Esc, k.Quit}
 }
 
 func (k workflowKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
+		{k.Up, k.Down},
 		{k.Tab, k.Esc, k.Quit},
 	}
 }
 
 var workflowKeyMap = workflowKeys{
+	Up:   key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
+	Down: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
 	Tab:  keyTab,
 	Esc:  keyEsc,
 	Quit: keyQuit,
