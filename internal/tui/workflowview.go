@@ -22,8 +22,8 @@ var (
 			Padding(0, 1).
 			BorderForeground(lipgloss.Color("241")).
 			Foreground(lipgloss.Color("241"))
-	wfArrowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	wfLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	wfArrowStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
+	wfLabelStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	wfHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
 )
 
@@ -47,11 +47,12 @@ func (m workflowViewModel) view(width, height int) string {
 
 	// Title and legend.
 	b.WriteString(wfHeaderStyle.Render("Workflow") + "\n\n")
-	b.WriteString(fmt.Sprintf("  %s initial   %s terminal   %s intermediate\n\n",
-		lipgloss.NewStyle().Border(lipgloss.DoubleBorder()).BorderForeground(lipgloss.Color("39")).Padding(0, 1).Render("state"),
-		lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("241")).Foreground(lipgloss.Color("241")).Padding(0, 1).Render("state"),
-		lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).Render("state"),
-	))
+	legend := []string{
+		wfInitialBox.Render("Initial"),
+		wfTerminalBox.Render("Terminal"),
+		wfStateBox.Render("Intermediate"),
+	}
+	b.WriteString(wrapBoxes(legend, width, "  ") + "\n")
 
 	// States section.
 	b.WriteString(wfHeaderStyle.Render("States") + "\n")
