@@ -122,15 +122,19 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 		}
 
 		// Render forward connectors as plain-text lines using rune buffers.
+		// Track previous target positions so later connectors show │ where
+		// earlier ones pass through.
+		var prevTargets []int
 		for _, t := range forward {
-			line := drawConnector(stateCenter[t.From], stateCenter[t.To], t.Name, width, styles)
+			line := drawConnectorWithContinuations(stateCenter[t.From], stateCenter[t.To], t.Name, width, styles, prevTargets)
 			b.WriteString(line + "\n")
+			prevTargets = append(prevTargets, stateCenter[t.To])
 		}
 
 		// Back-edges and skip-edges as labeled text, centered.
 		for _, t := range back {
 			label := styles.Label.Render(t.Name)
-			arrow := styles.Arrow.Render("↩")
+			arrow := styles.Arrow.Render("→")
 			line := fmt.Sprintf("%s %s %s  %s", t.From, arrow, t.To, label)
 			b.WriteString(lipgloss.PlaceHorizontal(width, lipgloss.Center, line) + "\n")
 		}
@@ -163,15 +167,13 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 	return b.String()
 }
 
-// drawConnector renders a single connector line between two X positions.
-// The line uses Unicode box-drawing characters and appends a styled label.
-// All positions are in visible character units.
-func drawConnector(fromX, toX int, label string, width int, styles GraphStyles) string {
+// drawConnectorWithContinuations renders a connector line between fromX and toX,
+// placing │ at each position in continuations where a previous connector passes through.
+func drawConnectorWithContinuations(fromX, toX int, label string, width int, styles GraphStyles, continuations []int) string {
 	if width <= 0 {
 		width = 80
 	}
 
-	// Build a rune buffer for the connector line.
 	buf := make([]rune, width)
 	for i := range buf {
 		buf[i] = ' '
@@ -190,11 +192,15 @@ func drawConnector(fromX, toX int, label string, width int, styles GraphStyles) 
 	fromX = clamp(fromX)
 	toX = clamp(toX)
 
+	// Place continuation markers first (may be overwritten by the connector).
+	for _, cx := range continuations {
+		cx = clamp(cx)
+		buf[cx] = '│'
+	}
+
 	if fromX == toX {
-		// Straight down.
 		buf[fromX] = '│'
 	} else {
-		// Horizontal connector with corners.
 		minX, maxX := fromX, toX
 		if minX > maxX {
 			minX, maxX = maxX, minX
@@ -202,7 +208,6 @@ func drawConnector(fromX, toX int, label string, width int, styles GraphStyles) 
 		for x := minX; x <= maxX; x++ {
 			buf[x] = '─'
 		}
-		// Corners: fromX gets a turn down-to-horizontal, toX gets vertical down.
 		if toX > fromX {
 			buf[fromX] = '╰'
 			buf[toX] = '╮'
@@ -210,9 +215,16 @@ func drawConnector(fromX, toX int, label string, width int, styles GraphStyles) 
 			buf[fromX] = '╯'
 			buf[toX] = '╭'
 		}
+
+		// Where a continuation crosses the horizontal line, use ┼.
+		for _, cx := range continuations {
+			cx = clamp(cx)
+			if cx > minX && cx < maxX {
+				buf[cx] = '┼'
+			}
+		}
 	}
 
-	// Trim trailing spaces and append label.
 	line := strings.TrimRight(string(buf), " ")
 	styledLabel := styles.Label.Render(label)
 	return line + " " + styledLabel
