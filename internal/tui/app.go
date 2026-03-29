@@ -329,6 +329,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.help.Width = msg.Width
 		m.resizeViewport()
+		m.viewport.GotoTop()
 		return m, nil
 
 	case boardSelected:
@@ -465,9 +466,7 @@ func (m Model) selectorView() string {
 }
 
 func (m Model) boardView() string {
-	// Recalculate viewport height for current help context.
 	m.resizeViewport()
-
 	var b strings.Builder
 
 	// Header: title + SSE status + last error.
