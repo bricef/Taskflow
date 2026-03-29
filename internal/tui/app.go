@@ -469,6 +469,9 @@ func (m Model) selectorView() string {
 }
 
 func (m Model) boardView() string {
+	// Recalculate viewport height for current help context.
+	m.resizeViewport()
+
 	var b strings.Builder
 
 	// Header.
