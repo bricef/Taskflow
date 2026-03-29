@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -37,17 +36,6 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 		return style.Render(state)
 	}
 
-	// Pre-render all boxes and compute their visible widths.
-	type boxInfo struct {
-		rendered string
-		width    int
-	}
-	stateBoxes := map[string]boxInfo{}
-	for _, s := range wf.States {
-		r := boxFor(s)
-		stateBoxes[s] = boxInfo{rendered: r, width: lipgloss.Width(r)}
-	}
-
 	// Build a layer index for each state.
 	stateLayer := map[string]int{}
 	for li, layer := range layers {
@@ -56,146 +44,71 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 		}
 	}
 
-	// Compute center X for each state when its layer is centered.
-	gap := 4
-	stateCenter := map[string]int{}
-	layerRows := make([]string, len(layers))
+	arrow := styles.Arrow.Render("─→")
+	backArrow := styles.Arrow.Render("←─")
+	pipe := styles.Arrow.Render("│")
+
+	var sections []string
 
 	for li, layer := range layers {
-		// Render the row first so we can measure its actual width.
+		// Render state boxes for this layer, centered.
 		boxes := make([]string, len(layer))
 		for i, s := range layer {
-			boxes[i] = stateBoxes[s].rendered
+			boxes[i] = boxFor(s)
 		}
-		gapStr := strings.Repeat(" ", gap)
-		row := lipgloss.JoinHorizontal(lipgloss.Bottom, interleave(boxes, gapStr)...)
-		rowWidth := lipgloss.Width(row)
-
-		// Center the row; compute the actual left padding.
-		leftPad := (width - rowWidth) / 2
-		if leftPad < 0 {
-			leftPad = 0
-		}
+		row := lipgloss.JoinHorizontal(lipgloss.Bottom, interleave(boxes, "  ")...)
 		row = lipgloss.PlaceHorizontal(width, lipgloss.Center, row)
-		layerRows[li] = row
-
-		// Compute centers using the same leftPad.
-		x := leftPad
-		for i, s := range layer {
-			if i > 0 {
-				x += gap
-			}
-			bw := stateBoxes[s].width
-			stateCenter[s] = x + bw/2
-			x += bw
-		}
-	}
-
-	// Render layers with connectors between them.
-	var b strings.Builder
-
-	for li, row := range layerRows {
-		b.WriteString(row + "\n")
+		sections = append(sections, row)
 
 		if li >= len(layers)-1 {
 			continue
 		}
 
 		// Collect edges originating from this layer.
-		var forward []workflow.Transition // to next layer
-		var back []workflow.Transition    // to same or earlier layer
-		var skip []workflow.Transition    // to layer > li+1
+		var forward []workflow.Transition
+		var back []workflow.Transition
 
 		for _, t := range wf.Transitions {
 			if stateLayer[t.From] != li {
 				continue
 			}
 			toLayer := stateLayer[t.To]
-			switch {
-			case toLayer == li+1:
+			if toLayer > li {
 				forward = append(forward, t)
-			case toLayer <= li:
+			} else {
 				back = append(back, t)
-			default:
-				skip = append(skip, t)
 			}
 		}
 
-		// Render forward connectors as plain-text lines using rune buffers.
-		for _, t := range forward {
-			line := drawConnector(stateCenter[t.From], stateCenter[t.To], t.Name, width, styles)
-			b.WriteString(line + "\n")
+		if len(forward) == 0 && len(back) == 0 {
+			continue
 		}
 
-		// Back-edges and skip-edges as labeled text.
-		for _, t := range back {
-			label := styles.Label.Render(t.Name)
-			arrow := styles.Arrow.Render("↩")
-			b.WriteString(fmt.Sprintf("  %s %s %s  %s\n", t.From, arrow, t.To, label))
-		}
-		for _, t := range skip {
-			label := styles.Label.Render(t.Name)
-			arrow := styles.Arrow.Render("→")
-			b.WriteString(fmt.Sprintf("  %s %s %s  %s\n", t.From, arrow, t.To, label))
-		}
-	}
+		// Render edge labels between layers, centered.
+		var edgeLines []string
 
-	return b.String()
-}
-
-// drawConnector renders a single connector line between two X positions.
-// The line uses Unicode box-drawing characters and appends a styled label.
-// All positions are in visible character units.
-func drawConnector(fromX, toX int, label string, width int, styles GraphStyles) string {
-	if width <= 0 {
-		width = 80
-	}
-
-	// Build a rune buffer for the connector line.
-	buf := make([]rune, width)
-	for i := range buf {
-		buf[i] = ' '
-	}
-
-	clamp := func(x int) int {
-		if x < 0 {
-			return 0
-		}
-		if x >= width {
-			return width - 1
-		}
-		return x
-	}
-
-	fromX = clamp(fromX)
-	toX = clamp(toX)
-
-	if fromX == toX {
-		// Straight down.
-		buf[fromX] = '│'
-	} else {
-		// Horizontal connector with corners.
-		minX, maxX := fromX, toX
-		if minX > maxX {
-			minX, maxX = maxX, minX
-		}
-		for x := minX; x <= maxX; x++ {
-			buf[x] = '─'
-		}
-		// Corners: fromX gets a turn down-to-horizontal, toX gets vertical down.
-		if toX > fromX {
-			buf[fromX] = '╰'
-			buf[toX] = '╮'
+		// Simple case: single forward edge from a single-state layer.
+		if len(layer) == 1 && len(forward) == 1 && len(back) == 0 {
+			label := styles.Label.Render(forward[0].Name)
+			line := pipe + " " + label
+			edgeLines = append(edgeLines, line)
 		} else {
-			buf[fromX] = '╯'
-			buf[toX] = '╭'
+			for _, t := range forward {
+				label := styles.Label.Render(t.Name)
+				edgeLines = append(edgeLines, t.From+" "+arrow+" "+t.To+" "+label)
+			}
+			for _, t := range back {
+				label := styles.Label.Render(t.Name)
+				edgeLines = append(edgeLines, t.From+" "+backArrow+" "+t.To+" "+label)
+			}
 		}
+
+		edgeBlock := strings.Join(edgeLines, "\n")
+		edgeBlock = lipgloss.PlaceHorizontal(width, lipgloss.Center, edgeBlock)
+		sections = append(sections, edgeBlock)
 	}
 
-	// Trim trailing spaces and append label.
-	line := strings.TrimRight(string(buf), " ")
-	styledLabel := styles.Label.Render(label)
-	return line + " " + styledLabel
+	return strings.Join(sections, "\n")
 }
 
 // assignLayers places states into layers via BFS from the initial state.
