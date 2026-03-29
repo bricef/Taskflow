@@ -443,7 +443,7 @@ var (
 	dimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	eventStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("76"))
 	errorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	tabActive   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")).Padding(0, 1)
+	tabActive   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Background(lipgloss.Color("39")).Padding(0, 1)
 	tabInactive = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Padding(0, 1)
 )
 
@@ -495,9 +495,9 @@ func (m Model) boardView() string {
 		var tabs []string
 		for i, name := range tabNames {
 			if boardTab(i) == m.activeTab {
-				tabs = append(tabs, tabActive.Render("["+name+"]"))
+				tabs = append(tabs, tabActive.Render(name))
 			} else {
-				tabs = append(tabs, tabInactive.Render(" "+name+" "))
+				tabs = append(tabs, tabInactive.Render(name))
 			}
 		}
 		b.WriteString(strings.Join(tabs, "") + "\n")
