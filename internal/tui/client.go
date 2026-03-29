@@ -70,17 +70,35 @@ func (c *Client) GetWorkflow(boardSlug string) (*workflow.Workflow, error) {
 	return &wf, c.get("/boards/"+boardSlug+"/workflow", &wf)
 }
 
+func (c *Client) ListActors() ([]model.Actor, error) {
+	var actors []model.Actor
+	return actors, c.get("/actors", &actors)
+}
+
+func (c *Client) AssignTask(boardSlug string, num int, assignee *string) (model.Task, error) {
+	var task model.Task
+	return task, c.patch(fmt.Sprintf("/boards/%s/tasks/%d", boardSlug, num), map[string]any{"assignee": assignee}, &task)
+}
+
 func (c *Client) CreateComment(boardSlug string, num int, body string) (model.Comment, error) {
 	var comment model.Comment
 	return comment, c.post(fmt.Sprintf("/boards/%s/tasks/%d/comments", boardSlug, num), map[string]string{"body": body}, &comment)
 }
 
 func (c *Client) post(path string, payload any, out any) error {
+	return c.doJSON("POST", path, payload, out)
+}
+
+func (c *Client) patch(path string, payload any, out any) error {
+	return c.doJSON("PATCH", path, payload, out)
+}
+
+func (c *Client) doJSON(method, path string, payload any, out any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", c.baseURL+path, bytes.NewReader(data))
+	req, err := http.NewRequest(method, c.baseURL+path, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

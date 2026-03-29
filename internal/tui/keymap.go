@@ -48,6 +48,7 @@ type kanbanKeys struct {
 	Down       key.Binding
 	Enter      key.Binding
 	Transition key.Binding
+	Assign     key.Binding
 	ToggleD    key.Binding
 	Tab        key.Binding
 	Esc        key.Binding
@@ -55,13 +56,13 @@ type kanbanKeys struct {
 }
 
 func (k kanbanKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Left, k.Up, k.Enter, k.Transition, k.ToggleD, k.Tab, k.Esc, k.Quit}
+	return []key.Binding{k.Left, k.Up, k.Enter, k.Transition, k.Assign, k.ToggleD, k.Tab, k.Esc, k.Quit}
 }
 
 func (k kanbanKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Left, k.Right, k.Up, k.Down},
-		{k.Enter, k.Transition, k.ToggleD, k.Tab, k.Esc, k.Quit},
+		{k.Enter, k.Transition, k.Assign, k.ToggleD, k.Tab, k.Esc, k.Quit},
 	}
 }
 
@@ -72,6 +73,7 @@ var kanbanKeyMap = kanbanKeys{
 	Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "next task")),
 	Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
 	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
+	Assign:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign")),
 	ToggleD:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle done")),
 	Tab:        keyTab,
 	Esc:        keyEsc,
@@ -113,16 +115,17 @@ type detailKeys struct {
 	Down       key.Binding
 	Comment    key.Binding
 	Transition key.Binding
+	Assign     key.Binding
 	Esc        key.Binding
 	Quit       key.Binding
 }
 
 func (k detailKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Comment, k.Transition, k.Esc, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Comment, k.Transition, k.Assign, k.Esc, k.Quit}
 }
 
 func (k detailKeys) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Up, k.Down, k.Comment, k.Transition, k.Esc, k.Quit}}
+	return [][]key.Binding{{k.Up, k.Down, k.Comment, k.Transition, k.Assign, k.Esc, k.Quit}}
 }
 
 var detailKeyMap = detailKeys{
@@ -130,6 +133,7 @@ var detailKeyMap = detailKeys{
 	Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
 	Comment:    key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
+	Assign:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign")),
 	Esc:        key.NewBinding(key.WithKeys("esc", "backspace"), key.WithHelp("esc/⌫", "close")),
 	Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }

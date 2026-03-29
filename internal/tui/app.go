@@ -64,6 +64,7 @@ type Model struct {
 	kanban      kanbanModel
 	detail     *detailModel     // non-nil when detail overlay is open
 	transition *transitionModel // non-nil when transition overlay is open
+	assign     *assignModel     // non-nil when assign overlay is open
 }
 
 // New creates a new TUI model.
@@ -98,21 +99,34 @@ type boardSelected struct {
 	board model.Board
 }
 
+func (m *Model) selectedTaskFromContext() *model.Task {
+	if m.detail != nil && m.detail.data != nil {
+		return &m.detail.data.task
+	}
+	return m.kanban.selectedTask()
+}
+
+func (m *Model) openAssignFromContext() tea.Cmd {
+	if m.activeBoard == nil {
+		return nil
+	}
+	task := m.selectedTaskFromContext()
+	if task == nil {
+		return nil
+	}
+	am, cmd := newAssign(m.client, m.activeBoard.Slug, *task)
+	m.assign = am
+	return cmd
+}
+
 func (m *Model) openTransitionFromContext() tea.Cmd {
 	if m.activeBoard == nil {
 		return nil
 	}
-
-	var task *model.Task
-	if m.detail != nil && m.detail.data != nil {
-		task = &m.detail.data.task
-	} else {
-		task = m.kanban.selectedTask()
-	}
+	task := m.selectedTaskFromContext()
 	if task == nil {
 		return nil
 	}
-
 	tm, cmd := newTransition(m.client, m.activeBoard.Slug, *task)
 	m.transition = tm
 	return cmd
@@ -231,6 +245,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "esc", "backspace":
+			if m.assign != nil {
+				m.assign = nil
+				return m, nil
+			}
 			if m.transition != nil {
 				m.transition = nil
 				return m, nil
@@ -252,8 +270,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.GotoTop()
 			}
 		case "t":
-			if m.view == viewBoard && m.transition == nil {
+			if m.view == viewBoard && m.transition == nil && m.assign == nil {
 				return m, m.openTransitionFromContext()
+			}
+		case "a":
+			if m.view == viewBoard && m.assign == nil && m.transition == nil {
+				return m, m.openAssignFromContext()
 			}
 		case "c":
 			if m.detail != nil && m.detail.data != nil && !m.detail.commenting {
@@ -267,6 +289,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// When an overlay is open, delegate to it.
+		if m.assign != nil {
+			closed, cmd := m.assign.update(msg, m.client, m.cfg.APIKey)
+			if closed {
+				m.assign = nil
+			}
+			return m, cmd
+		}
 		if m.transition != nil {
 			closed, cmd := m.transition.update(msg, m.client, m.cfg.APIKey)
 			if closed {
@@ -301,6 +330,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case boardDataLoaded:
 		m.kanban.load(msg)
 		m.eventLog.seedFromAudit(msg.audit)
+		return m, nil
+
+	case actorsLoaded, assignResult:
+		if m.assign != nil {
+			closed, cmd := m.assign.update(msg, m.client, m.cfg.APIKey)
+			if closed {
+				m.assign = nil
+			}
+			return m, cmd
+		}
 		return m, nil
 
 	case transitionsLoaded, transitionResult:
@@ -428,7 +467,7 @@ func (m Model) boardView() string {
 	b.WriteString(fmt.Sprintf("%s  %s", titleStyle.Render("TaskFlow — "+boardName), status) + "\n")
 
 	// Tabs (hidden when an overlay is open).
-	if m.detail == nil && m.transition == nil {
+	if m.detail == nil && m.transition == nil && m.assign == nil {
 		var tabs []string
 		for i, name := range tabNames {
 			if boardTab(i) == m.activeTab {
@@ -456,7 +495,9 @@ func (m Model) boardView() string {
 		content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
 	}
 	// Overlays replace tab content when open.
-	if m.transition != nil {
+	if m.assign != nil {
+		content = m.assign.view(m.viewport.Width)
+	} else if m.transition != nil {
 		content = m.transition.view(m.viewport.Width)
 	} else if m.detail != nil {
 		content = m.detail.view(m.viewport.Width, m.viewport.Height)
