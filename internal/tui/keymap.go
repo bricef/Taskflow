@@ -15,7 +15,7 @@ type selectorKeys struct {
 }
 
 func (k selectorKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Enter, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Down, k.Enter, k.Quit}
 }
 
 func (k selectorKeys) FullHelp() [][]key.Binding {
@@ -56,7 +56,7 @@ type kanbanKeys struct {
 }
 
 func (k kanbanKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Left, k.Up, k.Enter, k.Transition, k.Assign, k.ToggleD, k.Tab, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Left, k.Up, k.Enter, k.Transition, k.Assign, k.ToggleD, k.Tab, k.Esc, k.Quit}
 }
 
 func (k kanbanKeys) FullHelp() [][]key.Binding {
@@ -93,7 +93,7 @@ type eventLogKeys struct {
 }
 
 func (k eventLogKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Enter, k.Tab, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Down, k.Enter, k.Tab, k.Esc, k.Quit}
 }
 
 func (k eventLogKeys) FullHelp() [][]key.Binding {
@@ -125,7 +125,7 @@ type detailKeys struct {
 }
 
 func (k detailKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Comment, k.Transition, k.Assign, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Down, k.Comment, k.Transition, k.Assign, k.Esc, k.Quit}
 }
 
 func (k detailKeys) FullHelp() [][]key.Binding {
@@ -165,9 +165,11 @@ var commentKeyMap = commentKeys{
 	Cancel: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 }
 
+var keyHelp = key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help"))
+
 func newHelp() help.Model {
 	h := help.New()
-	h.ShowAll = true
+	h.ShortSeparator = "  "
 	h.FullSeparator = "    "
 	return h
 }

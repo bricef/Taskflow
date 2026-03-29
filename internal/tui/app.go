@@ -259,6 +259,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "?":
+			m.help.ShowAll = !m.help.ShowAll
+			m.resizeViewport()
+			return m, nil
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "esc", "backspace":
