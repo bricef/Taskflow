@@ -62,21 +62,24 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 	layerRows := make([]string, len(layers))
 
 	for li, layer := range layers {
-		// Total visible width of this layer.
-		totalWidth := 0
+		// Render the row first so we can measure its actual width.
+		boxes := make([]string, len(layer))
 		for i, s := range layer {
-			if i > 0 {
-				totalWidth += gap
-			}
-			totalWidth += stateBoxes[s].width
+			boxes[i] = stateBoxes[s].rendered
 		}
+		gapStr := strings.Repeat(" ", gap)
+		row := lipgloss.JoinHorizontal(lipgloss.Bottom, interleave(boxes, gapStr)...)
+		rowWidth := lipgloss.Width(row)
 
-		leftPad := (width - totalWidth) / 2
+		// Center the row; compute the actual left padding.
+		leftPad := (width - rowWidth) / 2
 		if leftPad < 0 {
 			leftPad = 0
 		}
+		row = lipgloss.PlaceHorizontal(width, lipgloss.Center, row)
+		layerRows[li] = row
 
-		// Compute centers.
+		// Compute centers using the same leftPad.
 		x := leftPad
 		for i, s := range layer {
 			if i > 0 {
@@ -86,15 +89,6 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 			stateCenter[s] = x + bw/2
 			x += bw
 		}
-
-		// Render the row: pad + boxes joined with gaps.
-		boxes := make([]string, len(layer))
-		for i, s := range layer {
-			boxes[i] = stateBoxes[s].rendered
-		}
-		gapStr := strings.Repeat(" ", gap)
-		row := strings.Repeat(" ", leftPad) + lipgloss.JoinHorizontal(lipgloss.Bottom, interleave(boxes, gapStr)...)
-		layerRows[li] = row
 	}
 
 	// Render layers with connectors between them.
