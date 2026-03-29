@@ -196,6 +196,23 @@ func (m *Model) applySSEToKanban(evt eventbus.Event) {
 	}
 }
 
+func (m *Model) refreshDetailIfAffected(evt eventbus.Event) tea.Cmd {
+	if m.detail == nil || m.detail.data == nil || m.activeBoard == nil {
+		return nil
+	}
+	task := m.detail.data.task
+	snap := evt.After
+	if snap == nil {
+		snap = evt.Before
+	}
+	if snap == nil || snap.Num != task.Num {
+		return nil
+	}
+	// Refetch the full detail data.
+	m.detail.loading = true
+	return fetchTaskDetail(m.client, m.activeBoard.Slug, task.Num)
+}
+
 func snapshotToTask(boardSlug string, snap *eventbus.TaskSnapshot) model.Task {
 	return model.Task{
 		BoardSlug: boardSlug,
@@ -402,6 +419,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SSEEvent:
 		m.eventLog.addEvent(msg.Event)
 		m.applySSEToKanban(msg.Event)
+		// Refresh the detail overlay if it's showing the affected task.
+		if cmd := m.refreshDetailIfAffected(msg.Event); cmd != nil {
+			return m, cmd
+		}
 		return m, nil
 
 	case SSEError:
