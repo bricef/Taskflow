@@ -62,7 +62,9 @@ func (k kanbanKeys) ShortHelp() []key.Binding {
 func (k kanbanKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Left, k.Right, k.Up, k.Down},
-		{k.Enter, k.Transition, k.Assign, k.ToggleD, k.Tab, k.Esc, k.Quit},
+		{k.Enter, k.Transition, k.Assign},
+		{k.ToggleD, k.Tab},
+		{k.Esc, k.Quit},
 	}
 }
 
@@ -96,7 +98,9 @@ func (k eventLogKeys) ShortHelp() []key.Binding {
 
 func (k eventLogKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Enter, k.Tab, k.Esc, k.Quit},
+		{k.Up, k.Down},
+		{k.Enter, k.Tab},
+		{k.Esc, k.Quit},
 	}
 }
 
@@ -125,7 +129,11 @@ func (k detailKeys) ShortHelp() []key.Binding {
 }
 
 func (k detailKeys) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Up, k.Down, k.Comment, k.Transition, k.Assign, k.Esc, k.Quit}}
+	return [][]key.Binding{
+		{k.Up, k.Down},
+		{k.Comment, k.Transition, k.Assign},
+		{k.Esc, k.Quit},
+	}
 }
 
 var detailKeyMap = detailKeys{
@@ -159,6 +167,7 @@ var commentKeyMap = commentKeys{
 
 func newHelp() help.Model {
 	h := help.New()
-	h.ShortSeparator = "  "
+	h.ShowAll = true
+	h.FullSeparator = "    "
 	return h
 }

@@ -38,9 +38,9 @@ const (
 
 var tabNames = []string{"Board", "Events"}
 
-// chromeLines is the total number of lines used by header, tabs, padding, and footer
-// that are rendered outside the viewport. Header(1) + Tabs(1) + padding(1) + footer newline(1) + help(1) = 5
-const chromeLines = 5
+// chromeFixed is the lines used by header, tabs, padding, and footer newline
+// (excludes help, which varies by view). Header(1) + Tabs(1) + padding(1) + footer newline(1) = 4
+const chromeFixed = 4
 
 // Model is the root Bubble Tea model.
 type Model struct {
@@ -212,12 +212,29 @@ func (m *Model) resizeViewport() {
 	if m.lastError != "" {
 		extra = 1
 	}
-	contentHeight := m.height - chromeLines - extra
+	helpHeight := strings.Count(m.help.View(m.activeKeyMap()), "\n") + 1
+	contentHeight := m.height - chromeFixed - extra - helpHeight
 	if contentHeight < 1 {
 		contentHeight = 1
 	}
 	m.viewport.Width = m.width
 	m.viewport.Height = contentHeight
+}
+
+func (m Model) activeKeyMap() help.KeyMap {
+	if m.detail != nil && m.detail.commenting {
+		return commentKeyMap
+	}
+	if m.detail != nil {
+		return detailKeyMap
+	}
+	switch m.activeTab {
+	case tabKanban:
+		return kanbanKeyMap
+	case tabEventLog:
+		return eventLogKeyMap
+	}
+	return kanbanKeyMap
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -507,19 +524,6 @@ func (m Model) boardView() string {
 	b.WriteString(m.viewport.View())
 
 	// Context-specific help.
-	var keyMap help.KeyMap
-	if m.detail != nil && m.detail.commenting {
-		keyMap = commentKeyMap
-	} else if m.detail != nil {
-		keyMap = detailKeyMap
-	} else {
-		switch m.activeTab {
-		case tabKanban:
-			keyMap = kanbanKeyMap
-		case tabEventLog:
-			keyMap = eventLogKeyMap
-		}
-	}
-	b.WriteString("\n" + m.help.View(keyMap))
+	b.WriteString("\n" + m.help.View(m.activeKeyMap()))
 	return b.String()
 }
