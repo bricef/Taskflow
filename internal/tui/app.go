@@ -218,7 +218,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detail.commenting = false
 				m.detail.postErr = ""
 				return m, nil
-			case "ctrl+s":
+			case "ctrl+enter":
 				cmd := m.detail.submitComment(m.client, m.cfg.APIKey)
 				return m, cmd
 			default:
