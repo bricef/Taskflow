@@ -104,11 +104,11 @@ func (m eventLogModel) view(width, height int) string {
 	}
 
 	for i := start; i < end; i++ {
-		line := m.entries[i].line
+		line := truncate(m.entries[i].line, listWidth-2) // 2 for "▸ " prefix
 		if i == m.cursor {
-			listB.WriteString(selectedLineStyle.Render("▸ " + line))
+			listB.WriteString(selectedLineStyle.Width(listWidth).Render("▸ " + line))
 		} else {
-			listB.WriteString("  " + line)
+			listB.WriteString(lipgloss.NewStyle().Width(listWidth).Render("  " + line))
 		}
 		listB.WriteString("\n")
 	}
@@ -127,38 +127,43 @@ func (m eventLogModel) renderDetail(width, height int) string {
 	}
 
 	entry := m.entries[m.cursor]
+	// Label is 9 chars ("Label:" + padding), border+padding is ~6, leave room.
+	maxVal := width - 15
+	if maxVal < 10 {
+		maxVal = 10
+	}
 	var rows []string
 
 	if entry.event != nil {
 		evt := entry.event
-		rows = append(rows, detailRow("Event", string(evt.Type)))
-		rows = append(rows, detailRow("Time", evt.Timestamp.Format("2006-01-02 15:04:05")))
-		rows = append(rows, detailRow("Actor", evt.Actor.Name))
-		rows = append(rows, detailRow("Board", evt.Board.Slug))
+		rows = append(rows, detailRow("Event", string(evt.Type), maxVal))
+		rows = append(rows, detailRow("Time", evt.Timestamp.Format("2006-01-02 15:04:05"), maxVal))
+		rows = append(rows, detailRow("Actor", evt.Actor.Name, maxVal))
+		rows = append(rows, detailRow("Board", evt.Board.Slug, maxVal))
 		if evt.Task != nil {
-			rows = append(rows, detailRow("Task", fmt.Sprintf("%s — %s", evt.Task.Ref, evt.Task.Title)))
+			rows = append(rows, detailRow("Task", fmt.Sprintf("%s — %s", evt.Task.Ref, evt.Task.Title), maxVal))
 			if evt.Task.PreviousState != "" {
-				rows = append(rows, detailRow("State", fmt.Sprintf("%s → %s", evt.Task.PreviousState, evt.Task.State)))
+				rows = append(rows, detailRow("State", fmt.Sprintf("%s → %s", evt.Task.PreviousState, evt.Task.State), maxVal))
 			} else {
-				rows = append(rows, detailRow("State", evt.Task.State))
+				rows = append(rows, detailRow("State", evt.Task.State, maxVal))
 			}
 		}
 		if evt.Detail != nil {
 			if b, err := json.Marshal(evt.Detail); err == nil && string(b) != "null" {
-				rows = append(rows, detailRow("Detail", string(b)))
+				rows = append(rows, detailRow("Detail", string(b), maxVal))
 			}
 		}
 	} else if entry.audit != nil {
 		a := entry.audit
-		rows = append(rows, detailRow("Action", string(a.Action)))
-		rows = append(rows, detailRow("Time", a.CreatedAt.Format("2006-01-02 15:04:05")))
-		rows = append(rows, detailRow("Actor", a.Actor))
-		rows = append(rows, detailRow("Board", a.BoardSlug))
+		rows = append(rows, detailRow("Action", string(a.Action), maxVal))
+		rows = append(rows, detailRow("Time", a.CreatedAt.Format("2006-01-02 15:04:05"), maxVal))
+		rows = append(rows, detailRow("Actor", a.Actor, maxVal))
+		rows = append(rows, detailRow("Board", a.BoardSlug, maxVal))
 		if a.TaskNum != nil {
-			rows = append(rows, detailRow("Task", fmt.Sprintf("%s/%d", a.BoardSlug, *a.TaskNum)))
+			rows = append(rows, detailRow("Task", fmt.Sprintf("%s/%d", a.BoardSlug, *a.TaskNum), maxVal))
 		}
 		if len(a.Detail) > 0 && string(a.Detail) != "{}" {
-			rows = append(rows, detailRow("Detail", string(a.Detail)))
+			rows = append(rows, detailRow("Detail", string(a.Detail), maxVal))
 		}
 	}
 
@@ -170,8 +175,22 @@ func (m eventLogModel) renderDetail(width, height int) string {
 	return detailBorder.Width(width - 4).Render(content)
 }
 
-func detailRow(label, value string) string {
+func detailRow(label, value string, maxValueWidth int) string {
+	value = truncate(value, maxValueWidth)
 	return fmt.Sprintf("%s %s", detailLabelStyle.Width(8).Render(label+":"), detailValueStyle.Render(value))
+}
+
+// truncate cuts a string to max visible characters, appending "…" if truncated.
+func truncate(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	// Use rune count for proper unicode handling.
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max-1]) + "…"
 }
 
 func formatEvent(evt eventbus.Event) string {
