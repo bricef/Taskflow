@@ -92,7 +92,11 @@ func (m eventLogModel) view(width, height int) string {
 	}
 
 	// Render event list with scrolling window around cursor.
-	listHeight := height
+	// Subtract 1 for the leading newline used to align with the detail border.
+	listHeight := height - 1
+	if listHeight < 1 {
+		listHeight = 1
+	}
 	var listB strings.Builder
 	start := 0
 	if m.cursor >= listHeight {

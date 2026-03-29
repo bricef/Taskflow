@@ -247,9 +247,14 @@ func (m kanbanModel) view(width, height int) string {
 	}
 
 	// Each card is ~4 lines tall (2 content + 2 border).
-	maxVisible := height / 4
-	if maxVisible < 2 {
-		maxVisible = 2
+	// Subtract 1 for the column header line.
+	cardArea := height - 1
+	if cardArea < 4 {
+		cardArea = 4
+	}
+	maxVisible := cardArea / 4
+	if maxVisible < 1 {
+		maxVisible = 1
 	}
 
 	var cols []string
