@@ -392,16 +392,20 @@ func (m Model) boardView() string {
 	}
 	b.WriteString(fmt.Sprintf("%s  %s", titleStyle.Render("TaskFlow — "+boardName), status) + "\n")
 
-	// Tabs.
-	var tabs []string
-	for i, name := range tabNames {
-		if boardTab(i) == m.activeTab {
-			tabs = append(tabs, tabActive.Render("["+name+"]"))
-		} else {
-			tabs = append(tabs, tabInactive.Render(" "+name+" "))
+	// Tabs (hidden when an overlay is open).
+	if m.detail == nil && m.transition == nil {
+		var tabs []string
+		for i, name := range tabNames {
+			if boardTab(i) == m.activeTab {
+				tabs = append(tabs, tabActive.Render("["+name+"]"))
+			} else {
+				tabs = append(tabs, tabInactive.Render(" "+name+" "))
+			}
 		}
+		b.WriteString(strings.Join(tabs, "") + "\n")
+	} else {
+		b.WriteString("\n")
 	}
-	b.WriteString(strings.Join(tabs, "") + "\n")
 
 	if m.lastError != "" {
 		b.WriteString(errorStyle.Render(m.lastError) + "\n")
