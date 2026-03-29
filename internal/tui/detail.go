@@ -172,9 +172,9 @@ func (m detailModel) view(width, height int) string {
 	// Comments.
 	if len(d.comments) > 0 {
 		b.WriteString(detailSectionStyle.Render(fmt.Sprintf("Comments (%d)", len(d.comments))) + "\n")
-		indentLen := 2 + 11 + 1 // "  " + "MM/DD HH:MM" + " "
+		indentLen := 2 + 16 + 1 // "  " + "YYYY-MM-DD HH:MM" + " "
 		for _, c := range d.comments {
-			ts := c.CreatedAt.Format("01/02 15:04")
+			ts := c.CreatedAt.Format("2006-01-02 15:04")
 			prefixLen := indentLen + len(c.Actor) + 2 // + actor + ": "
 			prefix := fmt.Sprintf("  %s %s: ", dimStyle.Render(ts), c.Actor)
 			indent := strings.Repeat(" ", prefixLen)
@@ -207,7 +207,7 @@ func (m detailModel) view(width, height int) string {
 			start = len(d.audit) - 10
 		}
 		for _, a := range d.audit[start:] {
-			ts := a.CreatedAt.Format("01/02 15:04")
+			ts := a.CreatedAt.Format("2006-01-02 15:04")
 			detail := ""
 			if len(a.Detail) > 0 && string(a.Detail) != "{}" {
 				var m map[string]any
