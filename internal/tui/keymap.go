@@ -124,6 +124,29 @@ var listKeyMap = listKeys{
 	Quit:       keyQuit,
 }
 
+// workflowKeys defines key bindings for the workflow visualisation tab.
+type workflowKeys struct {
+	Tab  key.Binding
+	Esc  key.Binding
+	Quit key.Binding
+}
+
+func (k workflowKeys) ShortHelp() []key.Binding {
+	return []key.Binding{keyHelp, k.Tab, k.Esc, k.Quit}
+}
+
+func (k workflowKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Tab, k.Esc, k.Quit},
+	}
+}
+
+var workflowKeyMap = workflowKeys{
+	Tab:  keyTab,
+	Esc:  keyEsc,
+	Quit: keyQuit,
+}
+
 // eventLogKeys defines key bindings for the event log tab.
 type eventLogKeys struct {
 	Up    key.Binding

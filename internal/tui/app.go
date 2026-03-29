@@ -33,11 +33,12 @@ type boardTab int
 const (
 	tabKanban boardTab = iota
 	tabList
+	tabWorkflow
 	tabEventLog
 	tabCount // keep last for cycling
 )
 
-var tabNames = []string{"Board", "List", "Events"}
+var tabNames = []string{"Board", "List", "Workflow", "Events"}
 
 // chromeFixed is the lines used by header, tabs, and footer newline
 // (excludes help, which varies by view). Header(1) + Tabs(1) + footer newline(1) = 3
@@ -62,8 +63,9 @@ type Model struct {
 	sseStatus   string
 	lastError   string
 	eventLog    eventLogModel
-	kanban      kanbanModel
-	listView    listViewModel
+	kanban       kanbanModel
+	listView     listViewModel
+	workflowView workflowViewModel
 	detail     *detailModel     // non-nil when detail overlay is open
 	transition *transitionModel // non-nil when transition overlay is open
 	assign     *assignModel     // non-nil when assign overlay is open
@@ -278,6 +280,8 @@ func (m Model) activeKeyMap() help.KeyMap {
 		return kanbanKeyMap
 	case tabList:
 		return listKeyMap
+	case tabWorkflow:
+		return workflowKeyMap
 	case tabEventLog:
 		return eventLogKeyMap
 	}
@@ -400,6 +404,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case boardDataLoaded:
 		m.kanban.load(msg)
 		m.listView.load(msg)
+		m.workflowView.load(msg.workflow)
 		m.eventLog.seedFromAudit(msg.audit)
 		return m, nil
 
@@ -573,6 +578,8 @@ func (m Model) boardView() string {
 		content = m.kanban.view(m.viewport.Width, m.viewport.Height)
 	case tabList:
 		content = m.listView.view(m.viewport.Width, m.viewport.Height)
+	case tabWorkflow:
+		content = m.workflowView.view(m.viewport.Width, m.viewport.Height)
 	case tabEventLog:
 		content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
 	}
