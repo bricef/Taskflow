@@ -122,19 +122,7 @@ func RenderWorkflowGraph(wf *workflow.Workflow, width int, styles GraphStyles) s
 		}
 
 		// Render forward connectors as plain-text lines using rune buffers.
-		// Between connectors from the same source, add a │ continuation line.
-		for i, t := range forward {
-			if i > 0 && stateCenter[t.From] == stateCenter[forward[i-1].From] {
-				cont := make([]rune, width)
-				for j := range cont {
-					cont[j] = ' '
-				}
-				x := stateCenter[t.From]
-				if x >= 0 && x < width {
-					cont[x] = '│'
-				}
-				b.WriteString(strings.TrimRight(string(cont), " ") + "\n")
-			}
+		for _, t := range forward {
 			line := drawConnector(stateCenter[t.From], stateCenter[t.To], t.Name, width, styles)
 			b.WriteString(line + "\n")
 		}
