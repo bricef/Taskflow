@@ -85,14 +85,6 @@ func (m *kanbanModel) updateTask(task model.Task) {
 	m.tasks = append(m.tasks, task)
 }
 
-func (m *kanbanModel) updateTaskState(num int, newState string) {
-	for i, t := range m.tasks {
-		if t.Num == num {
-			m.tasks[i].State = newState
-			return
-		}
-	}
-}
 
 func (m *kanbanModel) removeTask(boardSlug string, num int) {
 	for i, t := range m.tasks {

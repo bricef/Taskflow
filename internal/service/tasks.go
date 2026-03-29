@@ -64,7 +64,7 @@ func (s *Service) CreateTask(ctx context.Context, params model.CreateTaskParams)
 			Type:  eventbus.EventTaskCreated,
 			Actor: actorRef(params.CreatedBy),
 			Board: boardRef(params.BoardSlug),
-			Task:  taskRef(task),
+			After: taskSnap(task),
 		})
 	}
 	return task, err
@@ -148,14 +148,13 @@ func (s *Service) TransitionTask(ctx context.Context, params model.TransitionTas
 		return nil
 	})
 	if err == nil {
-		ref := taskRef(updated)
-		ref.PreviousState = task.State
 		s.emit(eventbus.Event{
 			Type:   eventbus.EventTaskTransitioned,
 			Actor:  actorRef(params.Actor),
 			Board:  boardRef(params.BoardSlug),
-			Task:   ref,
-			Detail: map[string]any{"from": task.State, "to": updated.State, "transition": params.TransitionName},
+			Before: taskSnap(task),
+			After:  taskSnap(updated),
+			Detail: map[string]any{"transition": params.TransitionName},
 		})
 	}
 	return updated, err
@@ -210,23 +209,17 @@ func (s *Service) UpdateTask(ctx context.Context, params model.UpdateTaskParams,
 		return s.audit(ctx, tx, params.BoardSlug, &params.Num, actor, model.AuditActionUpdated, map[string]any{"fields": changes})
 	})
 	if err == nil {
+		evtType := eventbus.EventTaskUpdated
 		if params.Assignee.Set {
-			s.emit(eventbus.Event{
-				Type:   eventbus.EventTaskAssigned,
-				Actor:  actorRef(actor),
-				Board:  boardRef(params.BoardSlug),
-				Task:   taskRef(task),
-				Detail: map[string]any{"assignee": params.Assignee.Value},
-			})
-		} else {
-			s.emit(eventbus.Event{
-				Type:   eventbus.EventTaskUpdated,
-				Actor:  actorRef(actor),
-				Board:  boardRef(params.BoardSlug),
-				Task:   taskRef(task),
-				Detail: map[string]any{"fields": changes},
-			})
+			evtType = eventbus.EventTaskAssigned
 		}
+		s.emit(eventbus.Event{
+			Type:   evtType,
+			Actor:  actorRef(actor),
+			Board:  boardRef(params.BoardSlug),
+			Before: taskSnap(old),
+			After:  taskSnap(task),
+		})
 	}
 	return task, err
 }
@@ -248,10 +241,10 @@ func (s *Service) DeleteTask(ctx context.Context, boardSlug string, num int, act
 	})
 	if err == nil {
 		s.emit(eventbus.Event{
-			Type:  eventbus.EventTaskDeleted,
-			Actor: actorRef(actor),
-			Board: boardRef(boardSlug),
-			Task:  taskRef(task),
+			Type:   eventbus.EventTaskDeleted,
+			Actor:  actorRef(actor),
+			Board:  boardRef(boardSlug),
+			Before: taskSnap(task),
 		})
 	}
 	return err

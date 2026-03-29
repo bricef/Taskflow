@@ -1,3 +1,9 @@
+## Known Bugs
+
+- [ ] **TUI resize**: Resizing the terminal (especially making it larger) causes layout issues. The kanban columns, event log, and viewport don't reliably recalculate their dimensions. Needs a deeper investigation into how Bubble Tea's value-receiver model interacts with viewport sizing.
+
+---
+
 ### Q: this system might be used for someone (something?) like you in the future. what would you like to see out of it? any design decisions that would make your life easier?
 
 Great question. Here's what I'd want as an AI agent using TaskFlow:

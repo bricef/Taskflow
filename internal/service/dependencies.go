@@ -43,7 +43,7 @@ func (s *Service) CreateDependency(ctx context.Context, params model.CreateDepen
 			Type:  eventbus.EventDependencyAdded,
 			Actor: actorRef(params.CreatedBy),
 			Board: boardRef(params.BoardSlug),
-			Task:  taskRef(task),
+			After: taskSnap(task),
 		})
 	}
 	return dep, err
@@ -78,7 +78,7 @@ func (s *Service) DeleteDependency(ctx context.Context, id int, actor string) er
 			Type:  eventbus.EventDependencyRemoved,
 			Actor: actorRef(actor),
 			Board: boardRef(dep.BoardSlug),
-			Task:  taskRef(task),
+			After: taskSnap(task),
 		})
 	}
 	return err

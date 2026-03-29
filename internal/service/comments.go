@@ -40,7 +40,7 @@ func (s *Service) CreateComment(ctx context.Context, params model.CreateCommentP
 			Type:   eventbus.EventTaskCommented,
 			Actor:  actorRef(params.Actor),
 			Board:  boardRef(params.BoardSlug),
-			Task:   taskRef(task),
+			After:  taskSnap(task),
 			Detail: map[string]any{"body": params.Body},
 		})
 	}

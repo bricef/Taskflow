@@ -67,12 +67,15 @@ func (s *Service) emit(evt eventbus.Event) {
 	s.bus.Publish(evt)
 }
 
-// taskRef builds a TaskRef from a task.
-func taskRef(t model.Task) *eventbus.TaskRef {
-	return &eventbus.TaskRef{
-		Ref:   fmt.Sprintf("%s/%d", t.BoardSlug, t.Num),
-		Title: t.Title,
-		State: t.State,
+// taskSnap builds a TaskSnapshot from a task.
+func taskSnap(t model.Task) *eventbus.TaskSnapshot {
+	return &eventbus.TaskSnapshot{
+		Ref:      fmt.Sprintf("%s/%d", t.BoardSlug, t.Num),
+		Num:      t.Num,
+		Title:    t.Title,
+		State:    t.State,
+		Assignee: t.Assignee,
+		Priority: string(t.Priority),
 	}
 }
 

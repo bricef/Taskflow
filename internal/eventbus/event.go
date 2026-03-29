@@ -20,13 +20,22 @@ const (
 )
 
 // Event represents a domain event emitted after a successful mutation.
+//
+// For task events, Before and After carry snapshots of the task state
+// before and after the mutation:
+//   - Create:     Before=nil,  After=snapshot
+//   - Update:     Before=snap, After=snapshot
+//   - Transition: Before=snap, After=snapshot
+//   - Delete:     Before=snap, After=nil
+//   - Comment/Dep/Attachment: Before=nil, After=snapshot (current state)
 type Event struct {
-	Type      string    `json:"event"`
-	Timestamp time.Time `json:"timestamp"`
-	Actor     ActorRef  `json:"actor"`
-	Board     BoardRef  `json:"board"`
-	Task      *TaskRef  `json:"task,omitempty"`
-	Detail    any       `json:"detail,omitempty"`
+	Type      string        `json:"event"`
+	Timestamp time.Time     `json:"timestamp"`
+	Actor     ActorRef      `json:"actor"`
+	Board     BoardRef      `json:"board"`
+	Before    *TaskSnapshot `json:"before,omitempty"`
+	After     *TaskSnapshot `json:"after,omitempty"`
+	Detail    any           `json:"detail,omitempty"`
 }
 
 // ActorRef identifies the actor who caused the event.
@@ -41,10 +50,12 @@ type BoardRef struct {
 	Name string `json:"name"`
 }
 
-// TaskRef identifies the task affected by the event.
-type TaskRef struct {
-	Ref           string `json:"ref"`
-	Title         string `json:"title"`
-	State         string `json:"state"`
-	PreviousState string `json:"previous_state,omitempty"`
+// TaskSnapshot is a point-in-time snapshot of a task's display-relevant fields.
+type TaskSnapshot struct {
+	Ref      string  `json:"ref"`
+	Num      int     `json:"num"`
+	Title    string  `json:"title"`
+	State    string  `json:"state"`
+	Priority string  `json:"priority,omitempty"`
+	Assignee *string `json:"assignee,omitempty"`
 }

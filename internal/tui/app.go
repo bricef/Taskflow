@@ -149,11 +149,13 @@ func (m *Model) openDetail() tea.Cmd {
 		// Try to get task num from the selected event.
 		if m.eventLog.cursor >= 0 && m.eventLog.cursor < len(m.eventLog.entries) {
 			entry := m.eventLog.entries[m.eventLog.cursor]
-			if entry.event != nil && entry.event.Task != nil {
-				// Parse num from ref "board/num".
-				ref := entry.event.Task.Ref
-				if idx := strings.LastIndex(ref, "/"); idx >= 0 {
-					fmt.Sscanf(ref[idx+1:], "%d", &num)
+			if entry.event != nil {
+				snap := entry.event.After
+				if snap == nil {
+					snap = entry.event.Before
+				}
+				if snap != nil {
+					num = snap.Num
 				}
 			} else if entry.audit != nil && entry.audit.TaskNum != nil {
 				num = *entry.audit.TaskNum
@@ -170,42 +172,41 @@ func (m *Model) openDetail() tea.Cmd {
 }
 
 func (m *Model) applySSEToKanban(evt eventbus.Event) {
-	if evt.Task == nil || m.activeBoard == nil {
+	if m.activeBoard == nil {
 		return
 	}
-	ref := evt.Task.Ref
 	boardSlug := m.activeBoard.Slug
 
 	switch evt.Type {
 	case eventbus.EventTaskCreated:
-		// Add a minimal task from the event data — enough to display a card.
-		m.kanban.updateTask(model.Task{
-			BoardSlug: boardSlug,
-			Num:       parseNumFromRef(ref),
-			Title:     evt.Task.Title,
-			State:     evt.Task.State,
-			Priority:  model.PriorityNone,
-		})
-	case eventbus.EventTaskTransitioned:
-		m.kanban.updateTaskState(parseNumFromRef(ref), evt.Task.State)
-	case eventbus.EventTaskUpdated, eventbus.EventTaskAssigned:
-		// For updates we don't have the full data — refetch would be ideal
-		// but for now just update state if present.
-		if evt.Task.State != "" {
-			m.kanban.updateTaskState(parseNumFromRef(ref), evt.Task.State)
+		if evt.After == nil {
+			return
 		}
+		m.kanban.updateTask(snapshotToTask(boardSlug, evt.After))
+	case eventbus.EventTaskTransitioned, eventbus.EventTaskUpdated, eventbus.EventTaskAssigned:
+		if evt.After == nil {
+			return
+		}
+		m.kanban.updateTask(snapshotToTask(boardSlug, evt.After))
 	case eventbus.EventTaskDeleted:
-		m.kanban.removeTask(boardSlug, parseNumFromRef(ref))
+		if evt.Before == nil {
+			return
+		}
+		m.kanban.removeTask(boardSlug, evt.Before.Num)
 	}
 }
 
-func parseNumFromRef(ref string) int {
-	var num int
-	if idx := strings.LastIndex(ref, "/"); idx >= 0 {
-		fmt.Sscanf(ref[idx+1:], "%d", &num)
+func snapshotToTask(boardSlug string, snap *eventbus.TaskSnapshot) model.Task {
+	return model.Task{
+		BoardSlug: boardSlug,
+		Num:       snap.Num,
+		Title:     snap.Title,
+		State:     snap.State,
+		Priority:  model.Priority(snap.Priority),
+		Assignee:  snap.Assignee,
 	}
-	return num
 }
+
 
 func (m *Model) resizeViewport() {
 	helpHeight := strings.Count(m.help.View(m.activeKeyMap()), "\n") + 1

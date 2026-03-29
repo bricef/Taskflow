@@ -141,12 +141,16 @@ func (m eventLogModel) renderDetail(width, height int) string {
 		rows = append(rows, detailRow("Time", evt.Timestamp.Format("2006-01-02 15:04:05")))
 		rows = append(rows, detailRow("Actor", evt.Actor.Name))
 		rows = append(rows, detailRow("Board", evt.Board.Slug))
-		if evt.Task != nil {
-			rows = append(rows, detailRow("Task", fmt.Sprintf("%s — %s", evt.Task.Ref, evt.Task.Title)))
-			if evt.Task.PreviousState != "" {
-				rows = append(rows, detailRow("State", fmt.Sprintf("%s → %s", evt.Task.PreviousState, evt.Task.State)))
+		after := evt.After
+		if after == nil {
+			after = evt.Before
+		}
+		if after != nil {
+			rows = append(rows, detailRow("Task", fmt.Sprintf("%s — %s", after.Ref, after.Title)))
+			if evt.Before != nil && evt.Before.State != after.State {
+				rows = append(rows, detailRow("State", fmt.Sprintf("%s → %s", evt.Before.State, after.State)))
 			} else {
-				rows = append(rows, detailRow("State", evt.Task.State))
+				rows = append(rows, detailRow("State", after.State))
 			}
 		}
 		if evt.Detail != nil {
@@ -190,10 +194,14 @@ func formatEvent(evt eventbus.Event) string {
 	evtType := eventStyle.Render(evt.Type)
 
 	task := ""
-	if evt.Task != nil {
-		task = fmt.Sprintf(" %s %q", dimStyle.Render(evt.Task.Ref), evt.Task.Title)
-		if evt.Task.PreviousState != "" {
-			task += fmt.Sprintf(" (%s → %s)", evt.Task.PreviousState, evt.Task.State)
+	after := evt.After
+	if after == nil {
+		after = evt.Before
+	}
+	if after != nil {
+		task = fmt.Sprintf(" %s %q", dimStyle.Render(after.Ref), after.Title)
+		if evt.Before != nil && evt.Before.State != after.State {
+			task += fmt.Sprintf(" (%s → %s)", evt.Before.State, after.State)
 		}
 	}
 

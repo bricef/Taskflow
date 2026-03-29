@@ -41,7 +41,7 @@ func (s *Service) CreateAttachment(ctx context.Context, params model.CreateAttac
 			Type:  eventbus.EventAttachmentAdded,
 			Actor: actorRef(params.CreatedBy),
 			Board: boardRef(params.BoardSlug),
-			Task:  taskRef(task),
+			After: taskSnap(task),
 		})
 	}
 	return att, err
@@ -75,7 +75,7 @@ func (s *Service) DeleteAttachment(ctx context.Context, id int, actor string) er
 			Type:  eventbus.EventAttachmentRemoved,
 			Actor: actorRef(actor),
 			Board: boardRef(att.BoardSlug),
-			Task:  taskRef(task),
+			After: taskSnap(task),
 		})
 	}
 	return err
