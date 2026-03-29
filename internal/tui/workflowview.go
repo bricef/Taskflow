@@ -25,6 +25,14 @@ var (
 	wfArrowStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
 	wfLabelStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	wfHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+
+	wfGraphStyles = GraphStyles{
+		InitialState:  wfInitialBox,
+		TerminalState: wfTerminalBox,
+		DefaultState:  wfStateBox,
+		Arrow:         wfArrowStyle,
+		Label:         wfLabelStyle,
+	}
 )
 
 type workflowViewModel struct {
@@ -57,14 +65,12 @@ func (m workflowViewModel) view(width, height int) string {
 		}
 		stateBoxes = append(stateBoxes, style.Render(s))
 	}
-	// Lay out state boxes horizontally, wrapping if needed.
 	b.WriteString(wrapBoxes(stateBoxes, width, "  "))
 	b.WriteString("\n")
 
 	// Transitions section — grouped by source state.
 	b.WriteString(wfHeaderStyle.Render("Transitions") + "\n\n")
 
-	// Group transitions by from state, preserving state order.
 	type transGroup struct {
 		from  string
 		edges []workflow.Transition
@@ -89,9 +95,13 @@ func (m workflowViewModel) view(width, height int) string {
 		}
 	}
 
-	// Terminal states (no outgoing transitions).
 	b.WriteString("\n")
 	b.WriteString(dimStyle.Render(fmt.Sprintf("  Terminal: %s", strings.Join(wf.TerminalStates, ", "))) + "\n")
+
+	// Graph visualisation.
+	b.WriteString("\n")
+	b.WriteString(wfHeaderStyle.Render("Graph") + "\n\n")
+	b.WriteString(RenderWorkflowGraph(wf, width, wfGraphStyles))
 
 	return b.String()
 }
