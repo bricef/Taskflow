@@ -37,11 +37,15 @@ func (s *Service) CreateComment(ctx context.Context, params model.CreateCommentP
 	})
 	if err == nil {
 		s.emit(eventbus.Event{
-			Type:   eventbus.EventTaskCommented,
-			Actor:  actorRef(params.Actor),
-			Board:  boardRef(params.BoardSlug),
-			After:  taskSnap(task),
-			Detail: map[string]any{"body": params.Body},
+			Type:  eventbus.EventTaskCommented,
+			Actor: actorRef(params.Actor),
+			Board: boardRef(params.BoardSlug),
+			After: taskSnap(task),
+			Detail: map[string]any{
+				"comment_id": comment.ID,
+				"body":       comment.Body,
+				"actor":      comment.Actor,
+			},
 		})
 	}
 	return comment, err
@@ -57,6 +61,11 @@ func (s *Service) UpdateComment(ctx context.Context, params model.UpdateCommentP
 		return model.Comment{}, err
 	}
 
+	task, err := s.store.TaskGet(ctx, old.BoardSlug, old.TaskNum)
+	if err != nil {
+		return model.Comment{}, err
+	}
+
 	var comment model.Comment
 	err = s.store.InTransaction(ctx, func(tx repo.Tx) error {
 		var err error
@@ -68,5 +77,18 @@ func (s *Service) UpdateComment(ctx context.Context, params model.UpdateCommentP
 			"comment_id": old.ID, "old_body": old.Body, "new_body": params.Body,
 		})
 	})
+	if err == nil {
+		s.emit(eventbus.Event{
+			Type:  eventbus.EventCommentEdited,
+			Actor: actorRef(actor),
+			Board: boardRef(old.BoardSlug),
+			After: taskSnap(task),
+			Detail: map[string]any{
+				"comment_id": comment.ID,
+				"old_body":   old.Body,
+				"new_body":   comment.Body,
+			},
+		})
+	}
 	return comment, err
 }

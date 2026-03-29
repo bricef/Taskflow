@@ -42,6 +42,12 @@ func (s *Service) CreateAttachment(ctx context.Context, params model.CreateAttac
 			Actor: actorRef(params.CreatedBy),
 			Board: boardRef(params.BoardSlug),
 			After: taskSnap(task),
+			Detail: map[string]any{
+				"attachment_id": att.ID,
+				"ref_type":      string(att.RefType),
+				"reference":     att.Reference,
+				"label":         att.Label,
+			},
 		})
 	}
 	return att, err
@@ -76,6 +82,12 @@ func (s *Service) DeleteAttachment(ctx context.Context, id int, actor string) er
 			Actor: actorRef(actor),
 			Board: boardRef(att.BoardSlug),
 			After: taskSnap(task),
+			Detail: map[string]any{
+				"attachment_id": att.ID,
+				"ref_type":      string(att.RefType),
+				"reference":     att.Reference,
+				"label":         att.Label,
+			},
 		})
 	}
 	return err

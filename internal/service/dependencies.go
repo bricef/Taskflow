@@ -44,6 +44,11 @@ func (s *Service) CreateDependency(ctx context.Context, params model.CreateDepen
 			Actor: actorRef(params.CreatedBy),
 			Board: boardRef(params.BoardSlug),
 			After: taskSnap(task),
+			Detail: map[string]any{
+				"dependency_id": dep.ID,
+				"depends_on":    fmt.Sprintf("%s/%d", dep.DependsOnBoard, dep.DependsOnNum),
+				"type":          string(dep.DependencyType),
+			},
 		})
 	}
 	return dep, err
@@ -79,6 +84,11 @@ func (s *Service) DeleteDependency(ctx context.Context, id int, actor string) er
 			Actor: actorRef(actor),
 			Board: boardRef(dep.BoardSlug),
 			After: taskSnap(task),
+			Detail: map[string]any{
+				"dependency_id": dep.ID,
+				"depends_on":    fmt.Sprintf("%s/%d", dep.DependsOnBoard, dep.DependsOnNum),
+				"type":          string(dep.DependencyType),
+			},
 		})
 	}
 	return err

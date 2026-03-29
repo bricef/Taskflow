@@ -13,6 +13,7 @@ const (
 	EventTaskDeleted       = "task.deleted"
 	EventTaskAssigned      = "task.assigned"
 	EventTaskCommented     = "task.commented"
+	EventCommentEdited     = "comment.edited"
 	EventDependencyAdded   = "dependency.added"
 	EventDependencyRemoved = "dependency.removed"
 	EventAttachmentAdded   = "attachment.added"
