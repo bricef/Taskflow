@@ -304,7 +304,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.detail.input.Focus()
 			}
 		case "enter":
-			if m.view == viewBoard && m.detail == nil && m.transition == nil {
+			if m.view == viewBoard && m.detail == nil && m.transition == nil && m.assign == nil {
 				return m, m.openDetail()
 			}
 		}
