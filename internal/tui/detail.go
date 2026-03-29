@@ -138,7 +138,13 @@ func (m detailModel) view(width, height int) string {
 	// Description.
 	if t.Description != "" {
 		b.WriteString(detailSectionStyle.Render("Description") + "\n")
-		b.WriteString(t.Description + "\n")
+		descWidth := width - 2
+		if descWidth < 20 {
+			descWidth = 20
+		}
+		for _, line := range strings.Split(t.Description, "\n") {
+			b.WriteString("  " + wrapLine(line, descWidth, "  ") + "\n")
+		}
 	}
 
 	// Dependencies.
@@ -166,14 +172,20 @@ func (m detailModel) view(width, height int) string {
 	// Comments.
 	if len(d.comments) > 0 {
 		b.WriteString(detailSectionStyle.Render(fmt.Sprintf("Comments (%d)", len(d.comments))) + "\n")
+		indentLen := 2 + 11 + 1 // "  " + "MM/DD HH:MM" + " "
 		for _, c := range d.comments {
 			ts := c.CreatedAt.Format("01/02 15:04")
+			prefixLen := indentLen + len(c.Actor) + 2 // + actor + ": "
 			prefix := fmt.Sprintf("  %s %s: ", dimStyle.Render(ts), c.Actor)
-			indent := strings.Repeat(" ", 2+11+1+len(c.Actor)+2) // "  " + "MM/DD HH:MM" + " " + actor + ": "
+			indent := strings.Repeat(" ", prefixLen)
+			bodyWidth := width - prefixLen
+			if bodyWidth < 20 {
+				bodyWidth = 20
+			}
 			lines := strings.Split(c.Body, "\n")
-			b.WriteString(prefix + lines[0] + "\n")
+			b.WriteString(prefix + wrapLine(lines[0], bodyWidth, indent) + "\n")
 			for _, line := range lines[1:] {
-				b.WriteString(indent + line + "\n")
+				b.WriteString(indent + wrapLine(line, bodyWidth, indent) + "\n")
 			}
 		}
 	}
@@ -214,4 +226,34 @@ func (m detailModel) view(width, height int) string {
 
 func field(label, value string) string {
 	return fmt.Sprintf("%s %s\n", detailFieldLabel.Render(label+":"), detailFieldValue.Render(value))
+}
+
+// wrapLine word-wraps a single line to maxWidth, joining continuation lines
+// with the given indent prefix.
+func wrapLine(line string, maxWidth int, indent string) string {
+	if len(line) <= maxWidth {
+		return line
+	}
+	var result strings.Builder
+	remaining := line
+	first := true
+	for len(remaining) > 0 {
+		if !first {
+			result.WriteString("\n" + indent)
+		}
+		if len(remaining) <= maxWidth {
+			result.WriteString(remaining)
+			break
+		}
+		// Find last space within maxWidth.
+		cut := strings.LastIndex(remaining[:maxWidth], " ")
+		if cut <= 0 {
+			// No space found — hard break.
+			cut = maxWidth
+		}
+		result.WriteString(remaining[:cut])
+		remaining = strings.TrimLeft(remaining[cut:], " ")
+		first = false
+	}
+	return result.String()
 }
