@@ -193,7 +193,7 @@ func formatEvent(evt eventbus.Event) string {
 		}
 	}
 
-	return fmt.Sprintf("%s %-8s %s%s", dimStyle.Render(ts), actor, evtType, task)
+	return fmt.Sprintf("%s %s %s%s", dimStyle.Render(ts), actor, evtType, task)
 }
 
 func formatAuditEntry(e model.AuditEntry) string {
@@ -203,5 +203,5 @@ func formatAuditEntry(e model.AuditEntry) string {
 	if e.TaskNum != nil {
 		task = dimStyle.Render(fmt.Sprintf(" %s/%d", e.BoardSlug, *e.TaskNum))
 	}
-	return fmt.Sprintf("%s %-8s %s%s %s", dimStyle.Render(ts), e.Actor, action, task, dimStyle.Render("(history)"))
+	return fmt.Sprintf("%s %s %s%s %s", dimStyle.Render(ts), e.Actor, action, task, dimStyle.Render("(history)"))
 }
