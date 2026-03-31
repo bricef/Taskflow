@@ -1049,3 +1049,102 @@ func TestSSEReceivesEvents(t *testing.T) {
 		t.Fatal("timeout waiting for SSE event")
 	}
 }
+
+// --- Global Tasks ---
+
+func TestGlobalTasks(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Arrange — two boards with tasks.
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "board-a", "name": "Board A",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.adminKey)
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "board-b", "name": "Board B",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.adminKey)
+
+	env.request(t, "POST", "/boards/board-a/tasks", map[string]any{
+		"title": "Task A1", "assignee": "member",
+	}, env.memberKey)
+	env.request(t, "POST", "/boards/board-b/tasks", map[string]any{
+		"title": "Task B1", "assignee": "member",
+	}, env.memberKey)
+	env.request(t, "POST", "/boards/board-a/tasks", map[string]any{
+		"title": "Task A2", "assignee": "admin",
+	}, env.adminKey)
+
+	// Act — list all tasks.
+	resp := env.request(t, "GET", "/tasks", nil, env.memberKey)
+	var all []model.Task
+	env.decode(t, resp, &all)
+	if len(all) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(all))
+	}
+
+	// Act — filter by assignee=@me (member).
+	resp = env.request(t, "GET", "/tasks?assignee=@me", nil, env.memberKey)
+	var mine []model.Task
+	env.decode(t, resp, &mine)
+	if len(mine) != 2 {
+		t.Fatalf("expected 2 tasks for @me, got %d", len(mine))
+	}
+	for _, task := range mine {
+		if task.Assignee == nil || *task.Assignee != "member" {
+			t.Errorf("expected assignee member, got %v", task.Assignee)
+		}
+	}
+}
+
+// --- Board Overview ---
+
+func TestBoardOverview(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Arrange
+	env.request(t, "POST", "/boards", map[string]any{
+		"slug": "overview-test", "name": "Overview Test",
+		"workflow": json.RawMessage(workflow.DefaultWorkflowJSON),
+	}, env.adminKey)
+	env.request(t, "POST", "/boards/overview-test/tasks", map[string]any{"title": "T1"}, env.memberKey)
+	env.request(t, "POST", "/boards/overview-test/tasks", map[string]any{"title": "T2"}, env.memberKey)
+	env.request(t, "POST", "/boards/overview-test/tasks/1/transition", map[string]any{"transition": "start"}, env.memberKey)
+
+	// Act
+	resp := env.request(t, "GET", "/boards/overview-test/overview", nil, env.memberKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+	var overview struct {
+		Slug       string         `json:"slug"`
+		Name       string         `json:"name"`
+		TaskCounts map[string]int `json:"task_counts"`
+		TotalTasks int            `json:"total_tasks"`
+	}
+	env.decode(t, resp, &overview)
+
+	// Assert
+	if overview.Slug != "overview-test" {
+		t.Errorf("expected slug overview-test, got %s", overview.Slug)
+	}
+	if overview.TotalTasks != 2 {
+		t.Errorf("expected 2 total tasks, got %d", overview.TotalTasks)
+	}
+	if overview.TaskCounts["backlog"] != 1 {
+		t.Errorf("expected 1 task in backlog, got %d", overview.TaskCounts["backlog"])
+	}
+	if overview.TaskCounts["in_progress"] != 1 {
+		t.Errorf("expected 1 task in in_progress, got %d", overview.TaskCounts["in_progress"])
+	}
+}
+
+func TestBoardOverviewNotFound(t *testing.T) {
+	env := newTestEnv(t)
+	resp := env.request(t, "GET", "/boards/nonexistent/overview", nil, env.adminKey)
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
