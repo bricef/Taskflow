@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/transport"
 )
 
 func TestMethodForAction(t *testing.T) {
@@ -24,7 +25,7 @@ func TestMethodForAction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.action), func(t *testing.T) {
-			if got := MethodForAction(tt.action); got != tt.want {
+			if got := transport.MethodForAction(tt.action); got != tt.want {
 				t.Errorf("MethodForAction(%q) = %q, want %q", tt.action, got, tt.want)
 			}
 		})
@@ -49,8 +50,8 @@ func TestStatusForAction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.action), func(t *testing.T) {
-			if got := statusForAction(tt.action); got != tt.want {
-				t.Errorf("statusForAction(%q) = %d, want %d", tt.action, got, tt.want)
+			if got := transport.StatusForAction(tt.action); got != tt.want {
+				t.Errorf("StatusForAction(%q) = %d, want %d", tt.action, got, tt.want)
 			}
 		})
 	}

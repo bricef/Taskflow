@@ -11,92 +11,156 @@ import (
 
 	"github.com/bricef/taskflow/internal/http/dashboard"
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/transport"
 )
 
-// Route is the HTTP-layer representation of an operation, with a handler attached.
+// Route is the HTTP-layer representation of a domain resource or operation.
 type Route struct {
-	model.Operation
+	Name    string
+	Path    string
+	Summary string
+	MinRole model.Role
+	Input   any              // nil for resources
+	Output  any
+	Params  []model.QueryParam // query params (resources only)
+	Method  string           // "GET", "POST", etc.
+	Status  int              // 200, 201, 204
 	Handler handler
 }
 
-// allRoutes derives HTTP routes from model.Operations() and attaches handlers.
+// PathParams returns the path parameters inferred from the Path pattern.
+func (r Route) PathParams() []model.PathParam {
+	return model.InferPathParams(r.Path)
+}
+
+// allRoutes derives HTTP routes from model.Resources() and model.Operations(),
+// attaching handlers by name.
 func (s *Server) allRoutes() []Route {
-	ops := model.Operations()
-	handlers := s.routeHandlers()
+	resHandlers := s.resourceHandlers()
+	opHandlers := s.operationHandlers()
 
-	if len(ops) != len(handlers) {
-		panic("operation count does not match handler count")
-	}
+	var routes []Route
 
-	routes := make([]Route, len(ops))
-	for i, op := range ops {
-		if handlers[i] == nil {
-			panic("nil handler for " + MethodForAction(op.Action) + " " + op.Path)
+	for _, res := range model.Resources() {
+		h, ok := resHandlers[res.Name]
+		if !ok {
+			panic("no handler for resource: " + res.Name)
 		}
-		routes[i] = Route{Operation: op, Handler: handlers[i]}
+		routes = append(routes, Route{
+			Name:    res.Name,
+			Path:    res.Path,
+			Summary: res.Summary,
+			MinRole: res.MinRole,
+			Output:  res.Output,
+			Params:  res.Params,
+			Method:  "GET",
+			Status:  200,
+			Handler: h,
+		})
 	}
+
+	for _, op := range model.Operations() {
+		h, ok := opHandlers[op.Name]
+		if !ok {
+			panic("no handler for operation: " + op.Name)
+		}
+		routes = append(routes, Route{
+			Name:    op.Name,
+			Path:    op.Path,
+			Summary: op.Summary,
+			MinRole: op.MinRole,
+			Input:   op.Input,
+			Output:  op.Output,
+			Method:  transport.MethodForAction(op.Action),
+			Status:  transport.StatusForAction(op.Action),
+			Handler: h,
+		})
+	}
+
 	return routes
 }
 
-// routeHandlers returns handlers in the same order as model.Operations().
-func (s *Server) routeHandlers() []handler {
-	return []handler{
+// resourceHandlers returns handlers keyed by resource name.
+func (s *Server) resourceHandlers() map[string]handler {
+	return map[string]handler{
 		// Actors
-		jsonBody(s.svc.CreateActor),
-		noInput(s.svc.ListActors),
-		pathStr("name", s.svc.GetActor),
-		s.updateActor,
+		"actor_list": noInput(s.svc.ListActors),
+		"actor_get":  pathStr("name", s.svc.GetActor),
 
 		// Boards
-		jsonBody(s.svc.CreateBoard),
-		s.listBoards,
-		pathStr("slug", s.svc.GetBoard),
-		s.updateBoard,
-		s.deleteBoard,
-		s.reassignTasks,
+		"board_list": s.listBoards,
+		"board_get":  pathStr("slug", s.svc.GetBoard),
 
 		// Workflows
-		pathStr("slug", s.svc.GetWorkflow),
-		s.setWorkflow,
-		pathStr("slug", s.svc.CheckWorkflowHealth),
+		"workflow_get": pathStr("slug", s.svc.GetWorkflow),
 
 		// Tasks
-		s.createTask,
-		s.listTasks,
-		pathStrInt("slug", "num", s.svc.GetTask),
-		s.updateTask,
-		s.transitionTask,
-		s.deleteTask,
+		"task_list": s.listTasks,
+		"task_get":  pathStrInt("slug", "num", s.svc.GetTask),
 
 		// Tags
-		s.listTags,
+		"tag_list": s.listTags,
 
 		// Comments
-		s.createComment,
-		pathStrInt("slug", "num", s.svc.ListComments),
-		s.updateComment,
+		"comment_list": pathStrInt("slug", "num", s.svc.ListComments),
 
 		// Dependencies
-		s.createDependency,
-		pathStrInt("slug", "num", s.svc.ListDependencies),
-		s.deleteDependency,
+		"dependency_list": pathStrInt("slug", "num", s.svc.ListDependencies),
 
 		// Attachments
-		s.createAttachment,
-		pathStrInt("slug", "num", s.svc.ListAttachments),
-		s.deleteAttachment,
+		"attachment_list": pathStrInt("slug", "num", s.svc.ListAttachments),
 
 		// Webhooks
-		s.createWebhook,
-		noInput(s.svc.ListWebhooks),
-		pathInt("id", s.svc.GetWebhook),
-		s.updateWebhook,
-		s.deleteWebhook,
-		pathInt("id", s.svc.ListWebhookDeliveries),
+		"webhook_list":  noInput(s.svc.ListWebhooks),
+		"webhook_get":   pathInt("id", s.svc.GetWebhook),
+		"delivery_list": pathInt("id", s.svc.ListWebhookDeliveries),
+
+	}
+}
+
+// operationHandlers returns handlers keyed by operation name.
+func (s *Server) operationHandlers() map[string]handler {
+	return map[string]handler{
+		// Actors
+		"actor_create": jsonBody(s.svc.CreateActor),
+		"actor_update": s.updateActor,
+
+		// Boards
+		"board_create":   jsonBody(s.svc.CreateBoard),
+		"board_update":   s.updateBoard,
+		"board_delete":   s.deleteBoard,
+		"board_reassign": s.reassignTasks,
+
+		// Workflows
+		"workflow_set":    s.setWorkflow,
+		"workflow_health": pathStr("slug", s.svc.CheckWorkflowHealth),
+
+		// Tasks
+		"task_create":     s.createTask,
+		"task_update":     s.updateTask,
+		"task_transition": s.transitionTask,
+		"task_delete":     s.deleteTask,
+
+		// Comments
+		"comment_create": s.createComment,
+		"comment_update": s.updateComment,
+
+		// Dependencies
+		"dependency_create": s.createDependency,
+		"dependency_delete": s.deleteDependency,
+
+		// Attachments
+		"attachment_create": s.createAttachment,
+		"attachment_delete": s.deleteAttachment,
 
 		// Audit
-		pathStrInt("slug", "num", s.svc.QueryAuditByTask),
-		pathStr("slug", s.svc.QueryAuditByBoard),
+		"task_audit":  pathStrInt("slug", "num", s.svc.QueryAuditByTask),
+		"board_audit": pathStr("slug", s.svc.QueryAuditByBoard),
+
+		// Webhooks
+		"webhook_create": s.createWebhook,
+		"webhook_update": s.updateWebhook,
+		"webhook_delete": s.deleteWebhook,
 	}
 }
 
@@ -130,7 +194,7 @@ func (s *Server) registerRoutes() {
 		w.Write(s.openAPISpec)
 	})
 
-	// Authenticated routes — derived from operations.
+	// Authenticated routes — derived from resources and operations.
 	r.Group(func(r chi.Router) {
 		if s.cfg.RateLimitPerSecond > 0 {
 			r.Use(httprate.Limit(
@@ -153,10 +217,10 @@ func (s *Server) registerRoutes() {
 		r.Get("/search", s.searchHandler)
 		r.Post("/batch", s.batchHandler)
 
-		// Domain operations — derived from model.Operations().
+		// Domain resources and operations.
 		for _, rt := range s.allRoutes() {
-			h := s.handle(rt.MinRole, statusForAction(rt.Action), rt.Handler)
-			switch MethodForAction(rt.Action) {
+			h := s.handle(rt.MinRole, rt.Status, rt.Handler)
+			switch rt.Method {
 			case "GET":
 				r.Get(rt.Path, h)
 			case "POST":

@@ -7,18 +7,40 @@ import (
 	"testing"
 
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/transport"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden files")
 
 func TestOpenAPISpecGolden(t *testing.T) {
-	// Build routes the same way the server does: zip operations with handlers.
-	// We use nil handlers here because generateOpenAPISpec only reads Operation
-	// fields, never the handler.
-	ops := model.Operations()
-	routes := make([]Route, len(ops))
-	for i, op := range ops {
-		routes[i] = Route{Operation: op}
+	// Build routes the same way the server does: resources + operations.
+	// Handlers are nil because generateOpenAPISpec never calls them.
+	var routes []Route
+
+	for _, res := range model.Resources() {
+		routes = append(routes, Route{
+			Name:    res.Name,
+			Path:    res.Path,
+			Summary: res.Summary,
+			MinRole: res.MinRole,
+			Output:  res.Output,
+			Params:  res.Params,
+			Method:  "GET",
+			Status:  200,
+		})
+	}
+
+	for _, op := range model.Operations() {
+		routes = append(routes, Route{
+			Name:    op.Name,
+			Path:    op.Path,
+			Summary: op.Summary,
+			MinRole: op.MinRole,
+			Input:   op.Input,
+			Output:  op.Output,
+			Method:  transport.MethodForAction(op.Action),
+			Status:  transport.StatusForAction(op.Action),
+		})
 	}
 
 	got := generateOpenAPISpec(routes)

@@ -42,9 +42,10 @@ func generateOpenAPISpec(routes []Route) []byte {
 
 	for _, rt := range routes {
 		op := map[string]any{
-			"summary":  rt.Summary,
-			"security": []any{map[string]any{"bearerAuth": []any{}}},
-			"tags":     []string{tagFromPath(rt.Path)},
+			"operationId": rt.Name,
+			"summary":     rt.Summary,
+			"security":    []any{map[string]any{"bearerAuth": []any{}}},
+			"tags":        []string{tagFromPath(rt.Path)},
 		}
 
 		// Path parameters (inferred from path).
@@ -86,7 +87,7 @@ func generateOpenAPISpec(routes []Route) []byte {
 
 		// Responses.
 		responses := map[string]any{}
-		statusStr := fmt.Sprintf("%d", statusForAction(rt.Action))
+		statusStr := fmt.Sprintf("%d", rt.Status)
 		if rt.Output != nil {
 			outType := reflect.TypeOf(rt.Output)
 			var responseSchema map[string]any
@@ -121,7 +122,7 @@ func generateOpenAPISpec(routes []Route) []byte {
 		}
 		op["responses"] = responses
 
-		method := strings.ToLower(MethodForAction(rt.Action))
+		method := strings.ToLower(rt.Method)
 		if _, ok := paths[rt.Path]; !ok {
 			paths[rt.Path] = map[string]any{}
 		}

@@ -15,8 +15,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	taskflowhttp "github.com/bricef/taskflow/internal/http"
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/transport"
 )
 
 // Config holds the CLI configuration.
@@ -67,7 +67,19 @@ Is the server running? To use a different server URL:
   echo "url: <url>" >> ~/.config/taskflow/config.yaml  (config file)`, serverURL, err)
 }
 
-// BuildCLI generates a Cobra command tree from model.Operations().
+// cmdSpec is the CLI-internal representation of a command derived from a
+// domain resource or operation. It captures everything needed to generate
+// the Cobra command and its run function.
+type cmdSpec struct {
+	path    string
+	summary string
+	method  string // HTTP method
+	input   any    // nil for resources / delete operations
+	output  any
+	params  []model.QueryParam
+}
+
+// BuildCLI generates a Cobra command tree from model.Resources() and model.Operations().
 // Config is resolved lazily via SetConfig before commands run.
 func BuildCLI(cfg *Config) *cobra.Command {
 	if cfg != nil {
@@ -89,37 +101,71 @@ func BuildCLI(cfg *Config) *cobra.Command {
 		return g
 	}
 
-	for _, op := range model.Operations() {
-		op := op
-		group, verb := deriveCommandName(op.Action, op.Path)
-		pathParams := op.PathParams()
-
-		cmd := &cobra.Command{
-			Use:   buildUsageLine(verb, pathParams),
-			Short: op.Summary,
-			RunE:  makeRunFunc(op),
+	// Resources (read-only, GET).
+	for _, res := range model.Resources() {
+		spec := cmdSpec{
+			path:    res.Path,
+			summary: res.Summary,
+			method:  "GET",
+			output:  res.Output,
+			params:  res.Params,
 		}
-
-		if op.Input != nil {
-			addFlags(cmd, op.Input)
-		}
-		for _, p := range op.Params {
-			switch p.Type {
-			case "boolean":
-				cmd.Flags().Bool(p.Name, false, p.Desc)
-			default:
-				cmd.Flags().String(p.Name, "", p.Desc)
-			}
-		}
-		cmd.Flags().Bool("json", false, "Output raw JSON")
-
+		group, verb := splitName(res.Name)
+		cmd := buildCommand(verb, res.PathParams(), spec)
 		getGroup(group).AddCommand(cmd)
 	}
 
-	// Convenience commands (not derived from domain operations).
+	// Operations (mutations).
+	for _, op := range model.Operations() {
+		spec := cmdSpec{
+			path:    op.Path,
+			summary: op.Summary,
+			method:  transport.MethodForAction(op.Action),
+			input:   op.Input,
+			output:  op.Output,
+		}
+		group, verb := splitName(op.Name)
+		cmd := buildCommand(verb, op.PathParams(), spec)
+		getGroup(group).AddCommand(cmd)
+	}
+
+	// Convenience commands (not derived from domain resources/operations).
 	addConvenienceCommands(root, getGroup)
 
 	return root
+}
+
+// splitName splits a "resource_action" name into (resource, action).
+func splitName(name string) (group, verb string) {
+	parts := strings.SplitN(name, "_", 2)
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return name, name
+}
+
+// buildCommand creates a Cobra command from a cmdSpec.
+func buildCommand(verb string, pathParams []model.PathParam, spec cmdSpec) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   buildUsageLine(verb, pathParams),
+		Short: spec.summary,
+		RunE:  makeRunFunc(spec, pathParams),
+	}
+
+	if spec.input != nil {
+		addFlags(cmd, spec.input)
+	}
+	for _, p := range spec.params {
+		switch p.Type {
+		case "boolean":
+			cmd.Flags().Bool(p.Name, false, p.Desc)
+		default:
+			cmd.Flags().String(p.Name, "", p.Desc)
+		}
+	}
+	cmd.Flags().Bool("json", false, "Output raw JSON")
+
+	return cmd
 }
 
 func addConvenienceCommands(root *cobra.Command, getGroup func(string) *cobra.Command) {
@@ -225,40 +271,6 @@ func doGet(cmd *cobra.Command, cfg Config, path string) error {
 	pretty, _ := json.MarshalIndent(obj, "", "  ")
 	fmt.Fprintln(w, string(pretty))
 	return nil
-}
-
-func deriveCommandName(action model.Action, path string) (group, verb string) {
-	segments := strings.Split(strings.Trim(path, "/"), "/")
-
-	var names []string
-	for _, s := range segments {
-		if !strings.HasPrefix(s, "{") {
-			names = append(names, s)
-		}
-	}
-
-	customActions := map[model.Action]bool{
-		model.ActionTransition: true,
-		model.ActionReassign:   true,
-		model.ActionHealth:     true,
-	}
-
-	if len(names) >= 2 && customActions[action] {
-		group = singularize(names[len(names)-2])
-		verb = names[len(names)-1]
-	} else {
-		group = singularize(names[len(names)-1])
-		verb = string(action)
-	}
-
-	return group, verb
-}
-
-func singularize(s string) string {
-	if strings.HasSuffix(s, "ies") {
-		return strings.TrimSuffix(s, "ies") + "y"
-	}
-	return strings.TrimSuffix(s, "s")
 }
 
 func buildUsageLine(verb string, pathParams []model.PathParam) string {
@@ -376,9 +388,7 @@ func flagDescription(name string, _ reflect.Type) string {
 	return strings.ReplaceAll(name, "_", " ")
 }
 
-func makeRunFunc(op model.Operation) func(*cobra.Command, []string) error {
-	pathParams := op.PathParams()
-
+func makeRunFunc(spec cmdSpec, pathParams []model.PathParam) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		cfg := getConfig()
 		if err := checkConfig(cfg); err != nil {
@@ -388,18 +398,18 @@ func makeRunFunc(op model.Operation) func(*cobra.Command, []string) error {
 		if len(args) < len(pathParams) {
 			return fmt.Errorf("expected %d argument(s): %s", len(pathParams), pathParamNames(pathParams))
 		}
-		if err := validateRequiredFlags(cmd, op.Input); err != nil {
+		if err := validateRequiredFlags(cmd, spec.input); err != nil {
 			return err
 		}
 		cmd.SilenceUsage = true
 
-		url := cfg.ServerURL + op.Path
+		url := cfg.ServerURL + spec.path
 		for i, p := range pathParams {
 			url = strings.Replace(url, "{"+p.Name+"}", args[i], 1)
 		}
 
 		var query []string
-		for _, p := range op.Params {
+		for _, p := range spec.params {
 			switch p.Type {
 			case "boolean":
 				if v, _ := cmd.Flags().GetBool(p.Name); v {
@@ -416,15 +426,15 @@ func makeRunFunc(op model.Operation) func(*cobra.Command, []string) error {
 		}
 
 		var bodyReader io.Reader
-		if op.Input != nil {
-			body := buildBodyFromFlags(cmd, op.Input)
+		if spec.input != nil {
+			body := buildBodyFromFlags(cmd, spec.input)
 			if len(body) > 0 {
 				b, _ := json.Marshal(body)
 				bodyReader = bytes.NewReader(b)
 			}
 		}
 
-		req, err := http.NewRequest(taskflowhttp.MethodForAction(op.Action), url, bodyReader)
+		req, err := http.NewRequest(spec.method, url, bodyReader)
 		if err != nil {
 			return err
 		}
@@ -467,7 +477,7 @@ func makeRunFunc(op model.Operation) func(*cobra.Command, []string) error {
 			return nil
 		}
 
-		return formatOutput(w, respBody, op.Output)
+		return formatOutput(w, respBody, spec.output)
 	}
 }
 

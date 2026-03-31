@@ -758,6 +758,7 @@
   "paths": {
     "/actors": {
       "get": {
+        "operationId": "actor_list",
         "responses": {
           "200": {
             "content": {
@@ -794,6 +795,7 @@
         ]
       },
       "post": {
+        "operationId": "actor_create",
         "requestBody": {
           "content": {
             "application/json": {
@@ -839,6 +841,7 @@
     },
     "/actors/{name}": {
       "get": {
+        "operationId": "actor_get",
         "parameters": [
           {
             "in": "path",
@@ -882,6 +885,7 @@
         ]
       },
       "patch": {
+        "operationId": "actor_update",
         "parameters": [
           {
             "in": "path",
@@ -955,6 +959,7 @@
     },
     "/attachments/{id}": {
       "delete": {
+        "operationId": "attachment_delete",
         "parameters": [
           {
             "in": "path",
@@ -1076,6 +1081,7 @@
     },
     "/boards": {
       "get": {
+        "operationId": "board_list",
         "parameters": [
           {
             "description": "Include soft-deleted boards",
@@ -1122,6 +1128,7 @@
         ]
       },
       "post": {
+        "operationId": "board_create",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1167,6 +1174,7 @@
     },
     "/boards/{slug}": {
       "delete": {
+        "operationId": "board_delete",
         "parameters": [
           {
             "in": "path",
@@ -1203,6 +1211,7 @@
         ]
       },
       "get": {
+        "operationId": "board_get",
         "parameters": [
           {
             "in": "path",
@@ -1246,6 +1255,7 @@
         ]
       },
       "patch": {
+        "operationId": "board_update",
         "parameters": [
           {
             "in": "path",
@@ -1301,6 +1311,7 @@
     },
     "/boards/{slug}/audit": {
       "get": {
+        "operationId": "board_audit",
         "parameters": [
           {
             "in": "path",
@@ -1377,6 +1388,7 @@
     },
     "/boards/{slug}/reassign": {
       "post": {
+        "operationId": "board_reassign",
         "parameters": [
           {
             "in": "path",
@@ -1432,6 +1444,7 @@
     },
     "/boards/{slug}/tags": {
       "get": {
+        "operationId": "tag_list",
         "parameters": [
           {
             "in": "path",
@@ -1480,6 +1493,7 @@
     },
     "/boards/{slug}/tasks": {
       "get": {
+        "operationId": "task_list",
         "parameters": [
           {
             "in": "path",
@@ -1598,6 +1612,7 @@
         ]
       },
       "post": {
+        "operationId": "task_create",
         "parameters": [
           {
             "in": "path",
@@ -1653,6 +1668,7 @@
     },
     "/boards/{slug}/tasks/{num}": {
       "delete": {
+        "operationId": "task_delete",
         "parameters": [
           {
             "in": "path",
@@ -1697,6 +1713,7 @@
         ]
       },
       "get": {
+        "operationId": "task_get",
         "parameters": [
           {
             "in": "path",
@@ -1748,6 +1765,7 @@
         ]
       },
       "patch": {
+        "operationId": "task_update",
         "parameters": [
           {
             "in": "path",
@@ -1811,6 +1829,7 @@
     },
     "/boards/{slug}/tasks/{num}/attachments": {
       "get": {
+        "operationId": "attachment_list",
         "parameters": [
           {
             "in": "path",
@@ -1865,6 +1884,7 @@
         ]
       },
       "post": {
+        "operationId": "attachment_create",
         "parameters": [
           {
             "in": "path",
@@ -1928,6 +1948,7 @@
     },
     "/boards/{slug}/tasks/{num}/audit": {
       "get": {
+        "operationId": "task_audit",
         "parameters": [
           {
             "in": "path",
@@ -1984,6 +2005,7 @@
     },
     "/boards/{slug}/tasks/{num}/comments": {
       "get": {
+        "operationId": "comment_list",
         "parameters": [
           {
             "in": "path",
@@ -2038,6 +2060,7 @@
         ]
       },
       "post": {
+        "operationId": "comment_create",
         "parameters": [
           {
             "in": "path",
@@ -2101,6 +2124,7 @@
     },
     "/boards/{slug}/tasks/{num}/dependencies": {
       "get": {
+        "operationId": "dependency_list",
         "parameters": [
           {
             "in": "path",
@@ -2155,6 +2179,7 @@
         ]
       },
       "post": {
+        "operationId": "dependency_create",
         "parameters": [
           {
             "in": "path",
@@ -2218,6 +2243,7 @@
     },
     "/boards/{slug}/tasks/{num}/transition": {
       "post": {
+        "operationId": "task_transition",
         "parameters": [
           {
             "in": "path",
@@ -2281,6 +2307,7 @@
     },
     "/boards/{slug}/workflow": {
       "get": {
+        "operationId": "workflow_get",
         "parameters": [
           {
             "in": "path",
@@ -2324,6 +2351,7 @@
         ]
       },
       "put": {
+        "operationId": "workflow_set",
         "parameters": [
           {
             "in": "path",
@@ -2372,6 +2400,7 @@
     },
     "/boards/{slug}/workflow/health": {
       "post": {
+        "operationId": "workflow_health",
         "parameters": [
           {
             "in": "path",
@@ -2420,6 +2449,7 @@
     },
     "/comments/{id}": {
       "patch": {
+        "operationId": "comment_update",
         "parameters": [
           {
             "in": "path",
@@ -2475,6 +2505,7 @@
     },
     "/dependencies/{id}": {
       "delete": {
+        "operationId": "dependency_delete",
         "parameters": [
           {
             "in": "path",
@@ -2576,6 +2607,7 @@
     },
     "/webhooks": {
       "get": {
+        "operationId": "webhook_list",
         "responses": {
           "200": {
             "content": {
@@ -2612,6 +2644,7 @@
         ]
       },
       "post": {
+        "operationId": "webhook_create",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2657,6 +2690,7 @@
     },
     "/webhooks/{id}": {
       "delete": {
+        "operationId": "webhook_delete",
         "parameters": [
           {
             "in": "path",
@@ -2693,6 +2727,7 @@
         ]
       },
       "get": {
+        "operationId": "webhook_get",
         "parameters": [
           {
             "in": "path",
@@ -2736,6 +2771,7 @@
         ]
       },
       "patch": {
+        "operationId": "webhook_update",
         "parameters": [
           {
             "in": "path",
@@ -2791,6 +2827,7 @@
     },
     "/webhooks/{id}/deliveries": {
       "get": {
+        "operationId": "delivery_list",
         "parameters": [
           {
             "in": "path",
