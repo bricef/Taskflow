@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/httprate"
 
 	"github.com/bricef/taskflow/internal/http/dashboard"
 	"github.com/bricef/taskflow/internal/model"
@@ -128,7 +130,15 @@ func (s *Server) registerRoutes() {
 	// Authenticated routes — derived from operations.
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware(s.svc))
-		r.Use(rateLimitMiddleware(newRateLimiter(s.cfg.RateLimitPerSecond)))
+		if s.cfg.RateLimitPerSecond > 0 {
+			r.Use(httprate.Limit(
+				s.cfg.RateLimitPerSecond,
+				time.Second,
+				httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
+					return ActorFrom(r.Context()).Name, nil
+				}),
+			))
+		}
 
 		// Aggregate views and utilities (not domain operations).
 		r.Get("/boards/{slug}/detail", s.boardDetailHandler)
