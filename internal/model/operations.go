@@ -220,6 +220,8 @@ func Operations() []Operation {
 		Update("/webhooks/{id}", "Update a webhook").Role(RoleAdmin).
 			Input(UpdateWebhookParams{}).Output(Webhook{}).Build(),
 		Remove("/webhooks/{id}", "Delete a webhook").Role(RoleAdmin).Build(),
+		List("/webhooks/{id}/deliveries", "List webhook delivery attempts").Role(RoleAdmin).
+			Output([]WebhookDelivery{}).Build(),
 
 		// Audit
 		List("/boards/{slug}/tasks/{num}/audit", "Get audit log for a task").

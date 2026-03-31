@@ -110,3 +110,43 @@ func (s *Store) WebhookDelete(ctx context.Context, tx repo.Tx, id int) error {
 	}
 	return nil
 }
+
+// --- Webhook Deliveries ---
+
+type webhookDeliveryRow struct {
+	ID          int        `db:"id"`
+	WebhookID   int        `db:"webhook_id"`
+	EventType   string     `db:"event_type"`
+	EventID     string     `db:"event_id"`
+	Attempt     int        `db:"attempt"`
+	StatusCode  *int       `db:"status_code"`
+	Error       *string    `db:"error"`
+	RequestBody string     `db:"request_body"`
+	DurationMs  *int       `db:"duration_ms"`
+	CreatedAt   Timestamp  `db:"created_at"`
+}
+
+func (s *Store) WebhookDeliveryInsert(ctx context.Context, d model.WebhookDelivery) (model.WebhookDelivery, error) {
+	result, err := s.db.ExecContext(ctx,
+		`INSERT INTO webhook_deliveries (webhook_id, event_type, event_id, attempt, status_code, error, request_body, duration_ms)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		d.WebhookID, d.EventType, d.EventID, d.Attempt, d.StatusCode, d.Error, d.RequestBody, d.DurationMs,
+	)
+	if err != nil {
+		return model.WebhookDelivery{}, err
+	}
+	id, _ := result.LastInsertId()
+	d.ID = int(id)
+	return d, nil
+}
+
+func (s *Store) WebhookDeliveryList(ctx context.Context, webhookID int) ([]model.WebhookDelivery, error) {
+	var rows []webhookDeliveryRow
+	err := sqlx.SelectContext(ctx, s.db, &rows,
+		`SELECT * FROM webhook_deliveries WHERE webhook_id = ? ORDER BY created_at DESC LIMIT 100`,
+		webhookID)
+	if err != nil {
+		return nil, err
+	}
+	return toModelSlice[webhookDeliveryRow, model.WebhookDelivery](rows), nil
+}

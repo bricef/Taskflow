@@ -58,7 +58,7 @@ func TestDispatcherDeliversMatchingEvent(t *testing.T) {
 		},
 	}
 
-	d := NewDispatcher(bus, lister)
+	d := NewDispatcher(bus, lister, nil)
 	defer d.Stop()
 
 	// Publish a matching event.
@@ -115,7 +115,7 @@ func TestDispatcherSkipsNonMatchingEvent(t *testing.T) {
 		},
 	}
 
-	d := NewDispatcher(bus, lister)
+	d := NewDispatcher(bus, lister, nil)
 	defer d.Stop()
 
 	// Publish a non-matching event.
@@ -160,7 +160,7 @@ func TestDispatcherBoardScope(t *testing.T) {
 		},
 	}
 
-	d := NewDispatcher(bus, lister)
+	d := NewDispatcher(bus, lister, nil)
 	defer d.Stop()
 
 	// Event from a different board — should not deliver.
@@ -217,7 +217,7 @@ func TestDispatcherSkipsInactive(t *testing.T) {
 		},
 	}
 
-	d := NewDispatcher(bus, lister)
+	d := NewDispatcher(bus, lister, nil)
 	defer d.Stop()
 
 	bus.Publish(eventbus.Event{

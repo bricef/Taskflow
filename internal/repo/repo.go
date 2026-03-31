@@ -82,6 +82,8 @@ type WebhookRepo interface {
 	WebhookList(ctx context.Context) ([]model.Webhook, error)
 	WebhookUpdate(ctx context.Context, tx Tx, params model.UpdateWebhookParams) (model.Webhook, error)
 	WebhookDelete(ctx context.Context, tx Tx, id int) error
+	WebhookDeliveryInsert(ctx context.Context, d model.WebhookDelivery) (model.WebhookDelivery, error)
+	WebhookDeliveryList(ctx context.Context, webhookID int) ([]model.WebhookDelivery, error)
 }
 
 type AuditRepo interface {

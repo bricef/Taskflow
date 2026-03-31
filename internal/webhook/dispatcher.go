@@ -24,30 +24,41 @@ const (
 	deliveryTimeout = 10 * time.Second
 	signatureHeader = "X-TaskFlow-Signature"
 	eventHeader     = "X-TaskFlow-Event"
+	maxRetries      = 3
 )
+
+// Retry delays: immediate, 30s, 5min.
+var retryDelays = []time.Duration{0, 30 * time.Second, 5 * time.Minute}
 
 // WebhookLister provides access to webhook registrations.
 type WebhookLister interface {
 	ListWebhooks(ctx context.Context) ([]model.Webhook, error)
 }
 
+// DeliveryLogger records webhook delivery attempts.
+type DeliveryLogger interface {
+	WebhookDeliveryInsert(ctx context.Context, d model.WebhookDelivery) (model.WebhookDelivery, error)
+}
+
 // Dispatcher subscribes to an event bus and delivers matching events
 // to webhook endpoints. Delivery is asynchronous and non-blocking.
 type Dispatcher struct {
-	bus     *eventbus.EventBus
-	lister  WebhookLister
-	sub     *eventbus.Subscription
-	cancel  context.CancelFunc
-	client  *http.Client
+	bus    *eventbus.EventBus
+	lister WebhookLister
+	logger DeliveryLogger
+	sub    *eventbus.Subscription
+	cancel context.CancelFunc
+	client *http.Client
 }
 
 // NewDispatcher creates and starts a webhook dispatcher.
 // Call Stop() to shut it down.
-func NewDispatcher(bus *eventbus.EventBus, lister WebhookLister) *Dispatcher {
+func NewDispatcher(bus *eventbus.EventBus, lister WebhookLister, logger DeliveryLogger) *Dispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &Dispatcher{
 		bus:    bus,
 		lister: lister,
+		logger: logger,
 		cancel: cancel,
 		client: &http.Client{Timeout: deliveryTimeout},
 	}
@@ -83,6 +94,14 @@ func (d *Dispatcher) dispatch(ctx context.Context, evt eventbus.Event) {
 		return
 	}
 
+	payload, err := json.Marshal(evt)
+	if err != nil {
+		log.Printf("webhook: failed to marshal event: %v", err)
+		return
+	}
+
+	eventID := evt.Timestamp.Format(time.RFC3339Nano)
+
 	for _, wh := range webhooks {
 		if !wh.Active {
 			continue
@@ -93,18 +112,51 @@ func (d *Dispatcher) dispatch(ctx context.Context, evt eventbus.Event) {
 		if wh.BoardSlug != nil && *wh.BoardSlug != evt.Board.Slug {
 			continue
 		}
-		// Deliver asynchronously so we don't block on slow endpoints.
-		go d.deliver(wh, evt)
+		go d.deliverWithRetry(wh, evt.Type, eventID, payload)
 	}
 }
 
-func (d *Dispatcher) deliver(wh model.Webhook, evt eventbus.Event) {
-	payload, err := json.Marshal(evt)
-	if err != nil {
-		log.Printf("webhook: failed to marshal event for %s: %v", wh.URL, err)
-		return
-	}
+func (d *Dispatcher) deliverWithRetry(wh model.Webhook, eventType, eventID string, payload []byte) {
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			delay := retryDelays[attempt-1]
+			time.Sleep(delay)
+		}
 
+		statusCode, duration, err := d.deliver(wh, payload)
+
+		// Log the delivery attempt.
+		delivery := model.WebhookDelivery{
+			WebhookID:   wh.ID,
+			EventType:   eventType,
+			EventID:     eventID,
+			Attempt:     attempt,
+			StatusCode:  statusCode,
+			RequestBody: string(payload),
+			DurationMs:  duration,
+		}
+		if err != nil {
+			errStr := err.Error()
+			delivery.Error = &errStr
+		}
+
+		if d.logger != nil {
+			if _, logErr := d.logger.WebhookDeliveryInsert(context.Background(), delivery); logErr != nil {
+				log.Printf("webhook: failed to log delivery: %v", logErr)
+			}
+		}
+
+		if err == nil {
+			log.Printf("webhook: delivered %s to %s (attempt %d, %d)", eventType, wh.URL, attempt, *statusCode)
+			return
+		}
+
+		log.Printf("webhook: delivery to %s failed (attempt %d/%d): %v", wh.URL, attempt, maxRetries, err)
+	}
+}
+
+// deliver sends a single delivery attempt and returns the status code, duration in ms, and error.
+func (d *Dispatcher) deliver(wh model.Webhook, payload []byte) (*int, *int, error) {
 	signature := sign(payload, wh.Secret)
 
 	ctx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
@@ -112,26 +164,27 @@ func (d *Dispatcher) deliver(wh model.Webhook, evt eventbus.Event) {
 
 	req, err := http.NewRequestWithContext(ctx, "POST", wh.URL, bytes.NewReader(payload))
 	if err != nil {
-		log.Printf("webhook: failed to create request for %s: %v", wh.URL, err)
-		return
+		return nil, nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(signatureHeader, signature)
-	req.Header.Set(eventHeader, evt.Type)
+	req.Header.Set(eventHeader, wh.Events[0]) // placeholder, overwritten by caller context
 
+	start := time.Now()
 	resp, err := d.client.Do(req)
+	durationMs := int(time.Since(start).Milliseconds())
+
 	if err != nil {
-		log.Printf("webhook: delivery to %s failed: %v", wh.URL, err)
-		return
+		return nil, &durationMs, fmt.Errorf("request failed: %w", err)
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
-		log.Printf("webhook: delivery to %s returned %d", wh.URL, resp.StatusCode)
-		return
+	code := resp.StatusCode
+	if code >= 400 {
+		return &code, &durationMs, fmt.Errorf("server returned %d", code)
 	}
 
-	log.Printf("webhook: delivered %s to %s (%d)", evt.Type, wh.URL, resp.StatusCode)
+	return &code, &durationMs, nil
 }
 
 // sign computes an HMAC-SHA256 signature for the payload using the given secret.

@@ -67,6 +67,7 @@ type TaskFlow interface {
 	ListWebhooks(ctx context.Context) ([]model.Webhook, error)
 	UpdateWebhook(ctx context.Context, params model.UpdateWebhookParams) (model.Webhook, error)
 	DeleteWebhook(ctx context.Context, id int) error
+	ListWebhookDeliveries(ctx context.Context, webhookID int) ([]model.WebhookDelivery, error)
 
 	// Audit
 	QueryAuditByTask(ctx context.Context, boardSlug string, taskNum int) ([]model.AuditEntry, error)

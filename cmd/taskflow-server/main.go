@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// Start webhook dispatcher.
-	whDispatcher := webhook.NewDispatcher(bus, svc)
+	whDispatcher := webhook.NewDispatcher(bus, svc, store)
 	defer whDispatcher.Stop()
 
 	srv := taskflowhttp.NewServer(svc, taskflowhttp.ServerConfig{EventBus: bus})

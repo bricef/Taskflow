@@ -88,6 +88,7 @@ func (s *Server) routeHandlers() []handler {
 		pathInt("id", s.svc.GetWebhook),
 		s.updateWebhook,
 		s.deleteWebhook,
+		pathInt("id", s.svc.ListWebhookDeliveries),
 
 		// Audit
 		pathStrInt("slug", "num", s.svc.QueryAuditByTask),

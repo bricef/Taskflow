@@ -50,3 +50,11 @@ func (s *Service) DeleteWebhook(ctx context.Context, id int) error {
 		return s.store.WebhookDelete(ctx, tx, id)
 	})
 }
+
+func (s *Service) ListWebhookDeliveries(ctx context.Context, webhookID int) ([]model.WebhookDelivery, error) {
+	// Verify webhook exists.
+	if _, err := s.store.WebhookGet(ctx, webhookID); err != nil {
+		return nil, err
+	}
+	return s.store.WebhookDeliveryList(ctx, webhookID)
+}
