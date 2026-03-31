@@ -251,7 +251,5 @@ func (m selectorModel) view(width int) string {
 		b.WriteString(style.Render(line) + "\n")
 	}
 
-	b.WriteString("\n" + dimStyle.Render("  n create new board") + "\n")
-
 	return b.String()
 }
