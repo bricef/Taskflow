@@ -390,7 +390,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if m.transition != nil {
-			closed, cmd := m.transition.update(msg, m.client, m.cfg.APIKey)
+			closed, cmd := m.transition.update(msg, m.client)
 			if closed {
 				m.transition = nil
 			}
@@ -454,7 +454,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case transitionsLoaded, transitionResult:
 		if m.transition != nil {
-			closed, cmd := m.transition.update(msg, m.client, m.cfg.APIKey)
+			closed, cmd := m.transition.update(msg, m.client)
 			if closed {
 				m.transition = nil
 			}

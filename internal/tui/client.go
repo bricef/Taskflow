@@ -1,23 +1,21 @@
 package tui
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
 
+	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/workflow"
 )
 
-// Client is a thin HTTP client for the TaskFlow API.
+// Client is a thin typed wrapper around httpclient for the TUI.
 type Client struct {
-	baseURL string
-	apiKey  string
+	http *httpclient.Client
 }
 
 func NewClient(baseURL, apiKey string) *Client {
-	return &Client{baseURL: baseURL, apiKey: apiKey}
+	return &Client{http: &httpclient.Client{BaseURL: baseURL, APIKey: apiKey}}
 }
 
 func (c *Client) ListBoards(includeArchived bool) ([]model.Board, error) {
@@ -26,142 +24,78 @@ func (c *Client) ListBoards(includeArchived bool) ([]model.Board, error) {
 	if includeArchived {
 		path += "?include_deleted=true"
 	}
-	return boards, c.get(path, &boards)
+	return boards, c.http.Get(context.Background(), path, &boards)
 }
 
 func (c *Client) ArchiveBoard(slug string) error {
-	return c.doJSON("DELETE", "/boards/"+slug, nil, nil)
+	return c.http.Delete(context.Background(), "/boards/"+slug)
 }
 
 func (c *Client) GetBoard(slug string) (model.Board, error) {
 	var board model.Board
-	return board, c.get("/boards/"+slug, &board)
+	return board, c.http.Get(context.Background(), "/boards/"+slug, &board)
 }
 
 func (c *Client) ListTasks(boardSlug string) ([]model.Task, error) {
 	var tasks []model.Task
-	return tasks, c.get("/boards/"+boardSlug+"/tasks?include_closed=true", &tasks)
+	return tasks, c.http.Get(context.Background(), "/boards/"+boardSlug+"/tasks?include_closed=true", &tasks)
 }
 
 func (c *Client) GetTask(boardSlug string, num int) (model.Task, error) {
 	var task model.Task
-	return task, c.get(fmt.Sprintf("/boards/%s/tasks/%d", boardSlug, num), &task)
+	return task, c.http.Get(context.Background(), fmt.Sprintf("/boards/%s/tasks/%d", boardSlug, num), &task)
 }
 
 func (c *Client) ListComments(boardSlug string, num int) ([]model.Comment, error) {
 	var comments []model.Comment
-	return comments, c.get(fmt.Sprintf("/boards/%s/tasks/%d/comments", boardSlug, num), &comments)
+	return comments, c.http.Get(context.Background(), fmt.Sprintf("/boards/%s/tasks/%d/comments", boardSlug, num), &comments)
 }
 
 func (c *Client) ListDependencies(boardSlug string, num int) ([]model.Dependency, error) {
 	var deps []model.Dependency
-	return deps, c.get(fmt.Sprintf("/boards/%s/tasks/%d/dependencies", boardSlug, num), &deps)
+	return deps, c.http.Get(context.Background(), fmt.Sprintf("/boards/%s/tasks/%d/dependencies", boardSlug, num), &deps)
 }
 
 func (c *Client) ListAttachments(boardSlug string, num int) ([]model.Attachment, error) {
 	var atts []model.Attachment
-	return atts, c.get(fmt.Sprintf("/boards/%s/tasks/%d/attachments", boardSlug, num), &atts)
+	return atts, c.http.Get(context.Background(), fmt.Sprintf("/boards/%s/tasks/%d/attachments", boardSlug, num), &atts)
 }
 
 func (c *Client) GetTaskAudit(boardSlug string, num int) ([]model.AuditEntry, error) {
 	var entries []model.AuditEntry
-	return entries, c.get(fmt.Sprintf("/boards/%s/tasks/%d/audit", boardSlug, num), &entries)
+	return entries, c.http.Get(context.Background(), fmt.Sprintf("/boards/%s/tasks/%d/audit", boardSlug, num), &entries)
 }
 
 func (c *Client) GetBoardAudit(boardSlug string) ([]model.AuditEntry, error) {
 	var entries []model.AuditEntry
-	return entries, c.get("/boards/"+boardSlug+"/audit", &entries)
+	return entries, c.http.Get(context.Background(), "/boards/"+boardSlug+"/audit", &entries)
 }
 
 func (c *Client) GetWorkflow(boardSlug string) (*workflow.Workflow, error) {
 	var wf workflow.Workflow
-	return &wf, c.get("/boards/"+boardSlug+"/workflow", &wf)
+	return &wf, c.http.Get(context.Background(), "/boards/"+boardSlug+"/workflow", &wf)
 }
 
 func (c *Client) ListActors() ([]model.Actor, error) {
 	var actors []model.Actor
-	return actors, c.get("/actors", &actors)
+	return actors, c.http.Get(context.Background(), "/actors", &actors)
 }
 
 func (c *Client) AssignTask(boardSlug string, num int, assignee *string) (model.Task, error) {
 	var task model.Task
-	return task, c.patch(fmt.Sprintf("/boards/%s/tasks/%d", boardSlug, num), map[string]any{"assignee": assignee}, &task)
+	return task, c.http.Patch(context.Background(), fmt.Sprintf("/boards/%s/tasks/%d", boardSlug, num), map[string]any{"assignee": assignee}, &task)
 }
 
 func (c *Client) CreateBoard(slug, name string) (model.Board, error) {
 	var board model.Board
-	return board, c.post("/boards", map[string]string{"slug": slug, "name": name}, &board)
+	return board, c.http.Post(context.Background(), "/boards", map[string]string{"slug": slug, "name": name}, &board)
 }
 
 func (c *Client) CreateComment(boardSlug string, num int, body string) (model.Comment, error) {
 	var comment model.Comment
-	return comment, c.post(fmt.Sprintf("/boards/%s/tasks/%d/comments", boardSlug, num), map[string]string{"body": body}, &comment)
+	return comment, c.http.Post(context.Background(), fmt.Sprintf("/boards/%s/tasks/%d/comments", boardSlug, num), map[string]string{"body": body}, &comment)
 }
 
-func (c *Client) post(path string, payload any, out any) error {
-	return c.doJSON("POST", path, payload, out)
-}
-
-func (c *Client) patch(path string, payload any, out any) error {
-	return c.doJSON("PATCH", path, payload, out)
-}
-
-func (c *Client) doJSON(method, path string, payload any, out any) error {
-	var body *bytes.Reader
-	if payload != nil {
-		data, err := json.Marshal(payload)
-		if err != nil {
-			return err
-		}
-		body = bytes.NewReader(data)
-	} else {
-		body = bytes.NewReader(nil)
-	}
-	req, err := http.NewRequest(method, c.baseURL+path, body)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("connection failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		var errResp map[string]any
-		json.NewDecoder(resp.Body).Decode(&errResp)
-		msg := fmt.Sprintf("API error: status %d", resp.StatusCode)
-		if m, ok := errResp["message"].(string); ok {
-			msg = m
-		}
-		return fmt.Errorf("%s", msg)
-	}
-
-	if out != nil {
-		return json.NewDecoder(resp.Body).Decode(out)
-	}
-	return nil
-}
-
-func (c *Client) get(path string, out any) error {
-	req, err := http.NewRequest("GET", c.baseURL+path, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("connection failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("API error: status %d", resp.StatusCode)
-	}
-
-	return json.NewDecoder(resp.Body).Decode(out)
+func (c *Client) TransitionTask(boardSlug string, num int, transition string) error {
+	return c.http.Post(context.Background(), fmt.Sprintf("/boards/%s/tasks/%d/transition", boardSlug, num), map[string]string{"transition": transition}, nil)
 }

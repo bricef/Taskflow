@@ -13,15 +13,15 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"math/rand"
-	"net/http"
 	"os"
 	"time"
+
+	"github.com/bricef/taskflow/internal/httpclient"
 )
 
 type actor struct {
@@ -296,40 +296,8 @@ func (s *simulator) pickTransition(task taskInfo) string {
 }
 
 func (s *simulator) doRequest(method, path, apiKey string, body any, out any) error {
-	var reqBody *bytes.Reader
-	if body != nil {
-		data, _ := json.Marshal(body)
-		reqBody = bytes.NewReader(data)
-	} else {
-		reqBody = bytes.NewReader(nil)
-	}
-
-	req, err := http.NewRequest(method, s.baseURL+path, reqBody)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		var errResp map[string]any
-		json.NewDecoder(resp.Body).Decode(&errResp)
-		if msg, ok := errResp["message"].(string); ok {
-			return fmt.Errorf("%s", msg)
-		}
-		return fmt.Errorf("status %d", resp.StatusCode)
-	}
-
-	if out != nil {
-		return json.NewDecoder(resp.Body).Decode(out)
-	}
-	return nil
+	c := &httpclient.Client{BaseURL: s.baseURL, APIKey: apiKey}
+	return c.Do(context.Background(), method, path, body, out)
 }
 
 func envOr(key, fallback string) string {

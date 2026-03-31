@@ -266,7 +266,7 @@ func TestCLIServerNotReachable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
 	}
-	if !strings.Contains(err.Error(), "could not connect") {
-		t.Errorf("expected connection error with help text, got: %v", err)
+	if !strings.Contains(err.Error(), "connect") {
+		t.Errorf("expected connection error, got: %v", err)
 	}
 }

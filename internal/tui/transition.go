@@ -1,10 +1,7 @@
 package tui
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -60,7 +57,7 @@ type transitionsLoaded struct {
 	err         error
 }
 
-func (m *transitionModel) update(msg tea.Msg, client *Client, apiKey string) (bool, tea.Cmd) {
+func (m *transitionModel) update(msg tea.Msg, client *Client) (bool, tea.Cmd) {
 	switch msg := msg.(type) {
 	case transitionsLoaded:
 		if msg.err != nil {
@@ -87,7 +84,7 @@ func (m *transitionModel) update(msg tea.Msg, client *Client, apiKey string) (bo
 		case "enter":
 			if m.cursor < len(m.transitions) {
 				tr := m.transitions[m.cursor]
-				return false, executeTransition(client, apiKey, m.boardSlug, m.taskNum, tr.Name)
+				return false, executeTransition(client, m.boardSlug, m.taskNum, tr.Name)
 			}
 		}
 
@@ -136,28 +133,10 @@ func (m transitionModel) view(width int) string {
 	return transitionBorder.Width(boxWidth).Render(b.String())
 }
 
-func executeTransition(client *Client, apiKey, boardSlug string, num int, transition string) tea.Cmd {
+func executeTransition(client *Client, boardSlug string, num int, transition string) tea.Cmd {
 	return func() tea.Msg {
-		body, _ := json.Marshal(map[string]string{"transition": transition})
-		url := fmt.Sprintf("%s/boards/%s/tasks/%d/transition", client.baseURL, boardSlug, num)
-		req, _ := http.NewRequest("POST", url, bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
+		if err := client.TransitionTask(boardSlug, num, transition); err != nil {
 			return transitionResult{err: err}
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode >= 400 {
-			var errResp map[string]any
-			json.NewDecoder(resp.Body).Decode(&errResp)
-			msg := fmt.Sprintf("status %d", resp.StatusCode)
-			if m, ok := errResp["message"].(string); ok {
-				msg = m
-			}
-			return transitionResult{err: fmt.Errorf("%s", msg)}
 		}
 		return transitionResult{}
 	}

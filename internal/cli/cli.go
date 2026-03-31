@@ -3,11 +3,9 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/transport"
 )
@@ -55,17 +54,6 @@ The seed admin key is written to seed-admin-key.txt on first server start.`)
 	return nil
 }
 
-// friendlyRequestError returns a user-friendly error message for connection failures.
-func friendlyRequestError(err error, serverURL string) error {
-	return fmt.Errorf(`could not connect to TaskFlow server at %s
-
-%w
-
-Is the server running? To use a different server URL:
-  --url <url>                          (command line flag)
-  export TASKFLOW_URL=<url>            (environment variable)
-  echo "url: <url>" >> ~/.config/taskflow/config.yaml  (config file)`, serverURL, err)
-}
 
 // cmdSpec is the CLI-internal representation of a command derived from a
 // domain resource or operation. It captures everything needed to generate
@@ -207,45 +195,22 @@ func doGet(cmd *cobra.Command, cfg Config, path string) error {
 		return err
 	}
 	cmd.SilenceUsage = true
-	req, err := http.NewRequest("GET", cfg.ServerURL+path, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return friendlyRequestError(err, cfg.ServerURL)
-	}
-	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
+	client := &httpclient.Client{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}
+	var raw json.RawMessage
+	if err := client.Get(cmd.Context(), path, &raw); err != nil {
 		return err
-	}
-	if resp.StatusCode >= 400 {
-		var errResp map[string]any
-		json.Unmarshal(body, &errResp)
-		msg := "unknown error"
-		if m, ok := errResp["message"].(string); ok {
-			msg = m
-		}
-		return fmt.Errorf("error %d: %s", resp.StatusCode, msg)
 	}
 
 	w := cmd.OutOrStdout()
 	useJSON, _ := cmd.Flags().GetBool("json")
-	if useJSON || resp.StatusCode == 204 {
-		fmt.Fprintln(w, string(body))
+	if useJSON || len(raw) == 0 {
+		fmt.Fprintln(w, string(raw))
 		return nil
 	}
 
 	// Pretty-print JSON.
-	var obj any
-	if err := json.Unmarshal(body, &obj); err != nil {
-		fmt.Fprintln(w, string(body))
-		return nil
-	}
-	pretty, _ := json.MarshalIndent(obj, "", "  ")
+	pretty, _ := json.MarshalIndent(raw, "", "  ")
 	fmt.Fprintln(w, string(pretty))
 	return nil
 }
@@ -380,9 +345,9 @@ func makeRunFunc(spec cmdSpec, pathParams []model.PathParam) func(*cobra.Command
 		}
 		cmd.SilenceUsage = true
 
-		url := cfg.ServerURL + spec.path
+		path := spec.path
 		for i, p := range pathParams {
-			url = strings.Replace(url, "{"+p.Name+"}", args[i], 1)
+			path = strings.Replace(path, "{"+p.Name+"}", args[i], 1)
 		}
 
 		var query []string
@@ -399,62 +364,36 @@ func makeRunFunc(spec cmdSpec, pathParams []model.PathParam) func(*cobra.Command
 			}
 		}
 		if len(query) > 0 {
-			url += "?" + strings.Join(query, "&")
+			path += "?" + strings.Join(query, "&")
 		}
 
-		var bodyReader io.Reader
+		var body any
 		if spec.input != nil {
-			body := buildBodyFromFlags(cmd, spec.input)
-			if len(body) > 0 {
-				b, _ := json.Marshal(body)
-				bodyReader = bytes.NewReader(b)
+			b := buildBodyFromFlags(cmd, spec.input)
+			if len(b) > 0 {
+				body = b
 			}
 		}
 
-		req, err := http.NewRequest(spec.method, url, bodyReader)
-		if err != nil {
-			return err
-		}
-		if bodyReader != nil {
-			req.Header.Set("Content-Type", "application/json")
-		}
-		if cfg.APIKey != "" {
-			req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return friendlyRequestError(err, cfg.ServerURL)
-		}
-		defer resp.Body.Close()
-
-		respBody, err := io.ReadAll(resp.Body)
+		client := &httpclient.Client{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}
+		var raw json.RawMessage
+		err := client.Do(cmd.Context(), spec.method, path, body, &raw)
 		if err != nil {
 			return err
 		}
 
-		if resp.StatusCode >= 400 {
-			var errResp map[string]any
-			json.Unmarshal(respBody, &errResp)
-			msg := "unknown error"
-			if m, ok := errResp["message"].(string); ok {
-				msg = m
-			}
-			return fmt.Errorf("error %d: %s", resp.StatusCode, msg)
-		}
-
-		if resp.StatusCode == 204 || len(respBody) == 0 {
+		if len(raw) == 0 {
 			return nil
 		}
 
 		w := cmd.OutOrStdout()
 		useJSON, _ := cmd.Flags().GetBool("json")
 		if useJSON {
-			fmt.Fprintln(w, string(respBody))
+			fmt.Fprintln(w, string(raw))
 			return nil
 		}
 
-		return formatOutput(w, respBody, spec.output)
+		return formatOutput(w, raw, spec.output)
 	}
 }
 
