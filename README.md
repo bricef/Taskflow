@@ -27,6 +27,7 @@ taskflow-tui
 
 ## Documentation
 
+- **[Architecture](ARCHITECTURE.md)** — package structure, dependency flow, design decisions, event system
 - **[HTTP API Reference](docs/http-api.md)** — all endpoints, authentication, error handling, configuration
 - **[CLI Reference](docs/cli.md)** — all commands, flags, output formats
 - **[TUI Reference](docs/tui.md)** — interactive terminal UI: views, keybindings, live updates
@@ -68,78 +69,9 @@ See [docs/](docs/) for the PRD, phase plans, API reference, and CLI reference.
 
 ## Architecture
 
-The domain surface is split into **Resources** (read-only) and **Operations** (mutations), each with an explicit `Name` used as the canonical identifier across all clients:
+Operations are defined once in `model.Resources()` and `model.Operations()` and derived into HTTP routes, CLI commands, OpenAPI specs, and the shared `httpclient`. All clients (CLI, TUI, simulator) are pure HTTP consumers — they import no server internals.
 
-```
-model.Resources()  model.Operations()
- (18 read-only)     (23 mutations)
-      │                    │
-      ├──────────┬─────────┤
-      ▼          ▼         ▼
-internal/http  openapi.json  internal/httpclient
- Server side:   Derives:       Client side:
- GET routes      schemas        GetOne, GetMany
- handler map     operationIds   Exec, ExecNoResult
- status codes    parameters     Subscribe (events)
-```
-
-The server derives HTTP routes from the model. Clients (CLI, TUI, simulator, MCP) use `httpclient` which accepts model types directly — no manual URL building.
-
-```
-taskflow.TaskFlow  (Go interface — compile-time safety)
-      │
-service.Service    (business logic: validation, audit, orchestration)
-      │                    │
-repo.Store              eventbus.Bus
-      │                    │
-sqlite.Store           SSE ──→ httpclient.Subscribe ──→ TUI, MCP
-```
-
-Events carry before/after task snapshots so consumers can diff state without refetching. All clients are pure HTTP consumers — they import no server internals.
-
-## Project Structure
-
-```
-internal/
-├── model/              Domain types, resources, and operation definitions
-│   ├── operations.go       Resources and Operations with explicit Names
-│   ├── registry.go         Exported named references (ResTaskList, OpTaskCreate, etc.)
-│   ├── query.go            Query param derivation from struct tags, path substitution
-│   ├── views.go            Composite view types (BoardDetail, BoardOverview, SystemStats)
-│   └── ...                 Domain types: Actor, Board, Task, Comment, Dependency, etc.
-│
-├── taskflow/           Go interface for all business operations
-├── service/            Business logic (storage-agnostic)
-├── repo/               Storage-agnostic repository interfaces
-├── sqlite/             SQLite implementation (sqlx, generic mapper)
-├── workflow/           Workflow engine (state machine, JSON Schema validation)
-├── transport/          Domain-to-HTTP mapping (MethodForAction, StatusForAction)
-├── httpclient/         Domain-aware HTTP client (GetOne, GetMany, Exec, Subscribe)
-├── http/               HTTP server (derived routes, middleware, OpenAPI generation)
-├── cli/                CLI client (derived commands from model)
-├── eventbus/           In-process pub/sub with ring-buffered subscriptions
-├── tui/                Interactive terminal UI (Bubble Tea)
-└── testutil/           Test helpers
-
-cmd/
-├── taskflow-server/    Server binary
-├── taskflow/           CLI binary
-├── taskflow-tui/       TUI binary
-├── taskflow-seed/      Test data generator
-└── taskflow-sim/       Activity simulator for SSE testing
-
-migrations/             Embedded SQL migrations
-```
-
-## Key Design Decisions
-
-- **Resources and Operations as data** — `model.Resources()` and `model.Operations()` define the full domain surface; HTTP routes, CLI commands, OpenAPI docs, and MCP tools are all derived from explicit Names
-- **Domain-aware client** — `httpclient.GetOne/GetMany/Exec/ExecNoResult` accept model types directly; consumers (TUI, CLI, simulator, MCP) never build URLs manually
-- **`Optional[T]`** for partial updates — cleanly distinguishes "not provided" from "set to nil" with JSON marshaling support
-- **Typed actions** — `model.Action` enum with constants; HTTP method and status are derived by the transport layer
-- **Query params from struct tags** — filter/sort structs use `query` tags; params are derived for OpenAPI, CLI flags, and client query strings
-- **Attachments are references** — all attachments (including files) are typed references; file storage is infrastructure, not domain
-- **Workflow engine** — pure state machine with JSON Schema validation; workflows are validated on board creation
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full architectural reference: dependency flow, package responsibilities, event system, query param derivation, and design rationale.
 
 ## Development
 
