@@ -185,6 +185,34 @@ func (s *Service) SystemStats(ctx context.Context) (model.SystemStats, error) {
 	}, nil
 }
 
+const maxSearchResults = 1000
+
+// SearchTasks lists tasks across all boards, applying the given filter.
+func (s *Service) SearchTasks(ctx context.Context, filter model.TaskFilter) ([]model.Task, error) {
+	boards, err := s.store.BoardList(ctx, model.ListBoardsParams{})
+	if err != nil {
+		return nil, err
+	}
+
+	var results []model.Task
+	for _, b := range boards {
+		if len(results) >= maxSearchResults {
+			break
+		}
+		filter.BoardSlug = b.Slug
+		tasks, err := s.store.TaskList(ctx, filter, nil)
+		if err != nil {
+			continue
+		}
+		results = append(results, tasks...)
+	}
+
+	if len(results) > maxSearchResults {
+		results = results[:maxSearchResults]
+	}
+	return orEmpty(results), nil
+}
+
 // orEmpty ensures nil slices serialize as [] rather than null.
 func orEmpty[T any](s []T) []T {
 	if s == nil {

@@ -34,7 +34,7 @@ taskflow task list <board-slug> --state in_progress --assignee alice
 taskflow task list <board-slug> --priority high --include_closed
 
 # Search across all boards
-taskflow search --q "auth bug"
+taskflow task search --q "auth bug"
 
 # Get full board detail (tasks, comments, deps, audit)
 taskflow board detail <board-slug>

@@ -231,7 +231,7 @@ check_json_field "board_detail"  '.board.slug'      "$BASE_URL/boards/platform/d
 check_json_field "board_overview" '.slug'            "$BASE_URL/boards/platform/overview"
 check_json_field "admin_stats"   '.actors.total'    "$BASE_URL/admin/stats"
 check_json       "global_tasks"                     "$BASE_URL/tasks"
-check_json       "search"                           "$BASE_URL/search?q=pipeline"
+check_json       "task_search"                      "$BASE_URL/tasks?q=pipeline"
 echo
 
 # --- 5. OpenAPI spec ---

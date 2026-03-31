@@ -110,6 +110,9 @@ func (s *Server) resourceHandlers() map[string]handler {
 		// Attachments
 		"attachment_list": pathStrInt("slug", "num", s.svc.ListAttachments),
 
+		// Cross-board
+		"task_search": s.searchTasks,
+
 		// Views
 		"board_detail":   pathStr("slug", s.svc.BoardDetail),
 		"board_overview": pathStr("slug", s.svc.BoardOverview),
@@ -214,11 +217,9 @@ func (s *Server) registerRoutes() {
 		}
 		r.Use(authMiddleware(s.svc))
 
-		// Convenience endpoints (not yet in model — transport-specific or pending query param work).
+		// Transport-specific endpoints (SSE, batch — not domain resources).
 		r.Get("/boards/{slug}/events", s.sseHandler)
 		r.Get("/events", s.globalSSEHandler)
-		r.Get("/tasks", s.globalTasksHandler)
-		r.Get("/search", s.searchHandler)
 		r.Post("/batch", s.batchHandler)
 
 		// Domain resources and operations.

@@ -205,7 +205,7 @@ func TestOpenAPISpec(t *testing.T) {
 	// Verify key endpoints exist (domain operations + convenience).
 	for _, path := range []string{
 		"/actors", "/boards", "/boards/{slug}/tasks", "/webhooks",
-		"/boards/{slug}/detail", "/admin/stats", "/search", "/batch",
+		"/boards/{slug}/detail", "/admin/stats", "/tasks", "/batch",
 	} {
 		if _, ok := paths[path]; !ok {
 			t.Errorf("expected path %s in spec", path)
@@ -791,7 +791,7 @@ func TestSearch(t *testing.T) {
 		"title": "Unrelated task", "priority": "none",
 	}, env.memberKey)
 
-	resp := env.request(t, "GET", "/search?q=authentication", nil, env.memberKey)
+	resp := env.request(t, "GET", "/tasks?q=authentication", nil, env.memberKey)
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
@@ -803,13 +803,6 @@ func TestSearch(t *testing.T) {
 	}
 }
 
-func TestSearchRequiresQuery(t *testing.T) {
-	env := newTestEnv(t)
-	resp := env.request(t, "GET", "/search", nil, env.memberKey)
-	if resp.StatusCode != 400 {
-		t.Fatalf("expected 400 without q param, got %d", resp.StatusCode)
-	}
-}
 
 // --- @me alias ---
 

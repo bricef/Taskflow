@@ -22,13 +22,13 @@ delivery list <id>                                 List webhook delivery attempt
 dependency create <slug> <num>                     Add a dependency
 dependency delete <id>                             Remove a dependency
 dependency list <slug> <num>                       List dependencies for a task
-search                                             Search tasks across all boards
 tag list <slug>                                    List tags in use on a board with counts
 task audit <slug> <num>                            Get audit log for a task
 task create <slug>                                 Create a task
 task delete <slug> <num>                           Delete a task (soft-delete)
 task get <slug> <num>                              Get a task
 task list <slug>                                   List tasks (with filters and search)
+task search                                        Search tasks across all boards
 task transition <slug> <num>                       Transition a task to a new state
 task update <slug> <num>                           Update a task
 webhook create                                     Create a webhook

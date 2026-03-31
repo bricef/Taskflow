@@ -49,13 +49,6 @@ func (c *Client) BaseURL() string { return c.baseURL }
 // APIKey returns the bearer token.
 func (c *Client) APIKey() string { return c.apiKey }
 
-// Do executes a raw authenticated JSON HTTP request.
-// Use Resource/Operation methods or generic functions when possible.
-// This is available for edge cases like raw path-based convenience endpoints.
-func (c *Client) Do(method, path string, body any, out any) error {
-	return c.do(method, path, body, out)
-}
-
 // resource executes a GET request for a domain resource.
 func (c *Client) resource(res model.Resource, params PathParams, filter any, out any) error {
 	path := model.SubstitutePath(res.Path, params)

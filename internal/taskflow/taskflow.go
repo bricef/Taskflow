@@ -77,4 +77,5 @@ type TaskFlow interface {
 	BoardDetail(ctx context.Context, slug string) (model.BoardDetail, error)
 	BoardOverview(ctx context.Context, slug string) (model.BoardOverview, error)
 	SystemStats(ctx context.Context) (model.SystemStats, error)
+	SearchTasks(ctx context.Context, filter model.TaskFilter) ([]model.Task, error)
 }

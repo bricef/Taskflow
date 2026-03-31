@@ -140,30 +140,6 @@ func generateOpenAPISpec(routes []Route) []byte {
 func addConvenienceEndpoints(paths map[string]any) {
 	secured := []any{map[string]any{"bearerAuth": []any{}}}
 
-	paths["/search"] = map[string]any{
-		"get": map[string]any{
-			"summary":  "Search tasks across all boards",
-			"tags":     []string{"search"},
-			"security": secured,
-			"parameters": []any{
-				map[string]any{"name": "q", "in": "query", "required": true, "schema": map[string]any{"type": "string"}, "description": "Full-text search query"},
-				map[string]any{"name": "state", "in": "query", "schema": map[string]any{"type": "string"}, "description": "Filter by state"},
-				map[string]any{"name": "assignee", "in": "query", "schema": map[string]any{"type": "string"}, "description": "Filter by assignee (supports @me)"},
-				map[string]any{"name": "priority", "in": "query", "schema": map[string]any{"type": "string"}, "description": "Filter by priority"},
-			},
-			"responses": map[string]any{
-				"200": map[string]any{
-					"description": "Search results",
-					"content": map[string]any{
-						"application/json": map[string]any{
-							"schema": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Task"}},
-						},
-					},
-				},
-			},
-		},
-	}
-
 	paths["/batch"] = map[string]any{
 		"post": map[string]any{
 			"summary":  "Execute multiple operations in a single request (max 50)",

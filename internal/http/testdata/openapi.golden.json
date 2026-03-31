@@ -2691,20 +2691,12 @@
         ]
       }
     },
-    "/search": {
+    "/tasks": {
       "get": {
+        "operationId": "task_search",
         "parameters": [
           {
-            "description": "Full-text search query",
-            "in": "query",
-            "name": "q",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by state",
+            "description": "Filter by workflow state",
             "in": "query",
             "name": "state",
             "schema": {
@@ -2712,7 +2704,7 @@
             }
           },
           {
-            "description": "Filter by assignee (supports @me)",
+            "description": "Filter by assignee name",
             "in": "query",
             "name": "assignee",
             "schema": {
@@ -2720,9 +2712,57 @@
             }
           },
           {
-            "description": "Filter by priority",
+            "description": "Filter by priority (critical/high/medium/low/none)",
             "in": "query",
             "name": "priority",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by tag",
+            "in": "query",
+            "name": "tag",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Full-text search query",
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include tasks in terminal states",
+            "in": "query",
+            "name": "include_closed",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Include soft-deleted tasks",
+            "in": "query",
+            "name": "include_deleted",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Sort field (created_at/updated_at/priority/due_date)",
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort order (asc/desc)",
+            "in": "query",
+            "name": "order",
             "schema": {
               "type": "string"
             }
@@ -2740,7 +2780,17 @@
                 }
               }
             },
-            "description": "Search results"
+            "description": "Success"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Client error"
           }
         },
         "security": [
@@ -2750,7 +2800,7 @@
         ],
         "summary": "Search tasks across all boards",
         "tags": [
-          "search"
+          "tasks"
         ]
       }
     },

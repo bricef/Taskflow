@@ -13,6 +13,7 @@ var (
 	ResCommentList = mustRes("comment_list")
 	ResDepList     = mustRes("dependency_list")
 	ResAttachList  = mustRes("attachment_list")
+	ResTaskSearch  = mustRes("task_search")
 	ResBoardDetail = mustRes("board_detail")
 	ResBoardOver   = mustRes("board_overview")
 	ResAdminStats  = mustRes("admin_stats")

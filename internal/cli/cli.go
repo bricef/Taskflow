@@ -116,9 +116,6 @@ func BuildCLI(cfg *Config) *cobra.Command {
 		getGroup(group).AddCommand(cmd)
 	}
 
-	// Convenience commands (not derived from domain resources/operations).
-	addConvenienceCommands(root, getGroup)
-
 	return root
 }
 
@@ -153,65 +150,6 @@ func buildCommand(verb string, pathParams []model.PathParam, spec cmdSpec) *cobr
 	cmd.Flags().Bool("json", false, "Output raw JSON")
 
 	return cmd
-}
-
-func addConvenienceCommands(root *cobra.Command, getGroup func(string) *cobra.Command) {
-	// taskflow search --q <query>
-	searchCmd := &cobra.Command{
-		Use:   "search",
-		Short: "Search tasks across all boards",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := getConfig()
-			q, _ := cmd.Flags().GetString("q")
-			if q == "" {
-				return fmt.Errorf("--q flag is required")
-			}
-			url := "/search?q=" + q
-			if v, _ := cmd.Flags().GetString("state"); v != "" {
-				url += "&state=" + v
-			}
-			if v, _ := cmd.Flags().GetString("assignee"); v != "" {
-				url += "&assignee=" + v
-			}
-			if v, _ := cmd.Flags().GetString("priority"); v != "" {
-				url += "&priority=" + v
-			}
-			return doGet(cmd, cfg, url)
-		},
-	}
-	searchCmd.Flags().String("q", "", "Search query (required)")
-	searchCmd.Flags().String("state", "", "Filter by state")
-	searchCmd.Flags().String("assignee", "", "Filter by assignee (supports @me)")
-	searchCmd.Flags().String("priority", "", "Filter by priority")
-	searchCmd.Flags().Bool("json", false, "Output raw JSON")
-	root.AddCommand(searchCmd)
-}
-
-// doGet is a helper for convenience commands that make a simple GET request.
-func doGet(cmd *cobra.Command, cfg Config, path string) error {
-	if err := checkConfig(cfg); err != nil {
-		cmd.SilenceUsage = true
-		return err
-	}
-	cmd.SilenceUsage = true
-
-	client := httpclient.New(cfg.ServerURL, cfg.APIKey)
-	var raw json.RawMessage
-	if err := client.Do("GET", path, nil, &raw); err != nil {
-		return err
-	}
-
-	w := cmd.OutOrStdout()
-	useJSON, _ := cmd.Flags().GetBool("json")
-	if useJSON || len(raw) == 0 {
-		fmt.Fprintln(w, string(raw))
-		return nil
-	}
-
-	// Pretty-print JSON.
-	pretty, _ := json.MarshalIndent(raw, "", "  ")
-	fmt.Fprintln(w, string(pretty))
-	return nil
 }
 
 func buildUsageLine(verb string, pathParams []model.PathParam) string {

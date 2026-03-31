@@ -199,6 +199,10 @@ func Resources() []Resource {
 		ListRes("/boards/{slug}/tasks/{num}/attachments", "List attachments on a task").Name("attachment_list").
 			Output([]Attachment{}).Build(),
 
+		// Cross-board
+		ListRes("/tasks", "Search tasks across all boards").Name("task_search").
+			Output([]Task{}).FilterType(TaskFilter{}).SortType(TaskSort{}).Build(),
+
 		// Views
 		GetRes("/boards/{slug}/detail", "Get complete board with all tasks, comments, attachments, dependencies, and audit").Name("board_detail").
 			Output(BoardDetail{}).Build(),

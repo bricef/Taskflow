@@ -79,11 +79,10 @@ func (s *Server) createTask(ctx context.Context, r *http.Request) (any, error) {
 	return s.svc.CreateTask(ctx, p)
 }
 
-func (s *Server) listTasks(ctx context.Context, r *http.Request) (any, error) {
+func parseTaskFilter(ctx context.Context, r *http.Request) model.TaskFilter {
 	assignee := queryStr(r, "assignee")
 	resolveAtMe(ctx, assignee)
 	filter := model.TaskFilter{
-		BoardSlug:      urlParamStr(r, "slug"),
 		State:          queryStr(r, "state"),
 		Assignee:       assignee,
 		Tag:            queryStr(r, "tag"),
@@ -95,20 +94,39 @@ func (s *Server) listTasks(ctx context.Context, r *http.Request) (any, error) {
 		pv := model.Priority(*p)
 		filter.Priority = &pv
 	}
-	var sort *model.TaskSort
-	if field := queryStr(r, "sort"); field != nil {
-		validSortFields := map[string]bool{
-			"created_at": true, "updated_at": true, "due_date": true, "priority": true,
-		}
-		if !validSortFields[*field] {
-			return nil, &model.ValidationError{Field: "sort", Message: "must be one of: created_at, updated_at, due_date, priority"}
-		}
-		sort = &model.TaskSort{
-			Field: *field,
-			Desc:  r.URL.Query().Get("order") == "desc",
-		}
+	return filter
+}
+
+func parseTaskSort(r *http.Request) (*model.TaskSort, error) {
+	field := queryStr(r, "sort")
+	if field == nil {
+		return nil, nil
+	}
+	validSortFields := map[string]bool{
+		"created_at": true, "updated_at": true, "due_date": true, "priority": true,
+	}
+	if !validSortFields[*field] {
+		return nil, &model.ValidationError{Field: "sort", Message: "must be one of: created_at, updated_at, due_date, priority"}
+	}
+	return &model.TaskSort{
+		Field: *field,
+		Desc:  r.URL.Query().Get("order") == "desc",
+	}, nil
+}
+
+func (s *Server) listTasks(ctx context.Context, r *http.Request) (any, error) {
+	filter := parseTaskFilter(ctx, r)
+	filter.BoardSlug = urlParamStr(r, "slug")
+	sort, err := parseTaskSort(r)
+	if err != nil {
+		return nil, err
 	}
 	return s.svc.ListTasks(ctx, filter, sort)
+}
+
+func (s *Server) searchTasks(ctx context.Context, r *http.Request) (any, error) {
+	filter := parseTaskFilter(ctx, r)
+	return s.svc.SearchTasks(ctx, filter)
 }
 
 func (s *Server) updateTask(ctx context.Context, r *http.Request) (any, error) {
