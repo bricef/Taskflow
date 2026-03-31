@@ -85,6 +85,45 @@ Every actor (human or AI) has a role that determines what they can do:
 
 Requests that exceed the actor's role receive a `403 Forbidden` response. Each Resource and Operation in the model declares its minimum required role.
 
+## Workflows
+
+Each board has a workflow — a state machine that defines how tasks move through stages. Workflows are specified as JSON when creating a board. If omitted, a default workflow is used.
+
+```
+backlog → in_progress → review → done
+              ↑            │
+              └────────────┘ (reject)
+         from any → cancelled
+```
+
+```json
+{
+  "states": ["backlog", "in_progress", "review", "done", "cancelled"],
+  "initial_state": "backlog",
+  "terminal_states": ["done", "cancelled"],
+  "transitions": [
+    {"from": "backlog", "to": "in_progress", "name": "start"},
+    {"from": "in_progress", "to": "review", "name": "submit"},
+    {"from": "review", "to": "done", "name": "approve"},
+    {"from": "review", "to": "in_progress", "name": "reject"}
+  ],
+  "from_all": [
+    {"to": "cancelled", "name": "cancel"}
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `states` | All valid states |
+| `initial_state` | State assigned to new tasks |
+| `terminal_states` | End states — tasks here are considered closed |
+| `transitions` | Explicit state-to-state transitions with named actions |
+| `from_all` | Transitions reachable from every non-terminal state |
+| `to_all` | Transitions from a specific state to every other state |
+
+Tasks are moved between states by name (e.g. `--transition start`), not by target state. Use `taskflow workflow get <board>` or the TUI's Workflow tab to see available transitions.
+
 ## Architecture
 
 Operations are defined once in `model.Resources()` and `model.Operations()` and derived into HTTP routes, CLI commands, OpenAPI specs, and the shared `httpclient`. All clients (CLI, TUI, simulator) are pure HTTP consumers — they import no server internals.
