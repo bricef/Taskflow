@@ -31,6 +31,7 @@ taskflow-tui
 - **[HTTP API Reference](docs/http-api.md)** — all endpoints, authentication, error handling, configuration
 - **[CLI Reference](docs/cli.md)** — all commands, flags, output formats
 - **[TUI Reference](docs/tui.md)** — interactive terminal UI: views, keybindings, live updates
+- **[MCP Server](docs/mcp.md)** — AI agent integration via Model Context Protocol
 - **[OpenAPI Spec](http://localhost:8374/openapi.json)** — machine-readable, auto-generated from operation definitions
 - **[Claude Code Skill](SKILL.md)** — AI agent guide for using TaskFlow via the CLI
 - **[Manual QA Checklist](TESTING.md)** — endpoint-by-endpoint verification guide
@@ -47,7 +48,7 @@ taskflow-tui
 - HTML dashboard at `/dashboard`
 - Docker deployment with seed admin bootstrap
 
-**In progress:** [MCP server](docs/plans/active/2026-03-31-mcp-server.md) for AI agent integration.
+- MCP server for AI agent integration (Claude Code, Aider, Cursor) — see **[MCP Server](docs/mcp.md)**
 
 See [docs/](docs/) for API, CLI, and TUI reference.
 
