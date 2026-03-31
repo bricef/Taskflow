@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -27,9 +28,15 @@ type StreamError struct {
 	Permanent bool // if true, the stream will not retry (e.g. 401, 404)
 }
 
-// Subscribe opens an SSE event stream for the given board.
+// SubscribeOptions configures the event stream filter.
+type SubscribeOptions struct {
+	Boards   []string // filter to specific board slugs (empty = all boards)
+	Assignee string   // filter to events on tasks assigned to this user (supports @me)
+}
+
+// Subscribe opens a global SSE event stream with optional filtering.
 // Events are delivered on the returned channels until ctx is cancelled.
-func (c *Client) Subscribe(ctx context.Context, boardSlug string) *EventStream {
+func (c *Client) Subscribe(ctx context.Context, opts SubscribeOptions) *EventStream {
 	events := make(chan eventbus.Event, 64)
 	errors := make(chan StreamError, 4)
 	connected := make(chan struct{}, 1)
@@ -47,7 +54,7 @@ func (c *Client) Subscribe(ctx context.Context, boardSlug string) *EventStream {
 
 		backoff := time.Second
 		for {
-			err := c.streamSSE(ctx, boardSlug, events, connected)
+			err := c.streamSSE(ctx, opts, events, connected)
 			if ctx.Err() != nil {
 				return
 			}
@@ -75,10 +82,18 @@ func (c *Client) Subscribe(ctx context.Context, boardSlug string) *EventStream {
 	return stream
 }
 
-func (c *Client) streamSSE(ctx context.Context, boardSlug string, events chan<- eventbus.Event, connected chan<- struct{}) error {
-	url := c.baseURL + "/boards/" + boardSlug + "/events?token=" + c.apiKey
+func (c *Client) streamSSE(ctx context.Context, opts SubscribeOptions, events chan<- eventbus.Event, connected chan<- struct{}) error {
+	params := url.Values{}
+	params.Set("token", c.apiKey)
+	if len(opts.Boards) > 0 {
+		params.Set("boards", strings.Join(opts.Boards, ","))
+	}
+	if opts.Assignee != "" {
+		params.Set("assignee", opts.Assignee)
+	}
+	sseURL := c.baseURL + "/events?" + params.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", sseURL, nil)
 	if err != nil {
 		return fmt.Errorf("could not create request: %w", err)
 	}
@@ -98,7 +113,7 @@ func (c *Client) streamSSE(ctx context.Context, boardSlug string, events chan<- 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return &sseStatusError{code: resp.StatusCode, boardSlug: boardSlug}
+		return &sseStatusError{code: resp.StatusCode}
 	}
 
 	select {
@@ -143,20 +158,17 @@ func (c *Client) streamSSE(ctx context.Context, boardSlug string, events chan<- 
 	if err := scanner.Err(); err != nil {
 		return err
 	}
-	return fmt.Errorf("SSE stream ended unexpectedly")
+	return fmt.Errorf("event stream ended unexpectedly")
 }
 
 type sseStatusError struct {
-	code      int
-	boardSlug string
+	code int
 }
 
 func (e *sseStatusError) Error() string {
 	switch e.code {
 	case 401:
 		return "authentication failed — check your API key"
-	case 404:
-		return fmt.Sprintf("board %q not found", e.boardSlug)
 	default:
 		return fmt.Sprintf("server returned status %d", e.code)
 	}
@@ -164,7 +176,7 @@ func (e *sseStatusError) Error() string {
 
 func isPermanent(err error) bool {
 	if e, ok := err.(*sseStatusError); ok {
-		return e.code == 401 || e.code == 404
+		return e.code == 401
 	}
 	return false
 }

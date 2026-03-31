@@ -58,13 +58,15 @@ type Model struct {
 	// Board selector
 	selector selectorModel
 
-	// Board view (active after selecting a board)
-	activeBoard *model.Board
-	activeTab   boardTab
+	// Event stream (connected at startup, shared across boards)
 	liveStatus   string
-	lastError   string
-	eventLog     eventLogModel
-	eventsCancel    func() // cancels the active event stream
+	lastError    string
+	eventsCancel func()                    // cancels the event stream
+	boardEvents  map[string]*eventLogModel // per-board event buffers
+
+	// Board view (active after selecting a board)
+	activeBoard  *model.Board
+	activeTab    boardTab
 	kanban       kanbanModel
 	listView     listViewModel
 	workflowView workflowViewModel
@@ -77,17 +79,47 @@ type Model struct {
 func New(cfg Config) Model {
 	client := httpclient.New(cfg.ServerURL, cfg.APIKey)
 	return Model{
-		cfg:       cfg,
-		client:    client,
-		help:      newHelp(),
-		viewport:  viewport.New(80, 20),
-		selector:  newSelector(),
-		view:      viewSelector,
-		liveStatus: "disconnected",
+		cfg:         cfg,
+		client:      client,
+		help:        newHelp(),
+		viewport:    viewport.New(80, 20),
+		selector:    newSelector(),
+		view:        viewSelector,
+		liveStatus:  "connecting...",
+		boardEvents: map[string]*eventLogModel{},
 	}
 }
 
+// activeEventLog returns the event log for the current board, creating it if needed.
+func (m *Model) activeEventLog() *eventLogModel {
+	if m.activeBoard == nil {
+		return &eventLogModel{}
+	}
+	slug := m.activeBoard.Slug
+	if log, ok := m.boardEvents[slug]; ok {
+		return log
+	}
+	log := &eventLogModel{}
+	m.boardEvents[slug] = log
+	return log
+}
+
+// boardEventLog returns the event log for a board slug, creating it if needed.
+func (m *Model) boardEventLog(slug string) *eventLogModel {
+	if log, ok := m.boardEvents[slug]; ok {
+		return log
+	}
+	log := &eventLogModel{}
+	m.boardEvents[slug] = log
+	return log
+}
+
 func (m Model) Init() tea.Cmd {
+	// Start the global event stream immediately.
+	if m.cfg.Program != nil && *m.cfg.Program != nil {
+		m.eventsCancel = startLiveEvents(*m.cfg.Program, m.client)
+	}
+
 	if m.cfg.BoardSlug != "" {
 		return func() tea.Msg {
 			board, err := httpclient.GetOne[model.Board](m.client, model.ResBoardGet, httpclient.PathParams{"slug": m.cfg.BoardSlug}, nil)
@@ -163,8 +195,9 @@ func (m *Model) openDetail() tea.Cmd {
 		}
 	case tabEventLog:
 		// Try to get task num from the selected event.
-		if m.eventLog.cursor >= 0 && m.eventLog.cursor < len(m.eventLog.entries) {
-			entry := m.eventLog.entries[m.eventLog.cursor]
+		el := m.activeEventLog()
+		if el.cursor >= 0 && el.cursor < len(el.entries) {
+			entry := el.entries[el.cursor]
 			if entry.event != nil {
 				snap := entry.event.After
 				if snap == nil {
@@ -343,14 +376,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.view == viewBoard {
-				if m.eventsCancel != nil {
-					m.eventsCancel()
-					m.eventsCancel = nil
-				}
 				m.view = viewSelector
 				m.activeBoard = nil
-				m.liveStatus = "disconnected"
-				m.eventLog = eventLogModel{}
 				return m, fetchBoards(m.client, m.selector.showArchived)
 			}
 		case "tab":
@@ -418,29 +445,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case boardSelected:
-		// Cancel any existing event stream.
-		if m.eventsCancel != nil {
-			m.eventsCancel()
-			m.eventsCancel = nil
-		}
 		m.activeBoard = &msg.board
 		m.view = viewBoard
 		m.activeTab = tabKanban
-		m.liveStatus = "connecting..."
-		m.eventLog = eventLogModel{}
 		m.kanban = newKanban()
 		m.listView = newListView()
 		m.resizeViewport()
-		if m.cfg.Program != nil && *m.cfg.Program != nil {
-			m.eventsCancel = startLiveEvents(*m.cfg.Program, m.client, msg.board.Slug)
-		}
 		return m, fetchBoardData(m.client, msg.board.Slug)
 
 	case boardDataLoaded:
 		m.kanban.load(msg)
 		m.listView.load(msg)
 		m.workflowView.load(msg.workflow)
-		m.eventLog.seedFromAudit(msg.audit)
+		if m.activeBoard != nil {
+			m.boardEventLog(m.activeBoard.Slug).seedFromAudit(msg.audit)
+		}
 		return m, nil
 
 	case actorsLoaded, assignResult:
@@ -494,11 +513,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case eventbus.Event:
-		m.eventLog.addEvent(msg)
-		m.applyEventToKanban(msg)
-		m.applyEventToList(msg)
-		if cmd := m.refreshDetailIfAffected(msg); cmd != nil {
-			return m, cmd
+		m.boardEventLog(msg.Board.Slug).addEvent(msg)
+		// Only apply to kanban/list/detail if the event is for the active board.
+		if m.activeBoard != nil && msg.Board.Slug == m.activeBoard.Slug {
+			m.applyEventToKanban(msg)
+			m.applyEventToList(msg)
+			if cmd := m.refreshDetailIfAffected(msg); cmd != nil {
+				return m, cmd
+			}
 		}
 		return m, nil
 
@@ -538,11 +560,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case m.view == viewBoard && m.activeTab == tabEventLog:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			el := m.activeEventLog()
 			switch keyMsg.String() {
 			case "up", "k":
-				m.eventLog.moveUp()
+				el.moveUp()
 			case "down", "j":
-				m.eventLog.moveDown()
+				el.moveDown()
 			}
 		}
 	}
@@ -631,7 +654,7 @@ func (m Model) boardView() string {
 		case tabList:
 			content = m.listView.view(m.viewport.Width, m.viewport.Height)
 		case tabEventLog:
-			content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
+			content = m.activeEventLog().view(m.viewport.Width, m.viewport.Height)
 		}
 		// Overlays replace tab content.
 		if m.assign != nil {

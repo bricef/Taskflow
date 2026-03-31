@@ -11,7 +11,10 @@ import (
 	"github.com/bricef/taskflow/internal/model"
 )
 
-const recentAuditCount = 5
+const (
+	recentAuditCount = 5
+	maxEventEntries  = 200
+)
 
 var (
 	selectedLineStyle = lipgloss.NewStyle().Background(lipgloss.Color("236"))
@@ -40,8 +43,8 @@ func (m *eventLogModel) addEvent(evt eventbus.Event) {
 		line:  formatEvent(evt),
 		event: &evt,
 	})
-	if len(m.entries) > 200 {
-		m.entries = m.entries[len(m.entries)-200:]
+	if len(m.entries) > maxEventEntries {
+		m.entries = m.entries[len(m.entries)-maxEventEntries:]
 	}
 	m.cursor = len(m.entries) - 1
 }

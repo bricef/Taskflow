@@ -11,11 +11,12 @@ import (
 // liveConnected is a Bubble Tea message sent when the event stream connects.
 type liveConnected struct{}
 
-// startLiveEvents connects to the event stream and forwards domain events
-// into the Bubble Tea program. Returns a cancel function that stops the stream.
-func startLiveEvents(p *tea.Program, client *httpclient.Client, boardSlug string) context.CancelFunc {
+// startLiveEvents connects to the global event stream (all boards) and
+// forwards domain events into the Bubble Tea program.
+// Returns a cancel function that stops the stream.
+func startLiveEvents(p *tea.Program, client *httpclient.Client) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
-	stream := client.Subscribe(ctx, boardSlug)
+	stream := client.Subscribe(ctx, httpclient.SubscribeOptions{})
 
 	go func() {
 		for {

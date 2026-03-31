@@ -49,7 +49,7 @@ These features were identified during MCP planning and should be integrated into
 - [ ] **"My tasks" view**: Cross-board task list filtered by assignee (`@me`). Already implemented as API feature for MCP. Integrate into TUI (new tab or filter), CLI (`taskflow task list --assignee @me`), and dashboard.
 - [ ] **Board overview with task counts**: Board detail endpoint should include task counts by state. Use in dashboard board cards, TUI board selector, CLI board get.
 - [ ] **Transition error context in CLI/TUI**: When a transition fails, show available transitions in the error message (API already returns them).
-- [ ] **TUI SSE architecture**: Revisit TUI event listening to use the global `/events` endpoint instead of per-board SSE. Would enable cross-board notifications in the board selector and simplify connection management.
+- [x] **TUI SSE architecture**: TUI now uses the global `/events` endpoint with per-board ring buffers. Events are captured from startup; switching boards preserves history. No reconnection on board switch.
 
 ## Planned Dashboard Features
 
