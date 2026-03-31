@@ -25,7 +25,7 @@ var (
 
 type eventEntry struct {
 	line  string            // formatted one-liner for the list
-	event *eventbus.Event   // live SSE event (nil for audit history)
+	event *eventbus.Event   // live event (nil for audit history)
 	audit *model.AuditEntry // audit history entry (nil for live events)
 }
 

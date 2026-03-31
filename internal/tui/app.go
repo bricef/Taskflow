@@ -61,10 +61,10 @@ type Model struct {
 	// Board view (active after selecting a board)
 	activeBoard *model.Board
 	activeTab   boardTab
-	sseStatus   string
+	liveStatus   string
 	lastError   string
 	eventLog     eventLogModel
-	sseCancel    func() // cancels the active SSE goroutine
+	eventsCancel    func() // cancels the active event stream
 	kanban       kanbanModel
 	listView     listViewModel
 	workflowView workflowViewModel
@@ -83,7 +83,7 @@ func New(cfg Config) Model {
 		viewport:  viewport.New(80, 20),
 		selector:  newSelector(),
 		view:      viewSelector,
-		sseStatus: "disconnected",
+		liveStatus: "disconnected",
 	}
 }
 
@@ -187,7 +187,7 @@ func (m *Model) openDetail() tea.Cmd {
 	return fetchTaskDetail(m.client, boardSlug, num)
 }
 
-func (m *Model) applySSEToKanban(evt eventbus.Event) {
+func (m *Model) applyEventToKanban(evt eventbus.Event) {
 	if m.activeBoard == nil {
 		return
 	}
@@ -229,7 +229,7 @@ func (m *Model) refreshDetailIfAffected(evt eventbus.Event) tea.Cmd {
 	return fetchTaskDetail(m.client, m.activeBoard.Slug, task.Num)
 }
 
-func (m *Model) applySSEToList(evt eventbus.Event) {
+func (m *Model) applyEventToList(evt eventbus.Event) {
 	if m.activeBoard == nil {
 		return
 	}
@@ -343,13 +343,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.view == viewBoard {
-				if m.sseCancel != nil {
-					m.sseCancel()
-					m.sseCancel = nil
+				if m.eventsCancel != nil {
+					m.eventsCancel()
+					m.eventsCancel = nil
 				}
 				m.view = viewSelector
 				m.activeBoard = nil
-				m.sseStatus = "disconnected"
+				m.liveStatus = "disconnected"
 				m.eventLog = eventLogModel{}
 				return m, fetchBoards(m.client, m.selector.showArchived)
 			}
@@ -418,21 +418,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case boardSelected:
-		// Cancel any existing SSE connection.
-		if m.sseCancel != nil {
-			m.sseCancel()
-			m.sseCancel = nil
+		// Cancel any existing event stream.
+		if m.eventsCancel != nil {
+			m.eventsCancel()
+			m.eventsCancel = nil
 		}
 		m.activeBoard = &msg.board
 		m.view = viewBoard
 		m.activeTab = tabKanban
-		m.sseStatus = "connecting..."
+		m.liveStatus = "connecting..."
 		m.eventLog = eventLogModel{}
 		m.kanban = newKanban()
 		m.listView = newListView()
 		m.resizeViewport()
 		if m.cfg.Program != nil && *m.cfg.Program != nil {
-			m.sseCancel = startSSE(*m.cfg.Program, m.client, msg.board.Slug)
+			m.eventsCancel = startLiveEvents(*m.cfg.Program, m.client, msg.board.Slug)
 		}
 		return m, fetchBoardData(m.client, msg.board.Slug)
 
@@ -488,27 +488,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case SSEConnected:
-		m.sseStatus = "live"
+	case LiveEventConnected:
+		m.liveStatus = "live"
 		m.lastError = ""
 		return m, nil
 
-	case SSEEvent:
+	case LiveEvent:
 		m.eventLog.addEvent(msg.Event)
-		m.applySSEToKanban(msg.Event)
-		m.applySSEToList(msg.Event)
+		m.applyEventToKanban(msg.Event)
+		m.applyEventToList(msg.Event)
 		// Refresh the detail overlay if it's showing the affected task.
 		if cmd := m.refreshDetailIfAffected(msg.Event); cmd != nil {
 			return m, cmd
 		}
 		return m, nil
 
-	case SSEError:
+	case LiveEventError:
 		m.lastError = msg.Err.Error()
 		if msg.Permanent {
-			m.sseStatus = "error"
+			m.liveStatus = "error"
 		} else {
-			m.sseStatus = "reconnecting..."
+			m.liveStatus = "reconnecting..."
 		}
 		return m, nil
 	}
@@ -581,15 +581,15 @@ func (m Model) boardView() string {
 	m.resizeViewport()
 	var b strings.Builder
 
-	// Header: title + SSE status + last error.
+	// Header: title + live status + last error.
 	var status string
-	switch m.sseStatus {
+	switch m.liveStatus {
 	case "live":
 		status = lipgloss.NewStyle().Foreground(lipgloss.Color("76")).Render("● live")
 	case "error":
 		status = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("✕ error")
 	default:
-		status = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("◌ " + m.sseStatus)
+		status = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("◌ " + m.liveStatus)
 	}
 	boardName := m.activeBoard.Slug
 	if m.activeBoard.Name != "" {
