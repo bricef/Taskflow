@@ -432,7 +432,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listView = newListView()
 		m.resizeViewport()
 		if m.cfg.Program != nil && *m.cfg.Program != nil {
-			m.sseCancel = startSSE(*m.cfg.Program, m.client.BaseURL(), msg.board.Slug, m.client.APIKey())
+			m.sseCancel = startSSE(*m.cfg.Program, m.client, msg.board.Slug)
 		}
 		return m, fetchBoardData(m.client, msg.board.Slug)
 

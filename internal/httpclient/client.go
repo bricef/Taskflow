@@ -43,12 +43,6 @@ func (c *Client) WithContext(ctx context.Context) *Client {
 	return &c2
 }
 
-// BaseURL returns the server base URL.
-func (c *Client) BaseURL() string { return c.baseURL }
-
-// APIKey returns the bearer token.
-func (c *Client) APIKey() string { return c.apiKey }
-
 // resource executes a GET request for a domain resource.
 func (c *Client) resource(res model.Resource, params PathParams, filter any, out any) error {
 	path := model.SubstitutePath(res.Path, params)
