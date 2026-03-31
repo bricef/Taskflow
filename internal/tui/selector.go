@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -36,7 +35,7 @@ func fetchBoards(client *httpclient.Client, includeArchived bool) tea.Cmd {
 		if includeArchived {
 			filter = model.ListBoardsParams{IncludeDeleted: true}
 		}
-		boards, err := httpclient.GetMany[model.Board](client, context.Background(), model.ResBoardList, nil, filter)
+		boards, err := httpclient.GetMany[model.Board](client,model.ResBoardList, nil, filter)
 		return boardsLoaded{boards: boards, err: err}
 	}
 }
@@ -166,7 +165,7 @@ func (m selectorModel) update(msg tea.Msg, client *httpclient.Client) (selectorM
 			if b := m.selectedBoard(); b != nil && !b.Deleted {
 				slug := b.Slug
 				return m, nil, func() tea.Msg {
-					err := httpclient.ExecNoResult(client, context.Background(), model.OpBoardDelete, httpclient.PathParams{"slug": slug}, nil)
+					err := httpclient.ExecNoResult(client,model.OpBoardDelete, httpclient.PathParams{"slug": slug}, nil)
 					return boardArchived{err: err}
 				}
 			}
@@ -218,7 +217,7 @@ func (m selectorModel) updateCreateForm(msg tea.KeyMsg, client *httpclient.Clien
 			name = slug
 		}
 		return m, nil, func() tea.Msg {
-			board, err := httpclient.Exec[model.Board](client, context.Background(), model.OpBoardCreate, nil, map[string]string{"slug": slug, "name": name})
+			board, err := httpclient.Exec[model.Board](client,model.OpBoardCreate, nil, map[string]string{"slug": slug, "name": name})
 			return boardCreated{board: board, err: err}
 		}
 	}

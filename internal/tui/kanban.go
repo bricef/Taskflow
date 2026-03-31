@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -34,19 +33,17 @@ type boardDataLoaded struct {
 
 func fetchBoardData(client *httpclient.Client, slug string) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
 		p := httpclient.PathParams{"slug": slug}
-		wf, err := httpclient.GetOne[workflow.Workflow](client, ctx, model.ResWorkflowGet, p, nil)
+		wf, err := httpclient.GetOne[workflow.Workflow](client, model.ResWorkflowGet, p, nil)
 		if err != nil {
 			return boardDataLoaded{err: err}
 		}
-		tasks, err := httpclient.GetMany[model.Task](client, ctx, model.ResTaskList, p, model.TaskFilter{IncludeClosed: true})
+		tasks, err := httpclient.GetMany[model.Task](client, model.ResTaskList, p, model.TaskFilter{IncludeClosed: true})
 		if err != nil {
 			return boardDataLoaded{err: err}
 		}
-		var raw []model.AuditEntry
-		_ = client.Operation(ctx, model.OpBoardAudit, p, nil, &raw)
-		return boardDataLoaded{workflow: &wf, tasks: tasks, audit: raw}
+		audit, _ := httpclient.Exec[[]model.AuditEntry](client, model.OpBoardAudit, p, nil)
+		return boardDataLoaded{workflow: &wf, tasks: tasks, audit: audit}
 	}
 }
 

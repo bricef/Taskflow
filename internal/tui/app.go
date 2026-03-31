@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -76,7 +75,7 @@ type Model struct {
 
 // New creates a new TUI model.
 func New(cfg Config) Model {
-	client := &httpclient.Client{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}
+	client := httpclient.New(cfg.ServerURL, cfg.APIKey)
 	return Model{
 		cfg:       cfg,
 		client:    client,
@@ -91,7 +90,7 @@ func New(cfg Config) Model {
 func (m Model) Init() tea.Cmd {
 	if m.cfg.BoardSlug != "" {
 		return func() tea.Msg {
-			board, err := httpclient.GetOne[model.Board](m.client, context.Background(), model.ResBoardGet, httpclient.PathParams{"slug": m.cfg.BoardSlug}, nil)
+			board, err := httpclient.GetOne[model.Board](m.client, model.ResBoardGet, httpclient.PathParams{"slug": m.cfg.BoardSlug}, nil)
 			if err != nil {
 				return boardsLoaded{err: err}
 			}
@@ -433,7 +432,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listView = newListView()
 		m.resizeViewport()
 		if m.cfg.Program != nil && *m.cfg.Program != nil {
-			m.sseCancel = startSSE(*m.cfg.Program, m.cfg.ServerURL, msg.board.Slug, m.cfg.APIKey)
+			m.sseCancel = startSSE(*m.cfg.Program, m.client.BaseURL(), msg.board.Slug, m.client.APIKey())
 		}
 		return m, fetchBoardData(m.client, msg.board.Slug)
 

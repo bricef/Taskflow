@@ -195,9 +195,9 @@ func doGet(cmd *cobra.Command, cfg Config, path string) error {
 	}
 	cmd.SilenceUsage = true
 
-	client := &httpclient.Client{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}
+	client := httpclient.New(cfg.ServerURL, cfg.APIKey).WithContext(cmd.Context())
 	var raw json.RawMessage
-	if err := client.Get(cmd.Context(), path, &raw); err != nil {
+	if err := client.Do("GET", path, nil, &raw); err != nil {
 		return err
 	}
 
@@ -350,17 +350,14 @@ func makeRunFunc(spec cmdSpec, pathParams []model.PathParam) func(*cobra.Command
 			params[p.Name] = args[i]
 		}
 
-		client := &httpclient.Client{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}
+		client := httpclient.New(cfg.ServerURL, cfg.APIKey).WithContext(cmd.Context())
 		var raw json.RawMessage
 
+		var err error
 		if spec.resource != nil {
-			// Resource — build filter from query flags.
 			filter := buildFilterFromFlags(cmd, spec.params)
-			if err := client.Resource(cmd.Context(), *spec.resource, params, filter, &raw); err != nil {
-				return err
-			}
+			raw, err = httpclient.GetOne[json.RawMessage](client, *spec.resource, params, filter)
 		} else {
-			// Operation — build body from input flags.
 			var body any
 			if spec.input != nil {
 				b := buildBodyFromFlags(cmd, spec.input)
@@ -368,9 +365,10 @@ func makeRunFunc(spec cmdSpec, pathParams []model.PathParam) func(*cobra.Command
 					body = b
 				}
 			}
-			if err := client.Operation(cmd.Context(), *spec.operation, params, body, &raw); err != nil {
-				return err
-			}
+			raw, err = httpclient.Exec[json.RawMessage](client, *spec.operation, params, body)
+		}
+		if err != nil {
+			return err
 		}
 
 		if len(raw) == 0 {

@@ -13,7 +13,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -296,8 +295,7 @@ func (s *simulator) pickTransition(task taskInfo) string {
 }
 
 func (s *simulator) doRequest(method, path, apiKey string, body any, out any) error {
-	c := &httpclient.Client{BaseURL: s.baseURL, APIKey: apiKey}
-	return c.Do(context.Background(), method, path, body, out)
+	return httpclient.New(s.baseURL, apiKey).Do(method, path, body, out)
 }
 
 func envOr(key, fallback string) string {

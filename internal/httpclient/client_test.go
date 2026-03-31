@@ -1,12 +1,15 @@
 package httpclient
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
+
+func newTestClient(url string, apiKey string) *Client {
+	return &Client{baseURL: url, apiKey: apiKey, httpClient: http.DefaultClient, ctx: nil}
+}
 
 func TestGet(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -24,9 +27,9 @@ func TestGet(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{BaseURL: srv.URL, APIKey: "test-key"}
+	c := newTestClient(srv.URL, "test-key")
 	var boards []map[string]string
-	if err := c.Get(context.Background(), "/boards", &boards); err != nil {
+	if err := c.do("GET", "/boards", nil, &boards); err != nil {
 		t.Fatal(err)
 	}
 	if len(boards) != 1 || boards[0]["slug"] != "test" {
@@ -52,9 +55,9 @@ func TestPost(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{BaseURL: srv.URL, APIKey: "test-key"}
+	c := newTestClient(srv.URL, "test-key")
 	var result map[string]string
-	if err := c.Post(context.Background(), "/boards", map[string]string{"name": "New Board"}, &result); err != nil {
+	if err := c.do("POST", "/boards", map[string]string{"name": "New Board"}, &result); err != nil {
 		t.Fatal(err)
 	}
 	if result["slug"] != "new" {
@@ -71,8 +74,8 @@ func TestDelete204(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{BaseURL: srv.URL, APIKey: "test-key"}
-	if err := c.Delete(context.Background(), "/boards/test"); err != nil {
+	c := newTestClient(srv.URL, "test-key")
+	if err := c.do("DELETE", "/boards/test", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -84,8 +87,8 @@ func TestErrorDecoding(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{BaseURL: srv.URL, APIKey: "test-key"}
-	err := c.Post(context.Background(), "/boards", map[string]string{}, nil)
+	c := newTestClient(srv.URL, "test-key")
+	err := c.do("POST", "/boards", map[string]string{}, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -111,9 +114,9 @@ func TestNoAuthHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{BaseURL: srv.URL}
+	c := newTestClient(srv.URL, "")
 	var result map[string]string
-	if err := c.Get(context.Background(), "/health", &result); err != nil {
+	if err := c.do("GET", "/health", nil, &result); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -125,8 +128,8 @@ func TestNilOutSkipsDecode(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{BaseURL: srv.URL}
-	if err := c.Do(context.Background(), "POST", "/fire-and-forget", map[string]string{"a": "b"}, nil); err != nil {
+	c := newTestClient(srv.URL, "")
+	if err := c.do("POST", "/fire-and-forget", map[string]string{"a": "b"}, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -141,8 +144,9 @@ func TestNoContentTypeWithoutBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := &Client{BaseURL: srv.URL}
-	if err := c.Get(context.Background(), "/test", &map[string]string{}); err != nil {
+	c := newTestClient(srv.URL, "")
+	var result map[string]string
+	if err := c.do("GET", "/test", nil, &result); err != nil {
 		t.Fatal(err)
 	}
 }

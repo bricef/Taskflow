@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -45,7 +44,7 @@ func newAssign(client *httpclient.Client, boardSlug string, task model.Task) (*a
 		currentAssignee: current,
 	}
 	return m, func() tea.Msg {
-		actors, err := httpclient.GetMany[model.Actor](client, context.Background(), model.ResActorList, nil, nil)
+		actors, err := httpclient.GetMany[model.Actor](client,model.ResActorList, nil, nil)
 		return actorsLoaded{actors: actors, err: err}
 	}
 }
@@ -135,7 +134,7 @@ func (m assignModel) view(width int) string {
 func executeAssign(client *httpclient.Client, boardSlug string, num int, assignee *string) tea.Cmd {
 	return func() tea.Msg {
 		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(num)}
-		task, err := httpclient.Exec[model.Task](client, context.Background(), model.OpTaskUpdate, tp, map[string]any{"assignee": assignee})
+		task, err := httpclient.Exec[model.Task](client,model.OpTaskUpdate, tp, map[string]any{"assignee": assignee})
 		return assignResult{task: task, err: err}
 	}
 }

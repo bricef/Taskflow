@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -46,7 +45,7 @@ func newTransition(client *httpclient.Client, boardSlug string, task model.Task)
 
 	// Fetch available transitions.
 	return m, func() tea.Msg {
-		wf, err := httpclient.GetOne[workflow.Workflow](client, context.Background(), model.ResWorkflowGet, httpclient.PathParams{"slug": boardSlug}, nil)
+		wf, err := httpclient.GetOne[workflow.Workflow](client,model.ResWorkflowGet, httpclient.PathParams{"slug": boardSlug}, nil)
 		if err != nil {
 			return transitionsLoaded{err: err}
 		}
@@ -138,7 +137,7 @@ func (m transitionModel) view(width int) string {
 func executeTransition(client *httpclient.Client, boardSlug string, num int, transition string) tea.Cmd {
 	return func() tea.Msg {
 		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(num)}
-		err := httpclient.ExecNoResult(client, context.Background(), model.OpTaskTransition, tp, map[string]string{"transition": transition})
+		err := httpclient.ExecNoResult(client,model.OpTaskTransition, tp, map[string]string{"transition": transition})
 		if err != nil {
 			return transitionResult{err: err}
 		}

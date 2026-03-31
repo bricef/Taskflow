@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -39,18 +38,16 @@ type taskDetailLoaded struct {
 
 func fetchTaskDetail(client *httpclient.Client, boardSlug string, num int) tea.Cmd {
 	return func() tea.Msg {
-		ctx := context.Background()
 		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(num)}
 
-		task, err := httpclient.GetOne[model.Task](client, ctx, model.ResTaskGet, tp, nil)
+		task, err := httpclient.GetOne[model.Task](client, model.ResTaskGet, tp, nil)
 		if err != nil {
 			return taskDetailLoaded{err: err}
 		}
-		comments, _ := httpclient.GetMany[model.Comment](client, ctx, model.ResCommentList, tp, nil)
-		deps, _ := httpclient.GetMany[model.Dependency](client, ctx, model.ResDepList, tp, nil)
-		attachments, _ := httpclient.GetMany[model.Attachment](client, ctx, model.ResAttachList, tp, nil)
-		var audit []model.AuditEntry
-		_ = client.Operation(ctx, model.OpTaskAudit, tp, nil, &audit)
+		comments, _ := httpclient.GetMany[model.Comment](client, model.ResCommentList, tp, nil)
+		deps, _ := httpclient.GetMany[model.Dependency](client, model.ResDepList, tp, nil)
+		attachments, _ := httpclient.GetMany[model.Attachment](client, model.ResAttachList, tp, nil)
+		audit, _ := httpclient.Exec[[]model.AuditEntry](client, model.OpTaskAudit, tp, nil)
 
 		// Fetch summaries for related tasks in the dependency tree.
 		currentRef := fmt.Sprintf("%s/%d", boardSlug, num)
@@ -73,7 +70,7 @@ func fetchTaskDetail(client *httpclient.Client, boardSlug string, num int) tea.C
 				}
 				if rBoard != "" && rNum > 0 {
 					rp := httpclient.PathParams{"slug": rBoard, "num": fmt.Sprint(rNum)}
-					if t, err := httpclient.GetOne[model.Task](client, ctx, model.ResTaskGet, rp, nil); err == nil {
+					if t, err := httpclient.GetOne[model.Task](client, model.ResTaskGet, rp, nil); err == nil {
 						related[ref] = taskSummary{
 							BoardSlug: t.BoardSlug,
 							Num:       t.Num,
@@ -133,7 +130,7 @@ func (m *detailModel) submitComment(client *httpclient.Client) tea.Cmd {
 	task := m.data.task
 	return func() tea.Msg {
 		tp := httpclient.PathParams{"slug": task.BoardSlug, "num": fmt.Sprint(task.Num)}
-		comment, err := httpclient.Exec[model.Comment](client, context.Background(), model.OpCommentCreate, tp, map[string]string{"body": body})
+		comment, err := httpclient.Exec[model.Comment](client,model.OpCommentCreate, tp, map[string]string{"body": body})
 		return commentPosted{comment: comment, err: err}
 	}
 }
