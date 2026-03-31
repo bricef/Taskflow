@@ -29,7 +29,22 @@ func main() {
 	}
 
 	client := httpclient.New(serverURL, apiKey)
-	server := tfmcp.NewServer(client)
+
+	// Discover self identity for notification filtering.
+	actor, err := client.WhoAmI()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not resolve actor identity: %v\n", err)
+	}
+
+	// Start event subscription for notifications.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var notifier *tfmcp.Notifier
+	if actor.Name != "" {
+		notifier = tfmcp.NewNotifier(ctx, client, actor.Name)
+	}
+
+	server := tfmcp.NewServer(client, notifier)
 
 	if err := server.Run(context.Background(), &gomcp.StdioTransport{}); err != nil {
 		fmt.Fprintf(os.Stderr, "MCP server error: %v\n", err)

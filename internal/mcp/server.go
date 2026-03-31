@@ -17,15 +17,16 @@ import (
 )
 
 // NewServer creates an MCP server with all TaskFlow resources and tools registered.
-func NewServer(client *httpclient.Client) *gomcp.Server {
+// If notifier is non-nil, tool responses include pending notifications from other actors.
+func NewServer(client *httpclient.Client, notifier *Notifier) *gomcp.Server {
 	server := gomcp.NewServer(&gomcp.Implementation{
 		Name:    "taskflow",
 		Version: "1.0.0",
 	}, nil)
 
 	registerResources(server, client)
-	registerTools(server, client)
-	registerWhoAmI(server, client)
+	registerTools(server, client, notifier)
+	registerWhoAmI(server, client, notifier)
 
 	return server
 }
@@ -78,7 +79,7 @@ func resourceHandler(client *httpclient.Client, res model.Resource) gomcp.Resour
 
 // --- Tools ---
 
-func registerTools(server *gomcp.Server, client *httpclient.Client) {
+func registerTools(server *gomcp.Server, client *httpclient.Client, notifier *Notifier) {
 	for _, op := range model.Operations() {
 		op := op
 		server.AddTool(
@@ -87,7 +88,7 @@ func registerTools(server *gomcp.Server, client *httpclient.Client) {
 				Description: descriptionOf(op.Summary, op.Description),
 				InputSchema: buildInputSchema(op),
 			},
-			toolHandler(client, op),
+			withNotifications(notifier, toolHandler(client, op)),
 		)
 	}
 }
@@ -154,14 +155,14 @@ func toolHandler(client *httpclient.Client, op model.Operation) gomcp.ToolHandle
 
 // --- WhoAmI ---
 
-func registerWhoAmI(server *gomcp.Server, client *httpclient.Client) {
+func registerWhoAmI(server *gomcp.Server, client *httpclient.Client, notifier *Notifier) {
 	server.AddTool(
 		&gomcp.Tool{
 			Name:        "whoami",
 			Description: "Returns your actor identity (name, role, type) as determined by your API key.",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
 		},
-		func(ctx context.Context, req *gomcp.CallToolRequest) (*gomcp.CallToolResult, error) {
+		withNotifications(notifier, func(ctx context.Context, req *gomcp.CallToolRequest) (*gomcp.CallToolResult, error) {
 			actor, err := client.WithContext(ctx).WhoAmI()
 			if err != nil {
 				return &gomcp.CallToolResult{
@@ -173,8 +174,39 @@ func registerWhoAmI(server *gomcp.Server, client *httpclient.Client) {
 			return &gomcp.CallToolResult{
 				Content: []gomcp.Content{&gomcp.TextContent{Text: string(data)}},
 			}, nil
-		},
+		}),
 	)
+}
+
+// --- Notification piggyback ---
+
+// withNotifications wraps a tool handler to append pending notifications
+// to the response. If notifier is nil, the handler is returned unchanged.
+func withNotifications(notifier *Notifier, handler gomcp.ToolHandler) gomcp.ToolHandler {
+	if notifier == nil {
+		return handler
+	}
+	return func(ctx context.Context, req *gomcp.CallToolRequest) (*gomcp.CallToolResult, error) {
+		result, err := handler(ctx, req)
+		if err != nil || result == nil {
+			return result, err
+		}
+
+		notifications := notifier.Drain()
+		if len(notifications) == 0 {
+			return result, nil
+		}
+
+		// Append notifications as a separate text block.
+		var summary strings.Builder
+		summary.WriteString(fmt.Sprintf("\n--- %d notification(s) from other actors ---\n", len(notifications)))
+		for _, n := range notifications {
+			summary.WriteString(fmt.Sprintf("  [%s] %s\n", n.Timestamp, n.Summary))
+		}
+
+		result.Content = append(result.Content, &gomcp.TextContent{Text: summary.String()})
+		return result, nil
+	}
 }
 
 // --- Schema generation ---
