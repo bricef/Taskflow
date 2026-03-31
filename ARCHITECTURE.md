@@ -4,7 +4,7 @@ This document describes the current architecture of TaskFlow for developers work
 
 ## Overview
 
-TaskFlow is a single-user task tracker with kanban boards and workflow state machines. The server is the single source of truth; all clients (CLI, TUI, simulator, future MCP) are pure HTTP consumers that import no server internals.
+TaskFlow is a task tracker with kanban boards and workflow state machines. The server is the single source of truth; all clients (CLI, TUI, simulator, future MCP) are pure HTTP consumers that import no server internals.
 
 ```
 ┌──────────────────────────────────────────────────────────┐

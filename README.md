@@ -1,6 +1,6 @@
 # TaskFlow
 
-TaskFlow is a single-user task tracker designed for fluid collaboration between a human operator and multiple AI agents. It provides a durable server as the single source of truth, with tasks organized on kanban boards that have explicitly configured workflow state machines. Any actor -- human or AI -- can create, advance, review, and manage tasks, with a full audit trail recording every action with actor attribution and timestamps.
+TaskFlow is a task tracker designed for fluid collaboration between humans and AI agents. It provides a durable server as the single source of truth, with tasks organized on kanban boards that have explicitly configured workflow state machines. Any actor — human or AI — can create, advance, review, and manage tasks, with a full audit trail recording every action with actor attribution and timestamps.
 
 ## Quick Start
 
