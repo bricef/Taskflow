@@ -35,37 +35,21 @@ taskflow-tui
 - **[Claude Code Skill](SKILL.md)** — AI agent guide for using TaskFlow via the CLI
 - **[Manual QA Checklist](TESTING.md)** — endpoint-by-endpoint verification guide
 
-## Status
+## Features
 
-**Phases 1, 2, and 4 complete. Phase 3 (MCP server) remaining.**
-
-### Phase 1 — Server + CLI
-- 40 domain endpoints: 17 Resources (read-only) + 23 Operations (mutations), each with an explicit Name
-- HTTP API with auth (SHA-256 keys), RBAC (admin/member/read_only), idempotency keys, and batch operations
-- CLI derived from Resource/Operation names (`<resource>_<action>` convention)
-- OpenAPI 3.1 spec auto-generated with operationIds from Names
-- Convenience endpoints: cross-board search, cross-board task list, SSE, batch
+- HTTP API with auth (SHA-256 keys), RBAC, idempotency keys, and batch operations
+- 41 domain endpoints (18 Resources + 23 Operations) auto-derived from the model
+- OpenAPI 3.1 spec auto-generated at startup
+- CLI with commands derived from the same model
+- Interactive TUI with kanban, list, workflow graph, and live event stream — see **[TUI Reference](docs/tui.md)**
+- Real-time event streaming (SSE) with before/after task snapshots
+- Webhook dispatch with HMAC-SHA256 signatures, retry, and delivery logging
+- HTML dashboard at `/dashboard`
 - Docker deployment with seed admin bootstrap
-- Automated test suite: unit tests, golden tests (OpenAPI spec + CLI command tree), integration tests, and 45-check QA smoke test
 
-### Phase 2 — Event Bus + SSE + TUI
-- In-process event bus with ring-buffered subscriptions (256 events per subscriber)
-- Before/after task snapshots on all events — consumers can diff state without refetching
-- Global and per-board SSE endpoints with heartbeat and reconnection
-- Interactive TUI (`taskflow-tui`) — see **[TUI Reference](docs/tui.md)** for full details
-- Activity simulator (`taskflow-sim`) for testing live updates
+**In progress:** [MCP server](docs/plans/active/2026-03-31-mcp-server.md) for AI agent integration.
 
-### Phase 3 — AI Integration (MCP Server)
-- Not yet started — see [implementation plan](docs/plans/active/2026-03-31-mcp-server.md)
-
-### Phase 4 — Notifications, Dashboard & Polish
-- Webhook dispatch with HMAC-SHA256 signatures, retry (3 attempts with backoff), and delivery logging
-- Delivery status API: `GET /webhooks/{id}/deliveries`
-- HTML dashboard at `/dashboard` with system stats, board overview, and RBAC-aware views
-- Live board view at `/dashboard/board/{slug}` with kanban and SSE event stream
-- Archived board semantics (mutations blocked, comments allowed)
-
-See [docs/](docs/) for API, CLI, and TUI reference. Historical documents (PRD, phase plans) are in [docs/archive/](docs/archive/).
+See [docs/](docs/) for API, CLI, and TUI reference.
 
 ## Roles
 
