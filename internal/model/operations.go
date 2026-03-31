@@ -138,6 +138,26 @@ func (b *opBuilder) Output(v any) *opBuilder    { b.op.Output = v; return b }
 func (b *opBuilder) Build() Operation           { return b.op }
 
 
+// LookupResource returns the Resource with the given name, or false if not found.
+func LookupResource(name string) (Resource, bool) {
+	for _, r := range Resources() {
+		if r.Name == name {
+			return r, true
+		}
+	}
+	return Resource{}, false
+}
+
+// LookupOperation returns the Operation with the given name, or false if not found.
+func LookupOperation(name string) (Operation, bool) {
+	for _, op := range Operations() {
+		if op.Name == name {
+			return op, true
+		}
+	}
+	return Operation{}, false
+}
+
 // Resources returns the canonical list of all read-only domain resources.
 func Resources() []Resource {
 	return []Resource{

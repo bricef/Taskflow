@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 )
@@ -74,4 +76,78 @@ func queryType(t reflect.Type) string {
 	default:
 		return "string"
 	}
+}
+
+// SubstitutePath replaces {param} placeholders in a path template with values
+// from params. For example, SubstitutePath("/boards/{slug}/tasks/{num}",
+// {"slug": "platform", "num": "1"}) returns "/boards/platform/tasks/1".
+func SubstitutePath(path string, params map[string]string) string {
+	for k, v := range params {
+		path = strings.Replace(path, "{"+k+"}", v, 1)
+	}
+	return path
+}
+
+// BuildQueryString builds a URL query string (without leading "?") from v.
+// v can be:
+//   - a struct with `query` tags (non-zero fields are included)
+//   - a map[string]string (all entries are included)
+//   - nil (returns "")
+func BuildQueryString(v any) string {
+	if v == nil {
+		return ""
+	}
+
+	// Handle map[string]string directly.
+	if m, ok := v.(map[string]string); ok {
+		vals := url.Values{}
+		for k, v := range m {
+			vals.Set(k, v)
+		}
+		return vals.Encode()
+	}
+
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return ""
+		}
+		rv = rv.Elem()
+	}
+	t := rv.Type()
+	if t.Kind() != reflect.Struct {
+		return ""
+	}
+
+	vals := url.Values{}
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		tag := f.Tag.Get("query")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		name, _, _ := parseQueryTag(tag, f.Type)
+		fv := rv.Field(i)
+
+		switch fv.Kind() {
+		case reflect.Ptr:
+			if fv.IsNil() {
+				continue
+			}
+			vals.Set(name, fmt.Sprint(fv.Elem().Interface()))
+		case reflect.Bool:
+			if fv.Bool() {
+				vals.Set(name, "true")
+			}
+		case reflect.String:
+			if s := fv.String(); s != "" {
+				vals.Set(name, s)
+			}
+		case reflect.Int, reflect.Int64:
+			if n := fv.Int(); n != 0 {
+				vals.Set(name, fmt.Sprint(n))
+			}
+		}
+	}
+	return vals.Encode()
 }

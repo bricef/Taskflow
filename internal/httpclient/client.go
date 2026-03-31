@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/transport"
 )
 
 // Client makes authenticated JSON HTTP requests to a TaskFlow server.
@@ -91,6 +94,32 @@ func (c *Client) Put(ctx context.Context, path string, body any, out any) error 
 // Delete is shorthand for Do with DELETE method and no body/output.
 func (c *Client) Delete(ctx context.Context, path string) error {
 	return c.Do(ctx, "DELETE", path, nil, nil)
+}
+
+// PathParams maps path parameter names to values for URL substitution.
+type PathParams = map[string]string
+
+// Resource executes a GET request for a domain resource.
+// params substitutes {param} placeholders in the resource path.
+// filter is an optional struct with `query` tags (e.g. model.TaskFilter) —
+// non-zero fields become query parameters. Pass nil for no filtering.
+// out receives the decoded JSON response.
+func (c *Client) Resource(ctx context.Context, res model.Resource, params PathParams, filter any, out any) error {
+	path := model.SubstitutePath(res.Path, params)
+	if qs := model.BuildQueryString(filter); qs != "" {
+		path += "?" + qs
+	}
+	return c.Get(ctx, path, out)
+}
+
+// Operation executes a mutation against a domain operation.
+// params substitutes {param} placeholders in the operation path.
+// body is the request payload (nil for deletes).
+// out receives the decoded JSON response (nil for 204 responses).
+func (c *Client) Operation(ctx context.Context, op model.Operation, params PathParams, body any, out any) error {
+	path := model.SubstitutePath(op.Path, params)
+	method := transport.MethodForAction(op.Action)
+	return c.Do(ctx, method, path, body, out)
 }
 
 // APIError is returned when the server responds with a 4xx or 5xx status.

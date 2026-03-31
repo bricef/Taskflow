@@ -15,7 +15,6 @@ import (
 
 	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
-	"github.com/bricef/taskflow/internal/transport"
 )
 
 // Config holds the CLI configuration.
@@ -56,15 +55,15 @@ The seed admin key is written to seed-admin-key.txt on first server start.`)
 
 
 // cmdSpec is the CLI-internal representation of a command derived from a
-// domain resource or operation. It captures everything needed to generate
-// the Cobra command and its run function.
+// domain resource or operation.
 type cmdSpec struct {
-	path    string
 	summary string
-	method  string // HTTP method
-	input   any    // nil for resources / delete operations
+	input   any              // nil for resources / delete operations
 	output  any
 	params  []model.QueryParam
+	// Exactly one of these is set:
+	resource  *model.Resource
+	operation *model.Operation
 }
 
 // BuildCLI generates a Cobra command tree from model.Resources() and model.Operations().
@@ -91,12 +90,12 @@ func BuildCLI(cfg *Config) *cobra.Command {
 
 	// Resources (read-only, GET).
 	for _, res := range model.Resources() {
+		res := res
 		spec := cmdSpec{
-			path:    res.Path,
-			summary: res.Summary,
-			method:  "GET",
-			output:  res.Output,
-			params:  res.QueryParams(),
+			summary:  res.Summary,
+			output:   res.Output,
+			params:   res.QueryParams(),
+			resource: &res,
 		}
 		group, verb := splitName(res.Name)
 		cmd := buildCommand(verb, res.PathParams(), spec)
@@ -105,12 +104,12 @@ func BuildCLI(cfg *Config) *cobra.Command {
 
 	// Operations (mutations).
 	for _, op := range model.Operations() {
+		op := op
 		spec := cmdSpec{
-			path:    op.Path,
-			summary: op.Summary,
-			method:  transport.MethodForAction(op.Action),
-			input:   op.Input,
-			output:  op.Output,
+			summary:   op.Summary,
+			input:     op.Input,
+			output:    op.Output,
+			operation: &op,
 		}
 		group, verb := splitName(op.Name)
 		cmd := buildCommand(verb, op.PathParams(), spec)
@@ -345,41 +344,33 @@ func makeRunFunc(spec cmdSpec, pathParams []model.PathParam) func(*cobra.Command
 		}
 		cmd.SilenceUsage = true
 
-		path := spec.path
+		// Build path params from positional args.
+		params := httpclient.PathParams{}
 		for i, p := range pathParams {
-			path = strings.Replace(path, "{"+p.Name+"}", args[i], 1)
-		}
-
-		var query []string
-		for _, p := range spec.params {
-			switch p.Type {
-			case "boolean":
-				if v, _ := cmd.Flags().GetBool(p.Name); v {
-					query = append(query, p.Name+"=true")
-				}
-			default:
-				if v, _ := cmd.Flags().GetString(p.Name); v != "" {
-					query = append(query, p.Name+"="+v)
-				}
-			}
-		}
-		if len(query) > 0 {
-			path += "?" + strings.Join(query, "&")
-		}
-
-		var body any
-		if spec.input != nil {
-			b := buildBodyFromFlags(cmd, spec.input)
-			if len(b) > 0 {
-				body = b
-			}
+			params[p.Name] = args[i]
 		}
 
 		client := &httpclient.Client{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}
 		var raw json.RawMessage
-		err := client.Do(cmd.Context(), spec.method, path, body, &raw)
-		if err != nil {
-			return err
+
+		if spec.resource != nil {
+			// Resource — build filter from query flags.
+			filter := buildFilterFromFlags(cmd, spec.params)
+			if err := client.Resource(cmd.Context(), *spec.resource, params, filter, &raw); err != nil {
+				return err
+			}
+		} else {
+			// Operation — build body from input flags.
+			var body any
+			if spec.input != nil {
+				b := buildBodyFromFlags(cmd, spec.input)
+				if len(b) > 0 {
+					body = b
+				}
+			}
+			if err := client.Operation(cmd.Context(), *spec.operation, params, body, &raw); err != nil {
+				return err
+			}
 		}
 
 		if len(raw) == 0 {
@@ -395,6 +386,31 @@ func makeRunFunc(spec cmdSpec, pathParams []model.PathParam) func(*cobra.Command
 
 		return formatOutput(w, raw, spec.output)
 	}
+}
+
+// buildFilterFromFlags builds a map of query parameter values from CLI flags.
+// Returns nil if no flags were set.
+func buildFilterFromFlags(cmd *cobra.Command, params []model.QueryParam) map[string]string {
+	if len(params) == 0 {
+		return nil
+	}
+	vals := map[string]string{}
+	for _, p := range params {
+		switch p.Type {
+		case "boolean":
+			if v, _ := cmd.Flags().GetBool(p.Name); v {
+				vals[p.Name] = "true"
+			}
+		default:
+			if v, _ := cmd.Flags().GetString(p.Name); v != "" {
+				vals[p.Name] = v
+			}
+		}
+	}
+	if len(vals) == 0 {
+		return nil
+	}
+	return vals
 }
 
 func pathParamNames(params []model.PathParam) string {
