@@ -139,7 +139,12 @@
 <div class="container">
   <header>
     <h1><a href="/dashboard">TaskFlow</a> / <span id="board-name">...</span></h1>
-    <span id="sse-status" class="sse-status connecting">connecting...</span>
+    <div>
+      <label style="font-size:0.85rem;color:var(--text-dim);cursor:pointer;margin-right:1rem">
+        <input type="checkbox" id="show-done" onchange="renderKanban()"> Show done
+      </label>
+      <span id="sse-status" class="sse-status connecting">connecting...</span>
+    </div>
   </header>
 
   <div id="kanban" class="kanban"><div class="loading">Loading board...</div></div>
@@ -205,12 +210,11 @@ async function init() {
 
 function renderKanban() {
   if (!workflow) return;
+  const showDone = document.getElementById('show-done').checked;
 
   const columns = workflow.states.filter(s =>
-    !workflow.terminal_states.includes(s)
+    showDone || !workflow.terminal_states.includes(s)
   );
-  // Add terminal states at the end.
-  for (const s of workflow.terminal_states) columns.push(s);
 
   const kanbanEl = document.getElementById('kanban');
   let html = '';
