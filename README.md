@@ -56,16 +56,16 @@ See [docs/](docs/) for API, CLI, and TUI reference.
 Every actor (human or AI) has a role that determines what they can do:
 
 | Action | `admin` | `member` | `read_only` |
-|--------|---------|----------|-------------|
-| Manage actors (create, update roles) | yes | | |
-| Manage webhooks | yes | | |
-| Delete/reassign boards | yes | | |
-| Create boards | yes | yes | |
-| Update boards and workflows | yes | yes | |
-| Create/update/transition/delete tasks | yes | yes | |
-| Add comments, dependencies, attachments | yes | yes | |
-| Read all data (boards, tasks, audit, etc.) | yes | yes | yes |
-| View system stats | yes | | |
+|--------|:-------:|:--------:|:-----------:|
+| Manage actors (create, update roles) | ✅ | ❌ | ❌ |
+| Manage webhooks | ✅ | ❌ | ❌ |
+| Delete/reassign boards | ✅ | ❌ | ❌ |
+| View system stats | ✅ | ❌ | ❌ |
+| Create boards | ✅ | ✅ | ❌ |
+| Update boards and workflows | ✅ | ✅ | ❌ |
+| Create/update/transition/delete tasks | ✅ | ✅ | ❌ |
+| Add comments, dependencies, attachments | ✅ | ✅ | ❌ |
+| Read all data (boards, tasks, audit, etc.) | ✅ | ✅ | ✅ |
 
 Requests that exceed the actor's role receive a `403 Forbidden` response. Each Resource and Operation in the model declares its minimum required role.
 
