@@ -22,6 +22,11 @@ func main() {
 	dbPath := envOr("TASKFLOW_DB_PATH", "./taskflow.db")
 	listenAddr := envOr("TASKFLOW_LISTEN_ADDR", ":8374")
 
+	if os.Getenv("TASKFLOW_DEV_MODE") == "true" {
+		model.AllowPrivateWebhookURLs = true
+		log.Println("Development mode enabled: private webhook URLs allowed")
+	}
+
 	store, err := sqlite.New(dbPath)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)

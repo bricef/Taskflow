@@ -18,6 +18,10 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "validation_error", "query parameter 'q' is required", nil)
 		return
 	}
+	if len(q) > 500 {
+		writeError(w, http.StatusBadRequest, "validation_error", "query too long (max 500 characters)", nil)
+		return
+	}
 
 	boards, err := s.svc.ListBoards(ctx, model.ListBoardsParams{})
 	if err != nil {
@@ -45,6 +49,10 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		results = append(results, tasks...)
+	}
+
+	if len(results) > maxQueryResults {
+		results = results[:maxQueryResults]
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -8,6 +8,8 @@ import (
 	"github.com/bricef/taskflow/internal/model"
 )
 
+const maxQueryResults = 1000
+
 // globalTasksHandler lists tasks across all boards with optional filters.
 // GET /tasks?assignee=@me&state=in_progress&priority=high&tag=bug&include_closed=true
 func (s *Server) globalTasksHandler(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +45,10 @@ func (s *Server) globalTasksHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		results = append(results, tasks...)
+	}
+
+	if len(results) > maxQueryResults {
+		results = results[:maxQueryResults]
 	}
 
 	w.Header().Set("Content-Type", "application/json")

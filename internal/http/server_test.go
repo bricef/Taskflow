@@ -30,6 +30,9 @@ type testEnv struct {
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	model.AllowPrivateWebhookURLs = true
+	t.Cleanup(func() { model.AllowPrivateWebhookURLs = false })
+
 	store, err := sqlite.New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)

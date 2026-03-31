@@ -1,6 +1,15 @@
 package model
 
-import "time"
+import (
+	"net"
+	"net/url"
+	"time"
+)
+
+// AllowPrivateWebhookURLs controls whether webhook URLs can point to
+// private/loopback addresses. Defaults to false (production).
+// Set to true for development and testing.
+var AllowPrivateWebhookURLs = false
 
 type Webhook struct {
 	ID        int       `json:"id"`
@@ -26,11 +35,41 @@ func (p CreateWebhookParams) Validate() error {
 	if p.URL == "" {
 		return &ValidationError{Field: "url", Message: "must not be empty"}
 	}
+	if err := validateWebhookURL(p.URL); err != nil {
+		return err
+	}
 	if len(p.Events) == 0 {
 		return &ValidationError{Field: "events", Message: "must not be empty"}
 	}
 	if p.Secret == "" {
 		return &ValidationError{Field: "secret", Message: "must not be empty"}
+	}
+	return nil
+}
+
+// validateWebhookURL checks that the URL is a valid http/https URL.
+// In production mode (default), private and loopback addresses are blocked.
+func validateWebhookURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return &ValidationError{Field: "url", Message: "must be a valid URL"}
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return &ValidationError{Field: "url", Message: "must use http or https scheme"}
+	}
+	if u.Host == "" {
+		return &ValidationError{Field: "url", Message: "must include a host"}
+	}
+	if !AllowPrivateWebhookURLs {
+		host := u.Hostname()
+		if host == "localhost" {
+			return &ValidationError{Field: "url", Message: "must not point to localhost"}
+		}
+		if ip := net.ParseIP(host); ip != nil {
+			if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
+				return &ValidationError{Field: "url", Message: "must not point to a private or loopback address"}
+			}
+		}
 	}
 	return nil
 }

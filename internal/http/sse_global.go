@@ -33,6 +33,9 @@ func (s *Server) globalSSEHandler(w http.ResponseWriter, r *http.Request) {
 			if slug != "" {
 				boardFilter[slug] = true
 			}
+			if len(boardFilter) >= 50 {
+				break
+			}
 		}
 	}
 

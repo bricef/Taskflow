@@ -14,8 +14,11 @@ import (
 )
 
 // NewTestService creates a fresh in-memory SQLite store and service for testing.
+// Enables development mode (allows private webhook URLs).
 // Returns the taskflow.TaskFlow interface, not the concrete type.
 func NewTestService(t *testing.T) taskflow.TaskFlow {
+	model.AllowPrivateWebhookURLs = true
+	t.Cleanup(func() { model.AllowPrivateWebhookURLs = false })
 	t.Helper()
 	store, err := sqlite.New(":memory:")
 	if err != nil {
@@ -29,6 +32,8 @@ func NewTestService(t *testing.T) taskflow.TaskFlow {
 // the service, store, and bus for integration testing.
 func NewTestServiceWithBus(t *testing.T) (taskflow.TaskFlow, repo.Store, *eventbus.EventBus) {
 	t.Helper()
+	model.AllowPrivateWebhookURLs = true
+	t.Cleanup(func() { model.AllowPrivateWebhookURLs = false })
 	store, err := sqlite.New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to create test store: %v", err)

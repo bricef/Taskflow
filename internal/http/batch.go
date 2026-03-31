@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 )
 
 const maxBatchSize = 50
@@ -65,6 +66,11 @@ func (s *Server) batchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) executeBatchOp(op batchOp, authHeader string) batchResult {
+	// Validate path to prevent traversal and SSRF.
+	if op.Path == "" || op.Path[0] != '/' || strings.Contains(op.Path, "..") {
+		return batchResult{Status: 400, Body: map[string]string{"error": "invalid path"}}
+	}
+
 	var bodyReader io.Reader
 	if op.Body != nil {
 		b, err := json.Marshal(op.Body)
