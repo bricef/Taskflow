@@ -24,6 +24,16 @@ func (e *NotFoundError) Error() string {
 	return fmt.Sprintf("%s not found: %s", e.Resource, e.ID)
 }
 
+// ArchivedError indicates an operation was attempted on an archived (soft-deleted) board.
+// Comments are still allowed on archived boards; mutations are not.
+type ArchivedError struct {
+	BoardSlug string
+}
+
+func (e *ArchivedError) Error() string {
+	return fmt.Sprintf("board %q is archived; only comments are allowed", e.BoardSlug)
+}
+
 // ConflictError indicates a uniqueness or referential integrity violation.
 type ConflictError struct {
 	Resource string

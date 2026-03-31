@@ -93,6 +93,7 @@ func writeServiceError(w http.ResponseWriter, err error) {
 	var ve *model.ValidationError
 	var nfe *model.NotFoundError
 	var ce *model.ConflictError
+	var ae *model.ArchivedError
 
 	switch {
 	case errors.As(err, &ve):
@@ -105,6 +106,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", nfe.Error(), nil)
 	case errors.As(err, &ce):
 		writeError(w, http.StatusConflict, "conflict", ce.Error(), nil)
+	case errors.As(err, &ae):
+		writeError(w, http.StatusForbidden, "archived", ae.Error(), nil)
 	default:
 		log.Printf("internal error: %v", err)
 		writeError(w, http.StatusInternalServerError, "internal", "an internal error occurred", nil)

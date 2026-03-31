@@ -12,6 +12,9 @@ func (s *Service) CreateAttachment(ctx context.Context, params model.CreateAttac
 	if err := params.Validate(); err != nil {
 		return model.Attachment{}, err
 	}
+	if err := s.checkNotArchived(ctx, params.BoardSlug); err != nil {
+		return model.Attachment{}, err
+	}
 
 	task, err := s.store.TaskGet(ctx, params.BoardSlug, params.TaskNum)
 	if err != nil {
@@ -60,6 +63,9 @@ func (s *Service) ListAttachments(ctx context.Context, boardSlug string, taskNum
 func (s *Service) DeleteAttachment(ctx context.Context, id int, actor string) error {
 	att, err := s.store.AttachmentGet(ctx, id)
 	if err != nil {
+		return err
+	}
+	if err := s.checkNotArchived(ctx, att.BoardSlug); err != nil {
 		return err
 	}
 

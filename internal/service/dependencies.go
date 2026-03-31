@@ -13,6 +13,9 @@ func (s *Service) CreateDependency(ctx context.Context, params model.CreateDepen
 	if err := params.Validate(); err != nil {
 		return model.Dependency{}, err
 	}
+	if err := s.checkNotArchived(ctx, params.BoardSlug); err != nil {
+		return model.Dependency{}, err
+	}
 
 	task, err := s.store.TaskGet(ctx, params.BoardSlug, params.TaskNum)
 	if err != nil {
@@ -61,6 +64,9 @@ func (s *Service) ListDependencies(ctx context.Context, boardSlug string, taskNu
 func (s *Service) DeleteDependency(ctx context.Context, id int, actor string) error {
 	dep, err := s.store.DependencyGet(ctx, id)
 	if err != nil {
+		return err
+	}
+	if err := s.checkNotArchived(ctx, dep.BoardSlug); err != nil {
 		return err
 	}
 

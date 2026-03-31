@@ -67,6 +67,18 @@ func (s *Service) emit(evt eventbus.Event) {
 	s.bus.Publish(evt)
 }
 
+// checkNotArchived returns an ArchivedError if the board is soft-deleted.
+func (s *Service) checkNotArchived(ctx context.Context, boardSlug string) error {
+	board, err := s.store.BoardGet(ctx, boardSlug)
+	if err != nil {
+		return err
+	}
+	if board.Deleted {
+		return &model.ArchivedError{BoardSlug: boardSlug}
+	}
+	return nil
+}
+
 // taskSnap builds a TaskSnapshot from a task.
 func taskSnap(t model.Task) *eventbus.TaskSnapshot {
 	return &eventbus.TaskSnapshot{

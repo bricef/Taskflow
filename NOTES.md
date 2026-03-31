@@ -1,3 +1,15 @@
+## Archived Board Semantics
+
+When a board is archived (soft-deleted), the following operations are **blocked** with a 403 Forbidden:
+- Create, update, transition, or delete tasks
+- Create or delete dependencies
+- Create or delete attachments
+
+The following operations remain **allowed**:
+- Reading boards, tasks, audit, comments, dependencies, attachments
+- Adding comments (append-only)
+- Listing boards (with `include_deleted=true` or TUI `a` toggle)
+
 ## Known Bugs
 
 - [ ] **TUI resize**: Resizing the terminal (especially making it larger) causes layout issues. The kanban columns, event log, and viewport don't reliably recalculate their dimensions. Needs a deeper investigation into how Bubble Tea's value-receiver model interacts with viewport sizing.

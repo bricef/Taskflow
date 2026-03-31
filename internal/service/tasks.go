@@ -22,6 +22,9 @@ func (s *Service) CreateTask(ctx context.Context, params model.CreateTaskParams)
 	if err != nil {
 		return model.Task{}, err
 	}
+	if board.Deleted {
+		return model.Task{}, &model.ArchivedError{BoardSlug: params.BoardSlug}
+	}
 	w, err := workflow.Parse(board.Workflow)
 	if err != nil {
 		return model.Task{}, err
@@ -87,6 +90,9 @@ func (s *Service) TransitionTask(ctx context.Context, params model.TransitionTas
 	board, err := s.store.BoardGet(ctx, params.BoardSlug)
 	if err != nil {
 		return model.Task{}, err
+	}
+	if board.Deleted {
+		return model.Task{}, &model.ArchivedError{BoardSlug: params.BoardSlug}
 	}
 	w, err := workflow.Parse(board.Workflow)
 	if err != nil {
@@ -161,6 +167,9 @@ func (s *Service) TransitionTask(ctx context.Context, params model.TransitionTas
 }
 
 func (s *Service) UpdateTask(ctx context.Context, params model.UpdateTaskParams, actor string) (model.Task, error) {
+	if err := s.checkNotArchived(ctx, params.BoardSlug); err != nil {
+		return model.Task{}, err
+	}
 	if params.Priority.Set {
 		if err := model.ValidatePriority(params.Priority.Value); err != nil {
 			return model.Task{}, err
@@ -225,6 +234,9 @@ func (s *Service) UpdateTask(ctx context.Context, params model.UpdateTaskParams,
 }
 
 func (s *Service) DeleteTask(ctx context.Context, boardSlug string, num int, actor string) error {
+	if err := s.checkNotArchived(ctx, boardSlug); err != nil {
+		return err
+	}
 	task, err := s.store.TaskGet(ctx, boardSlug, num)
 	if err != nil {
 		return err
