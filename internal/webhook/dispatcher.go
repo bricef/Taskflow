@@ -27,8 +27,8 @@ const (
 	maxRetries      = 3
 )
 
-// Retry delays: immediate, 30s, 5min.
-var retryDelays = []time.Duration{0, 30 * time.Second, 5 * time.Minute}
+// Default retry delays: immediate, 30s, 5min.
+var defaultRetryDelays = []time.Duration{0, 30 * time.Second, 5 * time.Minute}
 
 // WebhookLister provides access to webhook registrations.
 type WebhookLister interface {
@@ -43,24 +43,41 @@ type DeliveryLogger interface {
 // Dispatcher subscribes to an event bus and delivers matching events
 // to webhook endpoints. Delivery is asynchronous and non-blocking.
 type Dispatcher struct {
-	bus    *eventbus.EventBus
-	lister WebhookLister
-	logger DeliveryLogger
-	sub    *eventbus.Subscription
-	cancel context.CancelFunc
-	client *http.Client
+	bus         *eventbus.EventBus
+	lister      WebhookLister
+	logger      DeliveryLogger
+	sub         *eventbus.Subscription
+	cancel      context.CancelFunc
+	client      *http.Client
+	retryDelays []time.Duration
 }
 
 // NewDispatcher creates and starts a webhook dispatcher.
 // Call Stop() to shut it down.
-func NewDispatcher(bus *eventbus.EventBus, lister WebhookLister, logger DeliveryLogger) *Dispatcher {
+// Option configures a Dispatcher.
+type Option func(*Dispatcher)
+
+// WithRetryDelays overrides the default retry delays (useful for testing).
+func WithRetryDelays(delays []time.Duration) Option {
+	return func(d *Dispatcher) {
+		d.retryDelays = delays
+	}
+}
+
+// NewDispatcher creates and starts a webhook dispatcher.
+// Call Stop() to shut it down.
+func NewDispatcher(bus *eventbus.EventBus, lister WebhookLister, logger DeliveryLogger, opts ...Option) *Dispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &Dispatcher{
-		bus:    bus,
-		lister: lister,
-		logger: logger,
-		cancel: cancel,
-		client: &http.Client{Timeout: deliveryTimeout},
+		bus:         bus,
+		lister:      lister,
+		logger:      logger,
+		cancel:      cancel,
+		client:      &http.Client{Timeout: deliveryTimeout},
+		retryDelays: defaultRetryDelays,
+	}
+	for _, opt := range opts {
+		opt(d)
 	}
 	d.sub = bus.Subscribe()
 	go d.run(ctx)
@@ -118,12 +135,11 @@ func (d *Dispatcher) dispatch(ctx context.Context, evt eventbus.Event) {
 
 func (d *Dispatcher) deliverWithRetry(wh model.Webhook, eventType, eventID string, payload []byte) {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		if attempt > 1 {
-			delay := retryDelays[attempt-1]
-			time.Sleep(delay)
+		if attempt > 1 && attempt-1 < len(d.retryDelays) {
+			time.Sleep(d.retryDelays[attempt-1])
 		}
 
-		statusCode, duration, err := d.deliver(wh, payload)
+		statusCode, duration, err := d.deliver(wh, eventType, payload)
 
 		// Log the delivery attempt.
 		delivery := model.WebhookDelivery{
@@ -156,7 +172,7 @@ func (d *Dispatcher) deliverWithRetry(wh model.Webhook, eventType, eventID strin
 }
 
 // deliver sends a single delivery attempt and returns the status code, duration in ms, and error.
-func (d *Dispatcher) deliver(wh model.Webhook, payload []byte) (*int, *int, error) {
+func (d *Dispatcher) deliver(wh model.Webhook, eventType string, payload []byte) (*int, *int, error) {
 	signature := sign(payload, wh.Secret)
 
 	ctx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
@@ -168,7 +184,7 @@ func (d *Dispatcher) deliver(wh model.Webhook, payload []byte) (*int, *int, erro
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(signatureHeader, signature)
-	req.Header.Set(eventHeader, wh.Events[0]) // placeholder, overwritten by caller context
+	req.Header.Set(eventHeader, eventType)
 
 	start := time.Now()
 	resp, err := d.client.Do(req)
