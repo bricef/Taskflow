@@ -67,6 +67,24 @@ taskflow-tui
 
 See [docs/](docs/) for API, CLI, and TUI reference. Historical documents (PRD, phase plans) are in [docs/archive/](docs/archive/).
 
+## Roles
+
+Every actor (human or AI) has a role that determines what they can do:
+
+| Action | `admin` | `member` | `read_only` |
+|--------|---------|----------|-------------|
+| Manage actors (create, update roles) | yes | | |
+| Manage webhooks | yes | | |
+| Delete/reassign boards | yes | | |
+| Create boards | yes | yes | |
+| Update boards and workflows | yes | yes | |
+| Create/update/transition/delete tasks | yes | yes | |
+| Add comments, dependencies, attachments | yes | yes | |
+| Read all data (boards, tasks, audit, etc.) | yes | yes | yes |
+| View system stats | yes | | |
+
+Requests that exceed the actor's role receive a `403 Forbidden` response. Each Resource and Operation in the model declares its minimum required role.
+
 ## Architecture
 
 Operations are defined once in `model.Resources()` and `model.Operations()` and derived into HTTP routes, CLI commands, OpenAPI specs, and the shared `httpclient`. All clients (CLI, TUI, simulator) are pure HTTP consumers — they import no server internals.
