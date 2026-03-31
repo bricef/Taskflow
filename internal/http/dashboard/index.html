@@ -195,7 +195,7 @@
 
 <script>
 const API_KEY_STORAGE = 'taskflow_api_key';
-let apiKey = sessionStorage.getItem(API_KEY_STORAGE);
+let apiKey = localStorage.getItem(API_KEY_STORAGE);
 
 // If we have a stored key, try to connect immediately.
 if (apiKey) {
@@ -213,7 +213,7 @@ function login() {
 }
 
 function logout() {
-  sessionStorage.removeItem(API_KEY_STORAGE);
+  localStorage.removeItem(API_KEY_STORAGE);
   apiKey = null;
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
@@ -228,7 +228,7 @@ async function showDashboard() {
   try {
     // Test the key with a lightweight call.
     const boards = await apiFetch('/boards');
-    sessionStorage.setItem(API_KEY_STORAGE, apiKey);
+    localStorage.setItem(API_KEY_STORAGE, apiKey);
     document.getElementById('conn-status').textContent = 'connected';
     document.getElementById('conn-status').className = 'status ok';
     loadDashboard(boards);
