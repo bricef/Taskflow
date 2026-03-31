@@ -30,6 +30,7 @@ taskflow-tui
 - **[HTTP API Reference](docs/http-api.md)** — all endpoints, authentication, error handling, configuration
 - **[CLI Reference](docs/cli.md)** — all commands, flags, output formats
 - **[OpenAPI Spec](http://localhost:8374/openapi.json)** — machine-readable, auto-generated from operation definitions
+- **[Claude Code Skill](.claude/skills/taskflow/SKILL.md)** — AI agent guide for using TaskFlow via the CLI
 
 ## Status
 
