@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskFlow Dashboard</title>
+<style>
+  :root {
+    --bg: #1a1b26;
+    --bg-surface: #24283b;
+    --bg-card: #292e42;
+    --text: #c0caf5;
+    --text-dim: #565f89;
+    --accent: #7aa2f7;
+    --green: #9ece6a;
+    --yellow: #e0af68;
+    --red: #f7768e;
+    --orange: #ff9e64;
+    --border: #3b4261;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+
+  /* Header */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 1.5rem; color: var(--accent); }
+  header .status { font-size: 0.85rem; color: var(--text-dim); }
+  header .status.ok { color: var(--green); }
+  header .status.err { color: var(--red); }
+
+  /* Auth */
+  #auth-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    gap: 1rem;
+  }
+  #auth-screen h2 { color: var(--accent); }
+  #auth-screen input {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    width: 400px;
+    max-width: 90vw;
+  }
+  #auth-screen button {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius);
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  #auth-screen .error { color: var(--red); font-size: 0.85rem; }
+
+  /* Grid */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+  }
+  .card h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    margin-bottom: 0.75rem;
+  }
+  .card .big-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .card .sub { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.25rem; }
+
+  /* Stat row */
+  .stat-row { display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .label { color: var(--text-dim); }
+  .stat-row .value { font-weight: 600; }
+
+  /* Board list */
+  .board-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .board-card .name { font-weight: 600; color: var(--accent); }
+  .board-card .slug { color: var(--text-dim); font-size: 0.85rem; margin-left: 0.5rem; }
+  .board-card .task-count { color: var(--text-dim); font-size: 0.85rem; }
+
+  /* State pills */
+  .pill {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+  }
+  .pill-count { margin-left: 0.25rem; opacity: 0.7; }
+
+  /* Activity */
+  .activity-item {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-item .actor { color: var(--accent); font-weight: 600; }
+  .activity-item .count { color: var(--text-dim); }
+
+  /* Section */
+  .section { margin-bottom: 2rem; }
+  .section h2 {
+    font-size: 1.1rem;
+    color: var(--text);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Logout */
+  .logout-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: var(--radius);
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .logout-btn:hover { color: var(--text); border-color: var(--text-dim); }
+
+  /* Loading */
+  .loading { color: var(--text-dim); text-align: center; padding: 3rem; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Auth screen -->
+  <div id="auth-screen">
+    <h2>TaskFlow Dashboard</h2>
+    <p style="color: var(--text-dim)">Enter your API key to continue</p>
+    <input type="password" id="api-key-input" placeholder="API key" autofocus>
+    <button onclick="login()">Connect</button>
+    <div id="auth-error" class="error"></div>
+  </div>
+
+  <!-- Dashboard (hidden until auth) -->
+  <div id="dashboard" style="display: none;">
+    <header>
+      <h1>TaskFlow Dashboard</h1>
+      <div>
+        <span id="conn-status" class="status">connecting...</span>
+        <button class="logout-btn" onclick="logout()" style="margin-left: 1rem;">Logout</button>
+      </div>
+    </header>
+    <div id="content"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
+<script>
+const API_KEY_STORAGE = 'taskflow_api_key';
+let apiKey = localStorage.getItem(API_KEY_STORAGE);
+
+// If we have a stored key, try to connect immediately.
+if (apiKey) {
+  showDashboard();
+}
+
+document.getElementById('api-key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+function login() {
+  apiKey = document.getElementById('api-key-input').value.trim();
+  if (!apiKey) return;
+  showDashboard();
+}
+
+function logout() {
+  localStorage.removeItem(API_KEY_STORAGE);
+  apiKey = null;
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('api-key-input').value = '';
+  document.getElementById('auth-error').textContent = '';
+}
+
+async function showDashboard() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+
+  try {
+    // Test the key with a lightweight call.
+    const boards = await apiFetch('/boards');
+    localStorage.setItem(API_KEY_STORAGE, apiKey);
+    document.getElementById('conn-status').textContent = 'connected';
+    document.getElementById('conn-status').className = 'status ok';
+    loadDashboard(boards);
+  } catch (err) {
+    if (err.message.includes('401')) {
+      logout();
+      document.getElementById('auth-error').textContent = 'Invalid API key';
+    } else {
+      document.getElementById('conn-status').textContent = 'error: ' + err.message;
+      document.getElementById('conn-status').className = 'status err';
+    }
+  }
+}
+
+async function apiFetch(path) {
+  const resp = await fetch(path, {
+    headers: { 'Authorization': 'Bearer ' + apiKey }
+  });
+  if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+  if (resp.status === 204) return null;
+  return resp.json();
+}
+
+async function loadDashboard(boards) {
+  // Try to load admin stats — gracefully degrade if not admin.
+  let stats = null;
+  try {
+    stats = await apiFetch('/admin/stats');
+  } catch (e) {
+    // Not admin, skip stats.
+  }
+
+  // Load task counts per board.
+  const boardData = await Promise.all(boards.map(async b => {
+    try {
+      const tasks = await apiFetch('/boards/' + b.slug + '/tasks?include_closed=true');
+      return { board: b, tasks: tasks || [] };
+    } catch (e) {
+      return { board: b, tasks: [] };
+    }
+  }));
+
+  renderDashboard(stats, boardData);
+}
+
+function renderDashboard(stats, boardData) {
+  const content = document.getElementById('content');
+  let html = '';
+
+  // Stats cards (admin only).
+  if (stats) {
+    html += '<div class="grid">';
+    html += statCard('Boards', stats.boards.active, stats.boards.total + ' total');
+    html += statCard('Tasks', stats.tasks.total,
+      stats.tasks.created_last_7_days + ' created / ' +
+      stats.tasks.completed_last_7_days + ' completed (7d)');
+    html += statCard('Actors', stats.actors.active, stats.actors.total + ' total');
+    html += statCard('Events (7d)', stats.activity.events_last_7_days, stats.activity.total_events + ' total');
+    html += '</div>';
+
+    // Task state breakdown.
+    if (stats.tasks.by_state) {
+      html += '<div class="section"><h2>Tasks by State</h2><div class="card">';
+      for (const [state, count] of Object.entries(stats.tasks.by_state)) {
+        html += '<div class="stat-row"><span class="label">' + esc(state) + '</span><span class="value">' + count + '</span></div>';
+      }
+      html += '</div></div>';
+    }
+
+    // Actor activity.
+    if (stats.activity.by_actor && stats.activity.by_actor.length > 0) {
+      html += '<div class="section"><h2>Actor Activity (7d)</h2><div class="card">';
+      for (const a of stats.activity.by_actor) {
+        html += '<div class="activity-item"><span class="actor">' + esc(a.actor) + '</span> <span class="count">' + a.events + ' events</span></div>';
+      }
+      html += '</div></div>';
+    }
+  }
+
+  // Board overview.
+  html += '<div class="section"><h2>Boards</h2>';
+  if (boardData.length === 0) {
+    html += '<p style="color: var(--text-dim)">No boards found.</p>';
+  }
+  for (const { board, tasks } of boardData) {
+    const stateCounts = {};
+    for (const t of tasks) {
+      stateCounts[t.state] = (stateCounts[t.state] || 0) + 1;
+    }
+    html += '<div class="board-card"><div>';
+    html += '<span class="name">' + esc(board.name || board.slug) + '</span>';
+    if (board.name) html += '<span class="slug">' + esc(board.slug) + '</span>';
+    html += '<div style="margin-top: 0.5rem">';
+    for (const [state, count] of Object.entries(stateCounts)) {
+      html += '<span class="pill" style="background: var(--bg-card)">' + esc(state) + '<span class="pill-count">' + count + '</span></span>';
+    }
+    html += '</div></div>';
+    html += '<span class="task-count">' + tasks.length + ' tasks</span>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  content.innerHTML = html;
+}
+
+function statCard(title, value, sub) {
+  return '<div class="card"><h3>' + esc(title) + '</h3><div class="big-number">' + value + '</div><div class="sub">' + esc(sub) + '</div></div>';
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>

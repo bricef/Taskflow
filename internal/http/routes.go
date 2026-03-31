@@ -2,10 +2,12 @@ package http
 
 import (
 	"encoding/json"
+	"io/fs"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/bricef/taskflow/internal/http/dashboard"
 	"github.com/bricef/taskflow/internal/model"
 )
 
@@ -99,6 +101,14 @@ func (s *Server) routeHandlers() []handler {
 // registerRoutes registers all routes with the chi router.
 func (s *Server) registerRoutes() {
 	r := s.router
+
+	// Dashboard — static HTML, no auth (uses API key from client-side JS).
+	dashFS, _ := fs.Sub(dashboard.FS, ".")
+	r.Get("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		data, _ := fs.ReadFile(dashFS, "index.html")
+		w.Write(data)
+	})
 
 	// Public endpoints — no auth required.
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
