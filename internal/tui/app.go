@@ -292,6 +292,17 @@ func (m Model) activeKeyMap() help.KeyMap {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// When the board create form is active, delegate directly.
+		if m.view == viewSelector && m.selector.creating {
+			var selected *model.Board
+			var cmd tea.Cmd
+			m.selector, selected, cmd = m.selector.update(msg, m.client)
+			if selected != nil {
+				return m, func() tea.Msg { return boardSelected{board: *selected} }
+			}
+			return m, cmd
+		}
+
 		// When the comment input is active, all keys go to the textarea.
 		if m.detail != nil && m.detail.commenting {
 			switch msg.String() {
@@ -505,9 +516,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch {
 	case m.view == viewSelector:
 		var selected *model.Board
-		m.selector, selected = m.selector.update(msg)
+		var cmd tea.Cmd
+		m.selector, selected, cmd = m.selector.update(msg, m.client)
 		if selected != nil {
 			return m, func() tea.Msg { return boardSelected{board: *selected} }
+		}
+		if cmd != nil {
+			return m, cmd
 		}
 	case m.view == viewBoard && m.activeTab == tabKanban:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {

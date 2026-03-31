@@ -80,6 +80,11 @@ func (c *Client) AssignTask(boardSlug string, num int, assignee *string) (model.
 	return task, c.patch(fmt.Sprintf("/boards/%s/tasks/%d", boardSlug, num), map[string]any{"assignee": assignee}, &task)
 }
 
+func (c *Client) CreateBoard(slug, name string) (model.Board, error) {
+	var board model.Board
+	return board, c.post("/boards", map[string]string{"slug": slug, "name": name}, &board)
+}
+
 func (c *Client) CreateComment(boardSlug string, num int, body string) (model.Comment, error) {
 	var comment model.Comment
 	return comment, c.post(fmt.Sprintf("/boards/%s/tasks/%d/comments", boardSlug, num), map[string]string{"body": body}, &comment)
