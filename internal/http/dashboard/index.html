@@ -318,7 +318,7 @@ function renderDashboard(stats, boardData) {
     for (const t of tasks) {
       stateCounts[t.state] = (stateCounts[t.state] || 0) + 1;
     }
-    html += '<div class="board-card"><div>';
+    html += '<a href="/dashboard/board/' + encodeURIComponent(board.slug) + '" class="board-card" style="text-decoration:none;color:inherit"><div>';
     html += '<span class="name">' + esc(board.name || board.slug) + '</span>';
     if (board.name) html += '<span class="slug">' + esc(board.slug) + '</span>';
     html += '<div style="margin-top: 0.5rem">';
@@ -327,7 +327,7 @@ function renderDashboard(stats, boardData) {
     }
     html += '</div></div>';
     html += '<span class="task-count">' + tasks.length + ' tasks</span>';
-    html += '</div>';
+    html += '</a>';
   }
   html += '</div>';
 

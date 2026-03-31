@@ -109,6 +109,11 @@ func (s *Server) registerRoutes() {
 		data, _ := fs.ReadFile(dashFS, "index.html")
 		w.Write(data)
 	})
+	r.Get("/dashboard/board/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		data, _ := fs.ReadFile(dashFS, "board.html")
+		w.Write(data)
+	})
 
 	// Public endpoints — no auth required.
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {

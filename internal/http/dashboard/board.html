@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskFlow Board</title>
+<style>
+  :root {
+    --bg: #1a1b26;
+    --bg-surface: #24283b;
+    --bg-card: #292e42;
+    --text: #c0caf5;
+    --text-dim: #565f89;
+    --accent: #7aa2f7;
+    --green: #9ece6a;
+    --yellow: #e0af68;
+    --red: #f7768e;
+    --orange: #ff9e64;
+    --border: #3b4261;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .container { max-width: 100%; margin: 0 auto; padding: 1.5rem; }
+
+  /* Header */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 1.5rem; color: var(--accent); }
+  header h1 a { color: var(--text-dim); text-decoration: none; }
+  header h1 a:hover { color: var(--accent); }
+  .sse-status { font-size: 0.85rem; }
+  .sse-status.live { color: var(--green); }
+  .sse-status.err { color: var(--red); }
+  .sse-status.connecting { color: var(--yellow); }
+
+  /* Kanban */
+  .kanban {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    min-height: 200px;
+  }
+  .column {
+    flex: 1;
+    min-width: 200px;
+    max-width: 350px;
+  }
+  .column-header {
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid var(--accent);
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  .column-header .count { color: var(--text-dim); font-weight: 400; }
+  .task-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    cursor: default;
+  }
+  .task-card:hover { border-color: var(--accent); }
+  .task-card .title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+  }
+  .task-card .meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .task-card .num { color: var(--text-dim); font-size: 0.75rem; }
+  .priority-critical { border-left: 3px solid var(--red); }
+  .priority-high { border-left: 3px solid var(--orange); }
+  .priority-medium { border-left: 3px solid var(--yellow); }
+
+  /* Events */
+  .events-section {
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+  }
+  .events-section h2 {
+    font-size: 1rem;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+  }
+  .event-list {
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+  }
+  .event-item {
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--bg-card);
+  }
+  .event-item:last-child { border-bottom: none; }
+  .event-time { color: var(--text-dim); }
+  .event-type { color: var(--green); font-weight: 600; }
+  .event-actor { color: var(--accent); }
+  .event-task { color: var(--text-dim); }
+  .event-new { animation: flash 0.5s; }
+  @keyframes flash { from { background: var(--bg-card); } to { background: transparent; } }
+
+  /* Loading */
+  .loading { color: var(--text-dim); text-align: center; padding: 3rem; }
+  .empty-col { color: var(--text-dim); font-size: 0.85rem; padding: 0.5rem; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1><a href="/dashboard">TaskFlow</a> / <span id="board-name">...</span></h1>
+    <span id="sse-status" class="sse-status connecting">connecting...</span>
+  </header>
+
+  <div id="kanban" class="kanban"><div class="loading">Loading board...</div></div>
+
+  <div class="events-section">
+    <h2>Live Events</h2>
+    <div id="event-list" class="event-list">
+      <div class="event-item" style="color: var(--text-dim)">Waiting for events...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_KEY_STORAGE = 'taskflow_api_key';
+const apiKey = localStorage.getItem(API_KEY_STORAGE);
+if (!apiKey) {
+  window.location.href = '/dashboard';
+}
+
+// Extract board slug from URL: /dashboard/board/{slug}
+const slug = decodeURIComponent(window.location.pathname.split('/dashboard/board/')[1] || '');
+if (!slug) {
+  window.location.href = '/dashboard';
+}
+
+let workflow = null;
+let tasks = [];
+let events = [];
+const MAX_EVENTS = 100;
+
+async function apiFetch(path) {
+  const resp = await fetch(path, {
+    headers: { 'Authorization': 'Bearer ' + apiKey }
+  });
+  if (resp.status === 401) {
+    window.location.href = '/dashboard';
+    throw new Error('unauthorized');
+  }
+  if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+  return resp.json();
+}
+
+async function init() {
+  try {
+    const [board, wf, taskList] = await Promise.all([
+      apiFetch('/boards/' + slug),
+      apiFetch('/boards/' + slug + '/workflow'),
+      apiFetch('/boards/' + slug + '/tasks?include_closed=true'),
+    ]);
+
+    document.getElementById('board-name').textContent = board.name || board.slug;
+    document.title = 'TaskFlow - ' + (board.name || board.slug);
+    workflow = wf;
+    tasks = taskList;
+
+    renderKanban();
+    connectSSE();
+  } catch (err) {
+    document.getElementById('kanban').innerHTML =
+      '<div class="loading" style="color: var(--red)">Error: ' + esc(err.message) + '</div>';
+  }
+}
+
+function renderKanban() {
+  if (!workflow) return;
+
+  const columns = workflow.states.filter(s =>
+    !workflow.terminal_states.includes(s)
+  );
+  // Add terminal states at the end.
+  for (const s of workflow.terminal_states) columns.push(s);
+
+  const kanbanEl = document.getElementById('kanban');
+  let html = '';
+
+  for (const state of columns) {
+    const stateTasks = tasks.filter(t => t.state === state && !t.deleted);
+    const isTerminal = workflow.terminal_states.includes(state);
+
+    html += '<div class="column">';
+    html += '<div class="column-header' + (isTerminal ? '" style="border-color: var(--text-dim); color: var(--text-dim)' : '') + '">';
+    html += esc(state) + '<span class="count">' + stateTasks.length + '</span></div>';
+
+    if (stateTasks.length === 0) {
+      html += '<div class="empty-col">empty</div>';
+    }
+    for (const t of stateTasks) {
+      let prioClass = '';
+      if (t.priority === 'critical') prioClass = ' priority-critical';
+      else if (t.priority === 'high') prioClass = ' priority-high';
+      else if (t.priority === 'medium') prioClass = ' priority-medium';
+
+      const assignee = t.assignee || 'unassigned';
+      html += '<div class="task-card' + prioClass + '" id="task-' + t.num + '">';
+      html += '<div class="title"><span class="num">#' + t.num + '</span> ' + esc(t.title) + '</div>';
+      html += '<div class="meta"><span>' + esc(assignee) + '</span><span>' + esc(t.priority || '') + '</span></div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  kanbanEl.innerHTML = html;
+}
+
+// --- SSE ---
+
+function connectSSE() {
+  const statusEl = document.getElementById('sse-status');
+  const url = '/boards/' + slug + '/events?token=' + encodeURIComponent(apiKey);
+  const source = new EventSource(url);
+
+  source.onopen = () => {
+    statusEl.textContent = 'live';
+    statusEl.className = 'sse-status live';
+  };
+
+  source.onerror = () => {
+    statusEl.textContent = 'reconnecting...';
+    statusEl.className = 'sse-status connecting';
+  };
+
+  // Listen for all event types.
+  const eventTypes = [
+    'task.created', 'task.updated', 'task.transitioned', 'task.deleted',
+    'task.assigned', 'task.commented', 'comment.edited',
+    'dependency.added', 'dependency.removed',
+    'attachment.added', 'attachment.removed'
+  ];
+
+  for (const type of eventTypes) {
+    source.addEventListener(type, (e) => {
+      const evt = JSON.parse(e.data);
+      evt.event = type;
+      handleEvent(evt);
+    });
+  }
+}
+
+function handleEvent(evt) {
+  // Update the task list.
+  const after = evt.after;
+  const before = evt.before;
+
+  if (after) {
+    const idx = tasks.findIndex(t => t.num === after.num);
+    if (idx >= 0) {
+      // Update existing task with snapshot fields.
+      tasks[idx].state = after.state;
+      tasks[idx].title = after.title;
+      tasks[idx].priority = after.priority;
+      tasks[idx].assignee = after.assignee;
+    } else if (evt.event === 'task.created') {
+      // Add new task.
+      tasks.push({
+        num: after.num,
+        title: after.title,
+        state: after.state,
+        priority: after.priority || '',
+        assignee: after.assignee || null,
+        deleted: false,
+      });
+    }
+  }
+
+  if (evt.event === 'task.deleted' && before) {
+    tasks = tasks.filter(t => t.num !== before.num);
+  }
+
+  renderKanban();
+  addEventToLog(evt);
+}
+
+function addEventToLog(evt) {
+  const listEl = document.getElementById('event-list');
+
+  // Remove placeholder.
+  if (events.length === 0) {
+    listEl.innerHTML = '';
+  }
+
+  events.push(evt);
+  if (events.length > MAX_EVENTS) {
+    events.shift();
+  }
+
+  const ts = new Date(evt.timestamp).toLocaleTimeString();
+  const actor = evt.actor ? evt.actor.name : 'system';
+  const snap = evt.after || evt.before;
+  let taskInfo = '';
+  if (snap) {
+    taskInfo = ' <span class="event-task">' + esc(snap.ref) + ' ' + esc(snap.title) + '</span>';
+    if (evt.before && evt.after && evt.before.state !== evt.after.state) {
+      taskInfo += ' <span class="event-task">(' + esc(evt.before.state) + ' \u2192 ' + esc(evt.after.state) + ')</span>';
+    }
+  }
+
+  const item = document.createElement('div');
+  item.className = 'event-item event-new';
+  item.innerHTML = '<span class="event-time">' + ts + '</span> '
+    + '<span class="event-actor">' + esc(actor) + '</span> '
+    + '<span class="event-type">' + esc(evt.event) + '</span>'
+    + taskInfo;
+
+  listEl.insertBefore(item, listEl.firstChild);
+
+  // Trim old events from DOM.
+  while (listEl.children.length > MAX_EVENTS) {
+    listEl.removeChild(listEl.lastChild);
+  }
+}
+
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+init();
+</script>
+</body>
+</html>
