@@ -96,7 +96,7 @@ func (m Model) Init() tea.Cmd {
 			return boardSelected{board: board}
 		}
 	}
-	return fetchBoards(m.client)
+	return fetchBoards(m.client, m.selector.showArchived)
 }
 
 // boardSelected is sent when a board is chosen.
@@ -350,7 +350,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeBoard = nil
 				m.sseStatus = "disconnected"
 				m.eventLog = eventLogModel{}
-				return m, fetchBoards(m.client)
+				return m, fetchBoards(m.client, m.selector.showArchived)
 			}
 		case "tab":
 			if m.view == viewBoard && m.detail == nil {

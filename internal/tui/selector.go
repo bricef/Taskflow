@@ -23,9 +23,14 @@ type boardCreated struct {
 	err   error
 }
 
-func fetchBoards(client *Client) tea.Cmd {
+// boardArchived is sent when a board has been archived.
+type boardArchived struct {
+	err error
+}
+
+func fetchBoards(client *Client, includeArchived bool) tea.Cmd {
 	return func() tea.Msg {
-		boards, err := client.ListBoards()
+		boards, err := client.ListBoards(includeArchived)
 		return boardsLoaded{boards: boards, err: err}
 	}
 }
@@ -37,6 +42,9 @@ type selectorModel struct {
 	filter  string
 	err     error
 	loading bool
+
+	// Show archived boards.
+	showArchived bool
 
 	// Create form state.
 	creating   bool
@@ -115,6 +123,13 @@ func (m selectorModel) update(msg tea.Msg, client *Client) (selectorModel, *mode
 			return m, &msg.board, nil
 		}
 
+	case boardArchived:
+		if msg.err != nil {
+			m.err = msg.err
+		}
+		// Refresh the board list.
+		return m, nil, fetchBoards(client, m.showArchived)
+
 	case tea.KeyMsg:
 		if m.creating {
 			return m.updateCreateForm(msg, client)
@@ -137,6 +152,18 @@ func (m selectorModel) update(msg tea.Msg, client *Client) (selectorModel, *mode
 		case "n":
 			cmd := m.startCreate()
 			return m, nil, cmd
+		case "a":
+			m.showArchived = !m.showArchived
+			m.cursor = 0
+			return m, nil, fetchBoards(client, m.showArchived)
+		case "x":
+			if b := m.selectedBoard(); b != nil && !b.Deleted {
+				slug := b.Slug
+				return m, nil, func() tea.Msg {
+					err := client.ArchiveBoard(slug)
+					return boardArchived{err: err}
+				}
+			}
 		case "backspace":
 			if len(m.filter) > 0 {
 				m.filter = m.filter[:len(m.filter)-1]
@@ -247,7 +274,12 @@ func (m selectorModel) view(width int) string {
 			cursor = "> "
 			style = style.Bold(true).Foreground(lipgloss.Color("39"))
 		}
-		line := fmt.Sprintf("%s%-20s %s", cursor, board.Slug, dimStyle.Render(board.Name))
+		name := dimStyle.Render(board.Name)
+		if board.Deleted {
+			style = style.Foreground(lipgloss.Color("241"))
+			name = dimStyle.Render(board.Name + " [archived]")
+		}
+		line := fmt.Sprintf("%s%-20s %s", cursor, board.Slug, name)
 		b.WriteString(style.Render(line) + "\n")
 	}
 

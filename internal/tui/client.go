@@ -20,9 +20,17 @@ func NewClient(baseURL, apiKey string) *Client {
 	return &Client{baseURL: baseURL, apiKey: apiKey}
 }
 
-func (c *Client) ListBoards() ([]model.Board, error) {
+func (c *Client) ListBoards(includeArchived bool) ([]model.Board, error) {
 	var boards []model.Board
-	return boards, c.get("/boards", &boards)
+	path := "/boards"
+	if includeArchived {
+		path += "?include_deleted=true"
+	}
+	return boards, c.get(path, &boards)
+}
+
+func (c *Client) ArchiveBoard(slug string) error {
+	return c.doJSON("DELETE", "/boards/"+slug, nil, nil)
 }
 
 func (c *Client) GetBoard(slug string) (model.Board, error) {
@@ -99,11 +107,17 @@ func (c *Client) patch(path string, payload any, out any) error {
 }
 
 func (c *Client) doJSON(method, path string, payload any, out any) error {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return err
+	var body *bytes.Reader
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(data)
+	} else {
+		body = bytes.NewReader(nil)
 	}
-	req, err := http.NewRequest(method, c.baseURL+path, bytes.NewReader(data))
+	req, err := http.NewRequest(method, c.baseURL+path, body)
 	if err != nil {
 		return err
 	}
@@ -126,7 +140,10 @@ func (c *Client) doJSON(method, path string, payload any, out any) error {
 		return fmt.Errorf("%s", msg)
 	}
 
-	return json.NewDecoder(resp.Body).Decode(out)
+	if out != nil {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
 }
 
 func (c *Client) get(path string, out any) error {
