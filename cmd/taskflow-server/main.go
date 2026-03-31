@@ -24,9 +24,10 @@ func main() {
 	dbPath := envOr("TASKFLOW_DB_PATH", "./taskflow.db")
 	listenAddr := envOr("TASKFLOW_LISTEN_ADDR", ":8374")
 
-	if os.Getenv("TASKFLOW_DEV_MODE") == "true" {
+	devMode := os.Getenv("TASKFLOW_DEV_MODE") == "true"
+	if devMode {
 		model.AllowPrivateWebhookURLs = true
-		log.Println("Development mode enabled: private webhook URLs allowed")
+		log.Println("Development mode enabled: private webhook URLs allowed, rate limiting disabled")
 	}
 
 	store, err := sqlite.New(dbPath)
@@ -47,12 +48,13 @@ func main() {
 	defer whDispatcher.Stop()
 
 	srv := taskflowhttp.NewServer(svc, taskflowhttp.ServerConfig{
-		EventBus:           bus,
+		EventBus:            bus,
 		MaxRequestBodyBytes: envInt64("TASKFLOW_MAX_BODY_BYTES", 0),
 		ReadTimeout:         envDuration("TASKFLOW_READ_TIMEOUT", 0),
 		WriteTimeout:        envDuration("TASKFLOW_WRITE_TIMEOUT", 0),
 		IdleTimeout:         envDuration("TASKFLOW_IDLE_TIMEOUT", 0),
 		RateLimitPerSecond:  envInt("TASKFLOW_RATE_LIMIT", 0),
+		DevMode:             devMode,
 	})
 
 	log.Printf("TaskFlow server listening on %s", listenAddr)

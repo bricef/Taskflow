@@ -38,6 +38,10 @@ type ServerConfig struct {
 	// RateLimitPerSecond is the maximum requests per second per API key.
 	// Defaults to 50 if zero. Set to -1 to disable.
 	RateLimitPerSecond int
+
+	// DevMode disables all rate limiting (per-key and global IP-based).
+	// Opt-in only via TASKFLOW_DEV_MODE=true.
+	DevMode bool
 }
 
 func (c *ServerConfig) applyDefaults() {

@@ -168,8 +168,10 @@ func (s *Server) operationHandlers() map[string]handler {
 func (s *Server) registerRoutes() {
 	r := s.router
 
-	// Rate limit public endpoints by IP.
-	r.Use(httprate.Limit(30, time.Minute, httprate.WithKeyFuncs(httprate.KeyByRealIP)))
+	// Rate limit public endpoints by IP (disabled in dev mode).
+	if !s.cfg.DevMode {
+		r.Use(httprate.Limit(30, time.Minute, httprate.WithKeyFuncs(httprate.KeyByRealIP)))
+	}
 
 	// Dashboard — static HTML, no auth (uses API key from client-side JS).
 	dashFS, _ := fs.Sub(dashboard.FS, ".")
@@ -196,7 +198,7 @@ func (s *Server) registerRoutes() {
 
 	// Authenticated routes — derived from resources and operations.
 	r.Group(func(r chi.Router) {
-		if s.cfg.RateLimitPerSecond > 0 {
+		if !s.cfg.DevMode && s.cfg.RateLimitPerSecond > 0 {
 			r.Use(httprate.Limit(
 				s.cfg.RateLimitPerSecond,
 				time.Second,
