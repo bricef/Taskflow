@@ -129,16 +129,16 @@ func (s *Server) registerRoutes() {
 
 	// Authenticated routes — derived from operations.
 	r.Group(func(r chi.Router) {
-		r.Use(authMiddleware(s.svc))
 		if s.cfg.RateLimitPerSecond > 0 {
 			r.Use(httprate.Limit(
 				s.cfg.RateLimitPerSecond,
 				time.Second,
 				httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
-					return ActorFrom(r.Context()).Name, nil
+					return r.Header.Get("Authorization"), nil
 				}),
 			))
 		}
+		r.Use(authMiddleware(s.svc))
 
 		// Aggregate views and utilities (not domain operations).
 		r.Get("/boards/{slug}/detail", s.boardDetailHandler)
