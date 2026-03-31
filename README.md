@@ -65,7 +65,7 @@ taskflow-tui
 - Live board view at `/dashboard/board/{slug}` with kanban and SSE event stream
 - Archived board semantics (mutations blocked, comments allowed)
 
-See [docs/](docs/) for the PRD, phase plans, API reference, and CLI reference.
+See [docs/](docs/) for API, CLI, and TUI reference. Historical documents (PRD, phase plans) are in [docs/archive/](docs/archive/).
 
 ## Architecture
 
