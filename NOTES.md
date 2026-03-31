@@ -15,6 +15,14 @@ The following operations remain **allowed**:
 - [ ] **TUI resize**: Resizing the terminal (especially making it larger) causes layout issues. The kanban columns, event log, and viewport don't reliably recalculate their dimensions. Needs a deeper investigation into how Bubble Tea's value-receiver model interacts with viewport sizing.
 - [ ] **space below help**: We still have a line of deadspace at the bottom. Lt's fix that.
 
+## Planned Dashboard Features
+
+- [ ] **Cumulative flow diagram (CFD)**: Stacked area chart showing task counts per state over time, derived from audit log.
+- [ ] **Cycle time report**: Time from first non-initial state to terminal state, per task. Histogram and averages.
+- [ ] **Throughput report**: Tasks completed per time period (day/week/month).
+- [ ] **Actor activity charts**: Visual breakdown of who's doing what over time.
+- [ ] **Board summary**: System-wide overview with per-board health indicators.
+
 ## Planned TUI Features
 
 - [x] **List view**: Sortable table as an alternative to kanban (tab to switch). Columns: num, title, state, priority, assignee, due date.
