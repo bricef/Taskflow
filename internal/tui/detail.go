@@ -40,19 +40,15 @@ func fetchTaskDetail(client *httpclient.Client, boardSlug string, num int) tea.C
 	return func() tea.Msg {
 		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(num)}
 
-		task, err := httpclient.GetOne[model.Task](client, model.ResTaskGet, tp, nil)
+		detail, err := httpclient.GetOne[model.TaskDetail](client, model.ResTaskDetail, tp, nil)
 		if err != nil {
 			return taskDetailLoaded{err: err}
 		}
-		comments, _ := httpclient.GetMany[model.Comment](client, model.ResCommentList, tp, nil)
-		deps, _ := httpclient.GetMany[model.Dependency](client, model.ResDepList, tp, nil)
-		attachments, _ := httpclient.GetMany[model.Attachment](client, model.ResAttachList, tp, nil)
-		audit, _ := httpclient.Exec[[]model.AuditEntry](client, model.OpTaskAudit, tp, nil)
 
 		// Fetch summaries for related tasks in the dependency tree.
 		currentRef := fmt.Sprintf("%s/%d", boardSlug, num)
 		related := map[string]taskSummary{}
-		for _, dep := range deps {
+		for _, dep := range detail.Dependencies {
 			sourceRef := fmt.Sprintf("%s/%d", dep.BoardSlug, dep.TaskNum)
 			targetRef := fmt.Sprintf("%s/%d", dep.DependsOnBoard, dep.DependsOnNum)
 			for _, ref := range []string{sourceRef, targetRef} {
@@ -83,8 +79,8 @@ func fetchTaskDetail(client *httpclient.Client, boardSlug string, num int) tea.C
 		}
 
 		return taskDetailLoaded{data: taskDetailData{
-			task: task, comments: comments, dependencies: deps,
-			attachments: attachments, audit: audit, related: related,
+			task: detail.Task, comments: detail.Comments, dependencies: detail.Dependencies,
+			attachments: detail.Attachments, audit: detail.Audit, related: related,
 		}}
 	}
 }

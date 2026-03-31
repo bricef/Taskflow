@@ -43,6 +43,13 @@ func (c *Client) WithContext(ctx context.Context) *Client {
 	return &c2
 }
 
+// WhoAmI returns the authenticated actor for this client's API key.
+func (c *Client) WhoAmI() (model.Actor, error) {
+	var actor model.Actor
+	err := c.do("GET", "/me", nil, &actor)
+	return actor, err
+}
+
 // resource executes a GET request for a domain resource.
 func (c *Client) resource(res model.Resource, params PathParams, filter any, out any) error {
 	path := model.SubstitutePath(res.Path, params)

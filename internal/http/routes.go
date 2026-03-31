@@ -96,7 +96,8 @@ func (s *Server) resourceHandlers() map[string]handler {
 
 		// Tasks
 		"task_list": s.listTasks,
-		"task_get":  pathStrInt("slug", "num", s.svc.GetTask),
+		"task_get":    pathStrInt("slug", "num", s.svc.GetTask),
+		"task_detail": pathStrInt("slug", "num", s.svc.TaskDetail),
 
 		// Tags
 		"tag_list": s.listTags,
@@ -216,6 +217,12 @@ func (s *Server) registerRoutes() {
 			))
 		}
 		r.Use(authMiddleware(s.svc))
+
+		// Self-information — returns the authenticated actor.
+		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(ActorFrom(r.Context()))
+		})
 
 		// Transport-specific endpoints (SSE, batch — not domain resources).
 		r.Get("/boards/{slug}/events", s.sseHandler)

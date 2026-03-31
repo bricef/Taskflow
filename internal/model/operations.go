@@ -23,13 +23,14 @@ const (
 // Resource describes a read-only domain resource as runtime metadata.
 // Resources are always served via GET and return 200.
 type Resource struct {
-	Name    string // canonical identifier, e.g. "board_list"
-	Path    string // resource address pattern: /boards/{slug}
-	Summary string // human-readable description
-	MinRole Role   // minimum role required (defaults to RoleReadOnly)
-	Output  any    // zero-value of response type (for schema generation)
-	Filter  any    // nil, or zero-value of filter struct (query params derived from `query` tags)
-	Sort    any    // nil, or zero-value of sort struct (query params derived from `query` tags)
+	Name        string // canonical identifier, e.g. "board_list"
+	Path        string // resource address pattern: /boards/{slug}
+	Summary     string // short description (OpenAPI, CLI)
+	Description string // longer description with usage guidance (MCP tools)
+	MinRole     Role   // minimum role required (defaults to RoleReadOnly)
+	Output      any    // zero-value of response type (for schema generation)
+	Filter      any    // nil, or zero-value of filter struct (query params derived from `query` tags)
+	Sort        any    // nil, or zero-value of sort struct (query params derived from `query` tags)
 }
 
 // PathParams returns the path parameters inferred from the Path pattern.
@@ -47,13 +48,14 @@ func (r Resource) QueryParams() []QueryParam {
 // Operation describes a domain mutation as runtime metadata.
 // Operations change state (create, update, delete, transition, etc).
 type Operation struct {
-	Name    string // canonical identifier, e.g. "task_create"
-	Action  Action // the kind of mutation
-	Path    string // resource address pattern: /boards/{slug}/tasks/{num}
-	Summary string // human-readable description
-	MinRole Role   // minimum role required
-	Input   any    // nil, or zero-value of request type (for schema generation)
-	Output  any    // nil, or zero-value of response type (for schema generation)
+	Name        string // canonical identifier, e.g. "task_create"
+	Action      Action // the kind of mutation
+	Path        string // resource address pattern: /boards/{slug}/tasks/{num}
+	Summary     string // short description (OpenAPI, CLI)
+	Description string // longer description with usage guidance (MCP tools)
+	MinRole     Role   // minimum role required
+	Input       any    // nil, or zero-value of request type (for schema generation)
+	Output      any    // nil, or zero-value of response type (for schema generation)
 }
 
 // PathParams returns the path parameters inferred from the Path pattern.
@@ -107,6 +109,7 @@ func ListRes(path, summary string) *resBuilder  { return newRes(path, summary) }
 func GetRes(path, summary string) *resBuilder    { return newRes(path, summary) }
 
 func (b *resBuilder) Name(n string) *resBuilder   { b.res.Name = n; return b }
+func (b *resBuilder) Desc(d string) *resBuilder    { b.res.Description = d; return b }
 func (b *resBuilder) Role(r Role) *resBuilder      { b.res.MinRole = r; return b }
 func (b *resBuilder) Output(v any) *resBuilder     { b.res.Output = v; return b }
 func (b *resBuilder) FilterType(v any) *resBuilder { b.res.Filter = v; return b }
@@ -132,6 +135,7 @@ func SetOp(path, summary string) *opBuilder                         { return new
 func CustomAction(action Action, path, summary string) *opBuilder   { return newOp(action, path, summary) }
 
 func (b *opBuilder) Name(n string) *opBuilder  { b.op.Name = n; return b }
+func (b *opBuilder) Desc(d string) *opBuilder   { b.op.Description = d; return b }
 func (b *opBuilder) Role(r Role) *opBuilder     { b.op.MinRole = r; return b }
 func (b *opBuilder) Input(v any) *opBuilder     { b.op.Input = v; return b }
 func (b *opBuilder) Output(v any) *opBuilder    { b.op.Output = v; return b }
@@ -182,6 +186,9 @@ func Resources() []Resource {
 			Output([]Task{}).FilterType(TaskFilter{}).SortType(TaskSort{}).Build(),
 		GetRes("/boards/{slug}/tasks/{num}", "Get a task").Name("task_get").
 			Output(Task{}).Build(),
+		GetRes("/boards/{slug}/tasks/{num}/detail", "Get full task detail with comments, dependencies, attachments, and audit").Name("task_detail").
+			Desc("Returns the task with all its comments, dependencies, attachments, and audit trail in a single request. Use this instead of task_get when you need full context.").
+			Output(TaskDetail{}).Build(),
 
 		// Tags
 		ListRes("/boards/{slug}/tags", "List tags in use on a board with counts").Name("tag_list").
@@ -201,6 +208,7 @@ func Resources() []Resource {
 
 		// Cross-board
 		ListRes("/tasks", "Search tasks across all boards").Name("task_search").
+			Desc("Search and filter tasks across all boards. Supports full-text search via q parameter, plus filters for state, assignee, priority, and tags. Use assignee=@me to find tasks assigned to you.").
 			Output([]Task{}).FilterType(TaskFilter{}).SortType(TaskSort{}).Build(),
 
 		// Views
@@ -248,15 +256,19 @@ func Operations() []Operation {
 
 		// Tasks
 		Create("/boards/{slug}/tasks", "Create a task").Name("task_create").
+			Desc("Create a task on a board. Priority: critical, high, medium, low, or omit for none. Use @me as assignee to assign to yourself. Tags is a comma-separated list.").
 			Input(CreateTaskParams{}).Output(Task{}).Build(),
 		Update("/boards/{slug}/tasks/{num}", "Update a task").Name("task_update").
+			Desc("Update task fields. Use @me as assignee to assign to yourself. Only fields you provide are changed — omitted fields are left unchanged.").
 			Input(UpdateTaskParams{}).Output(Task{}).Build(),
 		CustomAction(ActionTransition, "/boards/{slug}/tasks/{num}/transition", "Transition a task to a new state").Name("task_transition").
+			Desc("Move a task to a new workflow state. The transition parameter is a transition NAME (e.g. 'start', 'submit', 'approve'), not a state name. Use workflow_get or task_detail to see available transitions for the task's current state. On failure, the error includes available transitions.").
 			Input(TransitionTaskParams{}).Output(Task{}).Build(),
 		Remove("/boards/{slug}/tasks/{num}", "Delete a task (soft-delete)").Name("task_delete").Build(),
 
 		// Comments
 		Create("/boards/{slug}/tasks/{num}/comments", "Add a comment to a task").Name("comment_create").
+			Desc("Add a comment to a task. Comments are the primary way to communicate progress and context on tasks.").
 			Input(CreateCommentParams{}).Output(Comment{}).Build(),
 		Update("/comments/{id}", "Edit a comment").Name("comment_update").
 			Input(UpdateCommentParams{}).Output(Comment{}).Build(),

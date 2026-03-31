@@ -185,6 +185,27 @@ func (s *Service) SystemStats(ctx context.Context) (model.SystemStats, error) {
 	}, nil
 }
 
+// TaskDetail returns a task with its comments, attachments, dependencies, and audit.
+func (s *Service) TaskDetail(ctx context.Context, boardSlug string, num int) (model.TaskDetail, error) {
+	task, err := s.store.TaskGet(ctx, boardSlug, num)
+	if err != nil {
+		return model.TaskDetail{}, err
+	}
+
+	comments, _ := s.store.CommentList(ctx, boardSlug, num)
+	attachments, _ := s.store.AttachmentList(ctx, boardSlug, num)
+	deps, _ := s.store.DependencyList(ctx, boardSlug, num)
+	audit, _ := s.store.AuditQueryByTask(ctx, boardSlug, num)
+
+	return model.TaskDetail{
+		Task:         task,
+		Comments:     orEmpty(comments),
+		Attachments:  orEmpty(attachments),
+		Dependencies: orEmpty(deps),
+		Audit:        orEmpty(audit),
+	}, nil
+}
+
 const maxSearchResults = 1000
 
 // SearchTasks lists tasks across all boards, applying the given filter.

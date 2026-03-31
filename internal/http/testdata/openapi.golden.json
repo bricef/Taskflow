@@ -558,6 +558,41 @@
         ],
         "type": "object"
       },
+      "TaskDetail": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "audit": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "comments": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "comments",
+          "attachments",
+          "dependencies",
+          "audit"
+        ],
+        "type": "object"
+      },
       "TransitionTaskParams": {
         "properties": {
           "comment": {
@@ -2387,6 +2422,60 @@
         "summary": "Add a dependency",
         "tags": [
           "dependencies"
+        ]
+      }
+    },
+    "/boards/{slug}/tasks/{num}/detail": {
+      "get": {
+        "operationId": "task_detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "num",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Client error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Get full task detail with comments, dependencies, attachments, and audit",
+        "tags": [
+          "tasks"
         ]
       }
     },

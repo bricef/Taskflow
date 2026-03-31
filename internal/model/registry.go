@@ -9,6 +9,7 @@ var (
 	ResWorkflowGet = mustRes("workflow_get")
 	ResTaskList    = mustRes("task_list")
 	ResTaskGet     = mustRes("task_get")
+	ResTaskDetail  = mustRes("task_detail")
 	ResTagList     = mustRes("tag_list")
 	ResCommentList = mustRes("comment_list")
 	ResDepList     = mustRes("dependency_list")

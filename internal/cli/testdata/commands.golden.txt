@@ -26,6 +26,7 @@ tag list <slug>                                    List tags in use on a board w
 task audit <slug> <num>                            Get audit log for a task
 task create <slug>                                 Create a task
 task delete <slug> <num>                           Delete a task (soft-delete)
+task detail <slug> <num>                           Get full task detail with comments, dependencies, attachments, and audit
 task get <slug> <num>                              Get a task
 task list <slug>                                   List tasks (with filters and search)
 task search                                        Search tasks across all boards

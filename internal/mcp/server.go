@@ -25,8 +25,17 @@ func NewServer(client *httpclient.Client) *gomcp.Server {
 
 	registerResources(server, client)
 	registerTools(server, client)
+	registerWhoAmI(server, client)
 
 	return server
+}
+
+// descriptionOf returns the longer description if set, otherwise the summary.
+func descriptionOf(summary, description string) string {
+	if description != "" {
+		return description
+	}
+	return summary
 }
 
 // --- Resources ---
@@ -41,7 +50,7 @@ func registerResources(server *gomcp.Server, client *httpclient.Client) {
 		server.AddResourceTemplate(&gomcp.ResourceTemplate{
 			URITemplate: uri,
 			Name:        res.Name,
-			Description: res.Summary,
+			Description: descriptionOf(res.Summary, res.Description),
 			MIMEType:    "application/json",
 		}, resourceHandler(client, res))
 	}
@@ -75,7 +84,7 @@ func registerTools(server *gomcp.Server, client *httpclient.Client) {
 		server.AddTool(
 			&gomcp.Tool{
 				Name:        op.Name,
-				Description: op.Summary,
+				Description: descriptionOf(op.Summary, op.Description),
 				InputSchema: buildInputSchema(op),
 			},
 			toolHandler(client, op),
@@ -91,6 +100,15 @@ func toolHandler(client *httpclient.Client, op model.Operation) gomcp.ToolHandle
 		var input map[string]any
 		if err := json.Unmarshal(req.Params.Arguments, &input); err != nil {
 			input = map[string]any{}
+		}
+
+		// Support task_ref shorthand: "platform/3" → slug=platform, num=3
+		if ref, ok := input["task_ref"].(string); ok {
+			if slash := strings.LastIndex(ref, "/"); slash >= 0 {
+				input["slug"] = ref[:slash]
+				input["num"] = ref[slash+1:]
+			}
+			delete(input, "task_ref")
 		}
 
 		// Separate path params from body params.
@@ -134,18 +152,55 @@ func toolHandler(client *httpclient.Client, op model.Operation) gomcp.ToolHandle
 	}
 }
 
+// --- WhoAmI ---
+
+func registerWhoAmI(server *gomcp.Server, client *httpclient.Client) {
+	server.AddTool(
+		&gomcp.Tool{
+			Name:        "whoami",
+			Description: "Returns your actor identity (name, role, type) as determined by your API key.",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		func(ctx context.Context, req *gomcp.CallToolRequest) (*gomcp.CallToolResult, error) {
+			actor, err := client.WithContext(ctx).WhoAmI()
+			if err != nil {
+				return &gomcp.CallToolResult{
+					Content: []gomcp.Content{&gomcp.TextContent{Text: err.Error()}},
+					IsError: true,
+				}, nil
+			}
+			data, _ := json.MarshalIndent(actor, "", "  ")
+			return &gomcp.CallToolResult{
+				Content: []gomcp.Content{&gomcp.TextContent{Text: string(data)}},
+			}, nil
+		},
+	)
+}
+
 // --- Schema generation ---
 
 func buildInputSchema(op model.Operation) map[string]any {
 	properties := map[string]any{}
 	required := []string{}
 
-	for _, pp := range op.PathParams() {
+	pps := op.PathParams()
+	hasSlugAndNum := false
+	for _, pp := range pps {
 		properties[pp.Name] = map[string]any{
 			"type":        pp.Type,
 			"description": pp.Name + " path parameter",
 		}
 		required = append(required, pp.Name)
+		if pp.Name == "num" {
+			hasSlugAndNum = true
+		}
+	}
+	// Add task_ref as a convenience alternative to slug+num.
+	if hasSlugAndNum {
+		properties["task_ref"] = map[string]any{
+			"type":        "string",
+			"description": "Task reference as board/num (e.g. 'platform/3'). Alternative to providing slug and num separately.",
+		}
 	}
 
 	if op.Input != nil {
