@@ -84,6 +84,9 @@ func main() {
 		nextTitle: 0,
 	}
 
+	// Ensure the board exists, create if not.
+	sim.ensureBoard()
+
 	// Discover current tasks so we can act on them.
 	sim.refreshTasks()
 
@@ -118,6 +121,22 @@ type simulator struct {
 	boardSlug string
 	tasks     []taskInfo
 	nextTitle int
+}
+
+func (s *simulator) ensureBoard() {
+	// Try to get the board; if 404, create it.
+	err := s.doRequest("GET", fmt.Sprintf("/boards/%s", s.boardSlug), actors[0].apiKey, nil, nil)
+	if err == nil {
+		log.Printf("Board %q exists", s.boardSlug)
+		return
+	}
+	log.Printf("Board %q not found, creating...", s.boardSlug)
+	body := map[string]string{"slug": s.boardSlug, "name": s.boardSlug}
+	err = s.doRequest("POST", "/boards", actors[0].apiKey, body, nil)
+	if err != nil {
+		log.Fatalf("Failed to create board: %v", err)
+	}
+	log.Printf("Created board %q", s.boardSlug)
 }
 
 // pickAction returns a weighted random action.

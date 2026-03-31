@@ -154,6 +154,27 @@ func (m *kanbanModel) update(msg tea.KeyMsg) {
 		if m.rowCursor < len(tasks)-1 {
 			m.rowCursor++
 		}
+	case "pgup":
+		m.rowCursor -= 5
+		if m.rowCursor < 0 {
+			m.rowCursor = 0
+		}
+	case "pgdown":
+		tasks := m.tasksInColumn(m.columns[m.colCursor])
+		m.rowCursor += 5
+		if m.rowCursor > len(tasks)-1 {
+			m.rowCursor = len(tasks) - 1
+		}
+		if m.rowCursor < 0 {
+			m.rowCursor = 0
+		}
+	case "home":
+		m.rowCursor = 0
+	case "end":
+		tasks := m.tasksInColumn(m.columns[m.colCursor])
+		if len(tasks) > 0 {
+			m.rowCursor = len(tasks) - 1
+		}
 	case "d":
 		m.showDone = !m.showDone
 		m.columns = nil
