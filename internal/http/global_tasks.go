@@ -26,6 +26,9 @@ func (s *Server) globalTasksHandler(w http.ResponseWriter, r *http.Request) {
 
 	var results []model.Task
 	for _, b := range boards {
+		if len(results) >= maxQueryResults {
+			break
+		}
 		filter := model.TaskFilter{
 			BoardSlug:     b.Slug,
 			Assignee:      assignee,

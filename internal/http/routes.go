@@ -104,6 +104,9 @@ func (s *Server) routeHandlers() []handler {
 func (s *Server) registerRoutes() {
 	r := s.router
 
+	// Rate limit public endpoints by IP.
+	r.Use(httprate.Limit(30, time.Minute, httprate.WithKeyFuncs(httprate.KeyByRealIP)))
+
 	// Dashboard — static HTML, no auth (uses API key from client-side JS).
 	dashFS, _ := fs.Sub(dashboard.FS, ".")
 	r.Get("/dashboard", func(w http.ResponseWriter, r *http.Request) {

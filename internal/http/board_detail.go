@@ -57,6 +57,11 @@ func (s *Server) boardDetailHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cap task detail expansion to prevent memory exhaustion.
+	if len(tasks) > 500 {
+		tasks = tasks[:500]
+	}
+
 	var taskDetails []taskDetail
 	for _, t := range tasks {
 		comments, _ := s.svc.ListComments(ctx, slug, t.Num)

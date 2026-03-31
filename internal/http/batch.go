@@ -66,6 +66,14 @@ func (s *Server) batchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) executeBatchOp(op batchOp, authHeader string) batchResult {
+	// Validate method.
+	switch op.Method {
+	case "GET", "POST", "PUT", "PATCH", "DELETE":
+		// allowed
+	default:
+		return batchResult{Status: 400, Body: map[string]string{"error": "invalid method"}}
+	}
+
 	// Validate path to prevent traversal and SSRF.
 	if op.Path == "" || op.Path[0] != '/' || strings.Contains(op.Path, "..") {
 		return batchResult{Status: 400, Body: map[string]string{"error": "invalid path"}}

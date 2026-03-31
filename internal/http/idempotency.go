@@ -85,11 +85,13 @@ func (c *idempotencyCache) put(key string, entry *cacheEntry) {
 func idempotencyMiddleware(cache *idempotencyCache) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			key := r.Header.Get("Idempotency-Key")
-			if key == "" || r.Method == "GET" {
+			rawKey := r.Header.Get("Idempotency-Key")
+			if rawKey == "" || r.Method == "GET" {
 				next.ServeHTTP(w, r)
 				return
 			}
+			// Scope the idempotency key per caller to prevent cross-actor collisions.
+			key := r.Header.Get("Authorization") + ":" + rawKey
 
 			if entry, ok := cache.get(key); ok {
 				for k, vs := range entry.header {

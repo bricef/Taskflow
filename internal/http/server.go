@@ -86,6 +86,7 @@ func NewServer(svc taskflow.TaskFlow, cfg ...ServerConfig) *Server {
 	}
 
 	// Global middleware.
+	s.router.Use(securityHeadersMiddleware)
 	s.router.Use(bodyLimitMiddleware(c.MaxRequestBodyBytes))
 	s.router.Use(idempotencyMiddleware(newIdempotencyCache(c.IdempotencyCacheBytes)))
 

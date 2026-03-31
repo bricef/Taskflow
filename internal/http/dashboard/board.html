@@ -159,7 +159,7 @@
 
 <script>
 const API_KEY_STORAGE = 'taskflow_api_key';
-const apiKey = localStorage.getItem(API_KEY_STORAGE);
+const apiKey = sessionStorage.getItem(API_KEY_STORAGE);
 if (!apiKey) {
   window.location.href = '/dashboard';
 }
