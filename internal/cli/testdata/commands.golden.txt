@@ -1,0 +1,40 @@
+actor create                                       Create an actor
+actor get <name>                                   Get an actor by name
+actor list                                         List all actors
+actor update <name>                                Update an actor
+admin stats                                        Show system-wide statistics
+attachment create <slug> <num>                     Add an attachment
+attachment delete <id>                             Remove an attachment
+attachment list <slug> <num>                       List attachments on a task
+audit list <slug>                                  Get audit log for a board
+audit list <slug> <num>                            Get audit log for a task
+board create                                       Create a board
+board delete <slug>                                Delete a board (soft-delete)
+board detail <slug>                                Get complete board with all tasks, comments, attachments, and audit
+board get <slug>                                   Get a board
+board list                                         List boards
+board reassign <slug>                              Reassign tasks to another board
+board update <slug>                                Update a board
+comment create <slug> <num>                        Add a comment to a task
+comment list <slug> <num>                          List comments on a task
+comment update <id>                                Edit a comment
+delivery list <id>                                 List webhook delivery attempts
+dependency create <slug> <num>                     Add a dependency
+dependency delete <id>                             Remove a dependency
+dependency list <slug> <num>                       List dependencies for a task
+search                                             Search tasks across all boards
+tag list <slug>                                    List tags in use on a board with counts
+task create <slug>                                 Create a task
+task delete <slug> <num>                           Delete a task (soft-delete)
+task get <slug> <num>                              Get a task
+task list <slug>                                   List tasks (with filters and search)
+task transition <slug> <num>                       Transition a task to a new state
+task update <slug> <num>                           Update a task
+webhook create                                     Create a webhook
+webhook delete <id>                                Delete a webhook
+webhook get <id>                                   Get a webhook
+webhook list                                       List webhooks
+webhook update <id>                                Update a webhook
+workflow get <slug>                                Get the board's workflow definition
+workflow health <slug>                             Check workflow health
+workflow set <slug>                                Replace the board's workflow
