@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/bricef/taskflow/internal/model"
@@ -26,6 +27,7 @@ type taskDetailData struct {
 	dependencies []model.Dependency
 	attachments  []model.Attachment
 	audit        []model.AuditEntry
+	related      map[string]taskSummary // ref → summary for dep tree
 }
 
 type taskDetailLoaded struct {
@@ -43,9 +45,43 @@ func fetchTaskDetail(client *Client, boardSlug string, num int) tea.Cmd {
 		deps, _ := client.ListDependencies(boardSlug, num)
 		attachments, _ := client.ListAttachments(boardSlug, num)
 		audit, _ := client.GetTaskAudit(boardSlug, num)
+
+		// Fetch summaries for related tasks in the dependency tree.
+		currentRef := fmt.Sprintf("%s/%d", boardSlug, num)
+		related := map[string]taskSummary{}
+		for _, dep := range deps {
+			sourceRef := fmt.Sprintf("%s/%d", dep.BoardSlug, dep.TaskNum)
+			targetRef := fmt.Sprintf("%s/%d", dep.DependsOnBoard, dep.DependsOnNum)
+			for _, ref := range []string{sourceRef, targetRef} {
+				if ref == currentRef {
+					continue
+				}
+				if _, ok := related[ref]; ok {
+					continue
+				}
+				// Parse board/num from ref.
+				var rBoard string
+				var rNum int
+				if idx := strings.LastIndex(ref, "/"); idx >= 0 {
+					rBoard = ref[:idx]
+					fmt.Sscanf(ref[idx+1:], "%d", &rNum)
+				}
+				if rBoard != "" && rNum > 0 {
+					if t, err := client.GetTask(rBoard, rNum); err == nil {
+						related[ref] = taskSummary{
+							BoardSlug: t.BoardSlug,
+							Num:       t.Num,
+							Title:     t.Title,
+							State:     t.State,
+						}
+					}
+				}
+			}
+		}
+
 		return taskDetailLoaded{data: taskDetailData{
 			task: task, comments: comments, dependencies: deps,
-			attachments: attachments, audit: audit,
+			attachments: attachments, audit: audit, related: related,
 		}}
 	}
 }
@@ -58,9 +94,11 @@ type commentPosted struct {
 
 // detailModel is the task detail overlay.
 type detailModel struct {
-	data     *taskDetailData
-	loading  bool
-	err      error
+	data    *taskDetailData
+	loading bool
+	err     error
+	vp      viewport.Model
+	content string // cached rendered content
 	// Comment input
 	commenting bool
 	input      textarea.Model
@@ -77,6 +115,7 @@ func (m *detailModel) startComment() {
 	m.input = ti
 	m.commenting = true
 	m.postErr = ""
+	m.content = "" // invalidate cache so comment input renders
 }
 
 func (m *detailModel) submitComment(client *Client, apiKey string) tea.Cmd {
@@ -101,6 +140,31 @@ func (m *detailModel) update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+func (m *detailModel) scrollUp() {
+	m.ensureViewport(0, 0)
+	m.vp.ScrollUp(1)
+}
+
+func (m *detailModel) scrollDown() {
+	m.ensureViewport(0, 0)
+	m.vp.ScrollDown(1)
+}
+
+func (m *detailModel) ensureViewport(width, height int) {
+	if width > 0 && height > 0 {
+		m.vp.Width = width
+		m.vp.Height = height
+	}
+	if m.content == "" && m.data != nil {
+		m.content = m.render(m.vp.Width, m.vp.Height)
+		m.vp.SetContent(m.content)
+	}
+}
+
+func (m *detailModel) invalidateContent() {
+	m.content = ""
+}
+
 func (m detailModel) view(width, height int) string {
 	if m.loading {
 		return dimStyle.Render("Loading task details...")
@@ -112,6 +176,18 @@ func (m detailModel) view(width, height int) string {
 		return ""
 	}
 
+	// Update viewport dimensions and content.
+	m.vp.Width = width
+	m.vp.Height = height
+	if m.content == "" {
+		m.content = m.render(width, height)
+		m.vp.SetContent(m.content)
+	}
+
+	return m.vp.View()
+}
+
+func (m detailModel) render(width, height int) string {
 	d := m.data
 	t := d.task
 	var b strings.Builder
@@ -147,18 +223,10 @@ func (m detailModel) view(width, height int) string {
 		}
 	}
 
-	// Dependencies.
+	// Dependency tree.
 	if len(d.dependencies) > 0 {
 		b.WriteString(detailSectionStyle.Render("Dependencies") + "\n")
-		for _, dep := range d.dependencies {
-			direction := "depends on"
-			ref := fmt.Sprintf("%s/%d", dep.DependsOnBoard, dep.DependsOnNum)
-			if dep.BoardSlug != t.BoardSlug || dep.TaskNum != t.Num {
-				direction = "depended on by"
-				ref = fmt.Sprintf("%s/%d", dep.BoardSlug, dep.TaskNum)
-			}
-			b.WriteString(fmt.Sprintf("  %s %s (%s)\n", dimStyle.Render(string(dep.DependencyType)), ref, direction))
-		}
+		b.WriteString(buildDepTree(t, d.dependencies, d.related))
 	}
 
 	// Attachments.

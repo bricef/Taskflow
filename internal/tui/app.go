@@ -376,6 +376,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if m.detail != nil {
+			switch msg.String() {
+			case "down", "j":
+				m.detail.ensureViewport(m.viewport.Width, m.viewport.Height)
+				m.detail.scrollDown()
+			case "up", "k":
+				m.detail.ensureViewport(m.viewport.Width, m.viewport.Height)
+				m.detail.scrollUp()
+			}
 			return m, nil
 		}
 
@@ -436,6 +444,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detail.data.comments = append(m.detail.data.comments, msg.comment)
 				m.detail.commenting = false
 				m.detail.postErr = ""
+				m.detail.invalidateContent()
 			}
 		}
 		return m, nil
@@ -448,6 +457,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detail.data = &msg.data
 			}
 			m.detail.loading = false
+			m.detail.invalidateContent()
 		}
 		return m, nil
 
@@ -577,7 +587,11 @@ func (m Model) boardView() string {
 
 	// Tab content rendered into the viewport.
 	// The workflow tab has its own viewport for independent scrolling.
-	if m.activeTab == tabWorkflow && m.detail == nil && m.transition == nil && m.assign == nil {
+	// Views with their own viewport render directly.
+	// Others go through the shared viewport.
+	if m.detail != nil && m.assign == nil && m.transition == nil {
+		b.WriteString(m.detail.view(m.viewport.Width, m.viewport.Height))
+	} else if m.activeTab == tabWorkflow && m.detail == nil && m.transition == nil && m.assign == nil {
 		b.WriteString(m.workflowView.view(m.viewport.Width, m.viewport.Height))
 	} else {
 		var content string
@@ -589,13 +603,11 @@ func (m Model) boardView() string {
 		case tabEventLog:
 			content = m.eventLog.view(m.viewport.Width, m.viewport.Height)
 		}
-		// Overlays replace tab content when open.
+		// Overlays replace tab content.
 		if m.assign != nil {
 			content = m.assign.view(m.viewport.Width)
 		} else if m.transition != nil {
 			content = m.transition.view(m.viewport.Width)
-		} else if m.detail != nil {
-			content = m.detail.view(m.viewport.Width, m.viewport.Height)
 		}
 
 		m.viewport.SetContent(content)
