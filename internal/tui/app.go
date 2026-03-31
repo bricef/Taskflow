@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/bricef/taskflow/internal/eventbus"
+	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
 )
 
@@ -47,7 +49,7 @@ const chromeFixed = 3
 // Model is the root Bubble Tea model.
 type Model struct {
 	cfg      Config
-	client   *Client
+	client   *httpclient.Client
 	help     help.Model
 	viewport viewport.Model
 	view     viewMode
@@ -74,7 +76,7 @@ type Model struct {
 
 // New creates a new TUI model.
 func New(cfg Config) Model {
-	client := NewClient(cfg.ServerURL, cfg.APIKey)
+	client := &httpclient.Client{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey}
 	return Model{
 		cfg:       cfg,
 		client:    client,
@@ -89,7 +91,7 @@ func New(cfg Config) Model {
 func (m Model) Init() tea.Cmd {
 	if m.cfg.BoardSlug != "" {
 		return func() tea.Msg {
-			board, err := m.client.GetBoard(m.cfg.BoardSlug)
+			board, err := httpclient.GetOne[model.Board](m.client, context.Background(), model.ResBoardGet, httpclient.PathParams{"slug": m.cfg.BoardSlug}, nil)
 			if err != nil {
 				return boardsLoaded{err: err}
 			}
@@ -313,7 +315,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detail.postErr = ""
 				return m, nil
 			case "ctrl+d":
-				cmd := m.detail.submitComment(m.client, m.cfg.APIKey)
+				cmd := m.detail.submitComment(m.client)
 				return m, cmd
 			default:
 				cmd := m.detail.update(msg)
@@ -383,7 +385,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// When an overlay is open, delegate to it.
 		if m.assign != nil {
-			closed, cmd := m.assign.update(msg, m.client, m.cfg.APIKey)
+			closed, cmd := m.assign.update(msg, m.client)
 			if closed {
 				m.assign = nil
 			}
@@ -444,7 +446,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case actorsLoaded, assignResult:
 		if m.assign != nil {
-			closed, cmd := m.assign.update(msg, m.client, m.cfg.APIKey)
+			closed, cmd := m.assign.update(msg, m.client)
 			if closed {
 				m.assign = nil
 			}

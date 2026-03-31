@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
 )
 
@@ -31,7 +33,7 @@ type assignResult struct {
 	err  error
 }
 
-func newAssign(client *Client, boardSlug string, task model.Task) (*assignModel, tea.Cmd) {
+func newAssign(client *httpclient.Client, boardSlug string, task model.Task) (*assignModel, tea.Cmd) {
 	current := "unassigned"
 	if task.Assignee != nil {
 		current = *task.Assignee
@@ -43,12 +45,12 @@ func newAssign(client *Client, boardSlug string, task model.Task) (*assignModel,
 		currentAssignee: current,
 	}
 	return m, func() tea.Msg {
-		actors, err := client.ListActors()
+		actors, err := httpclient.GetMany[model.Actor](client, context.Background(), model.ResActorList, nil, nil)
 		return actorsLoaded{actors: actors, err: err}
 	}
 }
 
-func (m *assignModel) update(msg tea.Msg, client *Client, apiKey string) (bool, tea.Cmd) {
+func (m *assignModel) update(msg tea.Msg, client *httpclient.Client) (bool, tea.Cmd) {
 	switch msg := msg.(type) {
 	case actorsLoaded:
 		if msg.err != nil {
@@ -130,9 +132,10 @@ func (m assignModel) view(width int) string {
 	return transitionBorder.Width(boxWidth).Render(b.String())
 }
 
-func executeAssign(client *Client, boardSlug string, num int, assignee *string) tea.Cmd {
+func executeAssign(client *httpclient.Client, boardSlug string, num int, assignee *string) tea.Cmd {
 	return func() tea.Msg {
-		task, err := client.AssignTask(boardSlug, num, assignee)
+		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(num)}
+		task, err := httpclient.Exec[model.Task](client, context.Background(), model.OpTaskUpdate, tp, map[string]any{"assignee": assignee})
 		return assignResult{task: task, err: err}
 	}
 }

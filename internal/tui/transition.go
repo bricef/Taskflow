@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/workflow"
 )
@@ -34,7 +36,7 @@ type transitionResult struct {
 	err error
 }
 
-func newTransition(client *Client, boardSlug string, task model.Task) (*transitionModel, tea.Cmd) {
+func newTransition(client *httpclient.Client, boardSlug string, task model.Task) (*transitionModel, tea.Cmd) {
 	m := &transitionModel{
 		boardSlug:    boardSlug,
 		taskNum:      task.Num,
@@ -44,7 +46,7 @@ func newTransition(client *Client, boardSlug string, task model.Task) (*transiti
 
 	// Fetch available transitions.
 	return m, func() tea.Msg {
-		wf, err := client.GetWorkflow(boardSlug)
+		wf, err := httpclient.GetOne[workflow.Workflow](client, context.Background(), model.ResWorkflowGet, httpclient.PathParams{"slug": boardSlug}, nil)
 		if err != nil {
 			return transitionsLoaded{err: err}
 		}
@@ -57,7 +59,7 @@ type transitionsLoaded struct {
 	err         error
 }
 
-func (m *transitionModel) update(msg tea.Msg, client *Client) (bool, tea.Cmd) {
+func (m *transitionModel) update(msg tea.Msg, client *httpclient.Client) (bool, tea.Cmd) {
 	switch msg := msg.(type) {
 	case transitionsLoaded:
 		if msg.err != nil {
@@ -133,9 +135,11 @@ func (m transitionModel) view(width int) string {
 	return transitionBorder.Width(boxWidth).Render(b.String())
 }
 
-func executeTransition(client *Client, boardSlug string, num int, transition string) tea.Cmd {
+func executeTransition(client *httpclient.Client, boardSlug string, num int, transition string) tea.Cmd {
 	return func() tea.Msg {
-		if err := client.TransitionTask(boardSlug, num, transition); err != nil {
+		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(num)}
+		err := httpclient.ExecNoResult(client, context.Background(), model.OpTaskTransition, tp, map[string]string{"transition": transition})
+		if err != nil {
 			return transitionResult{err: err}
 		}
 		return transitionResult{}

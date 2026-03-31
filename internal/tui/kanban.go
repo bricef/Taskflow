@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/workflow"
 )
@@ -30,22 +32,21 @@ type boardDataLoaded struct {
 	err      error
 }
 
-func fetchBoardData(client *Client, slug string) tea.Cmd {
+func fetchBoardData(client *httpclient.Client, slug string) tea.Cmd {
 	return func() tea.Msg {
-		wf, err := client.GetWorkflow(slug)
+		ctx := context.Background()
+		p := httpclient.PathParams{"slug": slug}
+		wf, err := httpclient.GetOne[workflow.Workflow](client, ctx, model.ResWorkflowGet, p, nil)
 		if err != nil {
 			return boardDataLoaded{err: err}
 		}
-		tasks, err := client.ListTasks(slug)
+		tasks, err := httpclient.GetMany[model.Task](client, ctx, model.ResTaskList, p, model.TaskFilter{IncludeClosed: true})
 		if err != nil {
 			return boardDataLoaded{err: err}
 		}
-		audit, err := client.GetBoardAudit(slug)
-		if err != nil {
-			// Non-fatal — proceed without audit history.
-			audit = nil
-		}
-		return boardDataLoaded{workflow: wf, tasks: tasks, audit: audit}
+		var raw []model.AuditEntry
+		_ = client.Operation(ctx, model.OpBoardAudit, p, nil, &raw)
+		return boardDataLoaded{workflow: &wf, tasks: tasks, audit: raw}
 	}
 }
 

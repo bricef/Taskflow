@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
 )
 
@@ -28,9 +30,13 @@ type boardArchived struct {
 	err error
 }
 
-func fetchBoards(client *Client, includeArchived bool) tea.Cmd {
+func fetchBoards(client *httpclient.Client, includeArchived bool) tea.Cmd {
 	return func() tea.Msg {
-		boards, err := client.ListBoards(includeArchived)
+		var filter any
+		if includeArchived {
+			filter = model.ListBoardsParams{IncludeDeleted: true}
+		}
+		boards, err := httpclient.GetMany[model.Board](client, context.Background(), model.ResBoardList, nil, filter)
 		return boardsLoaded{boards: boards, err: err}
 	}
 }
@@ -104,7 +110,7 @@ func (m selectorModel) selectedBoard() *model.Board {
 	return nil
 }
 
-func (m selectorModel) update(msg tea.Msg, client *Client) (selectorModel, *model.Board, tea.Cmd) {
+func (m selectorModel) update(msg tea.Msg, client *httpclient.Client) (selectorModel, *model.Board, tea.Cmd) {
 	switch msg := msg.(type) {
 	case boardsLoaded:
 		m.loading = false
@@ -160,7 +166,7 @@ func (m selectorModel) update(msg tea.Msg, client *Client) (selectorModel, *mode
 			if b := m.selectedBoard(); b != nil && !b.Deleted {
 				slug := b.Slug
 				return m, nil, func() tea.Msg {
-					err := client.ArchiveBoard(slug)
+					err := httpclient.ExecNoResult(client, context.Background(), model.OpBoardDelete, httpclient.PathParams{"slug": slug}, nil)
 					return boardArchived{err: err}
 				}
 			}
@@ -183,7 +189,7 @@ func (m selectorModel) update(msg tea.Msg, client *Client) (selectorModel, *mode
 	return m, nil, nil
 }
 
-func (m selectorModel) updateCreateForm(msg tea.KeyMsg, client *Client) (selectorModel, *model.Board, tea.Cmd) {
+func (m selectorModel) updateCreateForm(msg tea.KeyMsg, client *httpclient.Client) (selectorModel, *model.Board, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.creating = false
@@ -212,7 +218,7 @@ func (m selectorModel) updateCreateForm(msg tea.KeyMsg, client *Client) (selecto
 			name = slug
 		}
 		return m, nil, func() tea.Msg {
-			board, err := client.CreateBoard(slug, name)
+			board, err := httpclient.Exec[model.Board](client, context.Background(), model.OpBoardCreate, nil, map[string]string{"slug": slug, "name": name})
 			return boardCreated{board: board, err: err}
 		}
 	}

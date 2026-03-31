@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
 )
 
@@ -35,16 +37,20 @@ type taskDetailLoaded struct {
 	err  error
 }
 
-func fetchTaskDetail(client *Client, boardSlug string, num int) tea.Cmd {
+func fetchTaskDetail(client *httpclient.Client, boardSlug string, num int) tea.Cmd {
 	return func() tea.Msg {
-		task, err := client.GetTask(boardSlug, num)
+		ctx := context.Background()
+		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(num)}
+
+		task, err := httpclient.GetOne[model.Task](client, ctx, model.ResTaskGet, tp, nil)
 		if err != nil {
 			return taskDetailLoaded{err: err}
 		}
-		comments, _ := client.ListComments(boardSlug, num)
-		deps, _ := client.ListDependencies(boardSlug, num)
-		attachments, _ := client.ListAttachments(boardSlug, num)
-		audit, _ := client.GetTaskAudit(boardSlug, num)
+		comments, _ := httpclient.GetMany[model.Comment](client, ctx, model.ResCommentList, tp, nil)
+		deps, _ := httpclient.GetMany[model.Dependency](client, ctx, model.ResDepList, tp, nil)
+		attachments, _ := httpclient.GetMany[model.Attachment](client, ctx, model.ResAttachList, tp, nil)
+		var audit []model.AuditEntry
+		_ = client.Operation(ctx, model.OpTaskAudit, tp, nil, &audit)
 
 		// Fetch summaries for related tasks in the dependency tree.
 		currentRef := fmt.Sprintf("%s/%d", boardSlug, num)
@@ -59,7 +65,6 @@ func fetchTaskDetail(client *Client, boardSlug string, num int) tea.Cmd {
 				if _, ok := related[ref]; ok {
 					continue
 				}
-				// Parse board/num from ref.
 				var rBoard string
 				var rNum int
 				if idx := strings.LastIndex(ref, "/"); idx >= 0 {
@@ -67,7 +72,8 @@ func fetchTaskDetail(client *Client, boardSlug string, num int) tea.Cmd {
 					fmt.Sscanf(ref[idx+1:], "%d", &rNum)
 				}
 				if rBoard != "" && rNum > 0 {
-					if t, err := client.GetTask(rBoard, rNum); err == nil {
+					rp := httpclient.PathParams{"slug": rBoard, "num": fmt.Sprint(rNum)}
+					if t, err := httpclient.GetOne[model.Task](client, ctx, model.ResTaskGet, rp, nil); err == nil {
 						related[ref] = taskSummary{
 							BoardSlug: t.BoardSlug,
 							Num:       t.Num,
@@ -118,7 +124,7 @@ func (m *detailModel) startComment() {
 	m.content = "" // invalidate cache so comment input renders
 }
 
-func (m *detailModel) submitComment(client *Client, apiKey string) tea.Cmd {
+func (m *detailModel) submitComment(client *httpclient.Client) tea.Cmd {
 	body := strings.TrimSpace(m.input.Value())
 	if body == "" {
 		m.commenting = false
@@ -126,7 +132,8 @@ func (m *detailModel) submitComment(client *Client, apiKey string) tea.Cmd {
 	}
 	task := m.data.task
 	return func() tea.Msg {
-		comment, err := client.CreateComment(task.BoardSlug, task.Num, body)
+		tp := httpclient.PathParams{"slug": task.BoardSlug, "num": fmt.Sprint(task.Num)}
+		comment, err := httpclient.Exec[model.Comment](client, context.Background(), model.OpCommentCreate, tp, map[string]string{"body": body})
 		return commentPosted{comment: comment, err: err}
 	}
 }

@@ -122,6 +122,32 @@ func (c *Client) Operation(ctx context.Context, op model.Operation, params PathP
 	return c.Do(ctx, method, path, body, out)
 }
 
+// GetOne executes a resource query and returns a single typed result.
+func GetOne[T any](c *Client, ctx context.Context, res model.Resource, params PathParams, filter any) (T, error) {
+	var out T
+	err := c.Resource(ctx, res, params, filter, &out)
+	return out, err
+}
+
+// GetMany executes a resource query and returns a typed slice.
+func GetMany[T any](c *Client, ctx context.Context, res model.Resource, params PathParams, filter any) ([]T, error) {
+	var out []T
+	err := c.Resource(ctx, res, params, filter, &out)
+	return out, err
+}
+
+// Exec executes an operation and returns a typed result.
+func Exec[T any](c *Client, ctx context.Context, op model.Operation, params PathParams, body any) (T, error) {
+	var out T
+	err := c.Operation(ctx, op, params, body, &out)
+	return out, err
+}
+
+// ExecNoResult executes an operation that returns no body (e.g. DELETE → 204).
+func ExecNoResult(c *Client, ctx context.Context, op model.Operation, params PathParams, body any) error {
+	return c.Operation(ctx, op, params, body, nil)
+}
+
 // APIError is returned when the server responds with a 4xx or 5xx status.
 type APIError struct {
 	StatusCode int
