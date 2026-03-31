@@ -45,6 +45,32 @@ This document records security risks that have been identified, assessed, and ei
 
 ---
 
+### RISK-003: Audit log relies on application-level immutability
+
+**Severity:** Low
+**Status:** Accepted
+**Date:** 2026-03-31
+
+**Description:** The audit log table has no database-level constraints preventing UPDATE or DELETE. Immutability is enforced only by the application (the service layer only INSERTs, never UPDATEs or DELETEs audit records). An attacker with direct database access could modify audit entries.
+
+**Exception:** `AuditUpdateTaskRef` updates the `board_slug` and `task_num` fields during task reassignment between boards. This is the only legitimate UPDATE path.
+
+**Rationale for acceptance:** This is a single-user system where the operator has full database access by design. Database-level triggers to enforce immutability would add complexity without practical security benefit. In a multi-user deployment, this should be revisited with database-level ACLs.
+
+---
+
+### RISK-004: Integer overflow in task numbering
+
+**Severity:** Low
+**Status:** Accepted
+**Date:** 2026-03-31
+
+**Description:** Task numbers auto-increment per board as Go `int` (64-bit). No validation prevents exceeding the maximum value. Creating 2^63 tasks on a single board would cause silent overflow.
+
+**Rationale for acceptance:** Exceeding 2^63 tasks is physically impossible in any realistic scenario.
+
+---
+
 ## Mitigated Risks
 
 | Risk | Severity | Mitigation | Commit |
@@ -70,4 +96,5 @@ This document records security risks that have been identified, assessed, and ei
 | Dashboard publicly accessible | By design | Static HTML SPA pattern; API calls require auth |
 | Actor names in admin stats | By design | Admin-only endpoint, single-user system |
 | Health/OpenAPI endpoints public | By design | Standard practice for load balancers and API consumers |
+| Sub-resources of deleted tasks return empty lists | Low | Empty list leaks no data; adding existence checks costs an extra DB round trip per request for no practical security gain |
 | Error messages expose JSON parse details | Low risk | No sensitive information in parse error messages |
