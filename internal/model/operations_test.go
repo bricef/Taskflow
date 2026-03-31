@@ -135,8 +135,8 @@ func TestResourcesFieldsPopulated(t *testing.T) {
 }
 
 func TestResourcesCount(t *testing.T) {
-	if got := len(Resources()); got != 14 {
-		t.Errorf("Resources() returned %d, want 14 — update this test if the change was intentional", got)
+	if got := len(Resources()); got != 17 {
+		t.Errorf("Resources() returned %d, want 17 — update this test if the change was intentional", got)
 	}
 }
 
@@ -148,7 +148,7 @@ func TestOperationsCount(t *testing.T) {
 
 func TestTotalCount(t *testing.T) {
 	total := len(Resources()) + len(Operations())
-	if total != 37 {
-		t.Errorf("Resources() + Operations() = %d, want 37 — the total should not change", total)
+	if total != 40 {
+		t.Errorf("Resources() + Operations() = %d, want 40", total)
 	}
 }

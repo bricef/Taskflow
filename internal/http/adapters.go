@@ -109,5 +109,13 @@ func queryBool(r *http.Request, key string) bool {
 	return v == "true" || v == "1"
 }
 
+// orEmpty ensures nil slices serialize as [] rather than null.
+func orEmpty[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
 // Ensure fmt is used.
 var _ = fmt.Sprintf

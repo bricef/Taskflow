@@ -110,6 +110,11 @@ func (s *Server) resourceHandlers() map[string]handler {
 		// Attachments
 		"attachment_list": pathStrInt("slug", "num", s.svc.ListAttachments),
 
+		// Views
+		"board_detail":   pathStr("slug", s.svc.BoardDetail),
+		"board_overview": pathStr("slug", s.svc.BoardOverview),
+		"admin_stats":    noInput(s.svc.SystemStats),
+
 		// Webhooks
 		"webhook_list":  noInput(s.svc.ListWebhooks),
 		"webhook_get":   pathInt("id", s.svc.GetWebhook),
@@ -209,13 +214,10 @@ func (s *Server) registerRoutes() {
 		}
 		r.Use(authMiddleware(s.svc))
 
-		// Aggregate views and utilities (not domain operations).
-		r.Get("/boards/{slug}/detail", s.boardDetailHandler)
-		r.Get("/boards/{slug}/overview", s.boardOverviewHandler)
+		// Convenience endpoints (not yet in model — transport-specific or pending query param work).
 		r.Get("/boards/{slug}/events", s.sseHandler)
 		r.Get("/events", s.globalSSEHandler)
 		r.Get("/tasks", s.globalTasksHandler)
-		r.Get("/admin/stats", s.systemStatsHandler)
 		r.Get("/search", s.searchHandler)
 		r.Post("/batch", s.batchHandler)
 

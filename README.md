@@ -30,20 +30,21 @@ taskflow-tui
 - **[HTTP API Reference](docs/http-api.md)** — all endpoints, authentication, error handling, configuration
 - **[CLI Reference](docs/cli.md)** — all commands, flags, output formats
 - **[OpenAPI Spec](http://localhost:8374/openapi.json)** — machine-readable, auto-generated from operation definitions
-- **[Claude Code Skill](.claude/skills/taskflow/SKILL.md)** — AI agent guide for using TaskFlow via the CLI
+- **[Claude Code Skill](SKILL.md)** — AI agent guide for using TaskFlow via the CLI
+- **[Manual QA Checklist](TESTING.md)** — endpoint-by-endpoint verification guide
 
 ## Status
 
 **Phases 1, 2, and 4 complete. Phase 3 (MCP server) remaining.**
 
 ### Phase 1 — Server + CLI
-- 37 domain operations (actors, boards, tasks, workflows, comments, dependencies, attachments, webhooks, audit, tags)
+- 40 domain endpoints: 17 Resources (read-only) + 23 Operations (mutations), each with an explicit Name
 - HTTP API with auth (SHA-256 keys), RBAC (admin/member/read_only), idempotency keys, and batch operations
-- CLI derived from the same operation definitions, with Viper-based config (flags + env + config file)
-- OpenAPI 3.1 spec auto-generated at startup
-- Convenience endpoints: board detail, system stats, cross-board search
+- CLI derived from Resource/Operation names (`<resource>_<action>` convention)
+- OpenAPI 3.1 spec auto-generated with operationIds from Names
+- Convenience endpoints: cross-board search, cross-board task list, SSE, batch
 - Docker deployment with seed admin bootstrap
-- 140 tests passing across 4 test suites
+- Automated test suite: unit tests, golden tests (OpenAPI spec + CLI command tree), integration tests, and 45-check QA smoke test
 
 ### Phase 2 — Event Bus + SSE + TUI
 - In-process event bus with ring-buffered subscriptions (256 events per subscriber)
@@ -109,18 +110,22 @@ Changes from other sessions (CLI, API, other TUI instances) appear live via SSE.
 
 ## Architecture
 
-Operations are defined once in `model.Operations()` and consumed by multiple layers:
+The domain surface is split into **Resources** (read-only) and **Operations** (mutations), each with an explicit `Name` used as the canonical identifier across all clients:
 
 ```
-model.Operations()              ← canonical domain operations (action, path, role, input/output)
-      │              │              │
-      ▼              ▼              ▼
-internal/http    internal/cli    openapi.json
-Derives:         Derives:        Derives:
- HTTP method      command tree    endpoint docs
- routes           flags/args      schemas
- handlers         HTTP calls      parameters
+model.Resources()  model.Operations()
+ (14 read-only)     (23 mutations)
+      │                    │
+      ├──────────┬─────────┤
+      ▼          ▼         ▼
+internal/http  internal/cli  openapi.json
+Derives:       Derives:      Derives:
+ GET routes     command tree   endpoint docs
+ handler map    flags/args     schemas
+ status codes   HTTP calls     operationIds
 ```
+
+The transport layer (`internal/transport`) maps domain actions to HTTP semantics (method, status code). Both the HTTP server and CLI import from it.
 
 The codebase separates business logic from storage:
 
@@ -142,8 +147,9 @@ To swap the storage backend, implement `repo.Store` in a new package — nothing
 
 ```
 internal/
-├── model/              Domain types and operation definitions
-│   ├── operations.go       Canonical operation list (action, path, role, input/output)
+├── model/              Domain types, resources, and operation definitions
+│   ├── operations.go       Resources (read-only) and Operations (mutations) with explicit Names
+│   ├── views.go            Composite view types (BoardDetail, BoardOverview, SystemStats)
 │   ├── actor.go            Actor, ActorType, Role
 │   ├── board.go            Board, slug validation
 │   ├── task.go             Task, Priority, TaskFilter, TaskSort, TransitionTaskParams
@@ -161,6 +167,7 @@ internal/
 ├── repo/               Storage-agnostic repository interfaces
 ├── sqlite/             SQLite implementation (sqlx, generic mapper)
 ├── workflow/           Workflow engine (state machine, JSON Schema validation)
+├── transport/          Domain-to-HTTP mapping (MethodForAction, StatusForAction)
 ├── http/               HTTP server (derived routes, middleware, OpenAPI generation)
 ├── cli/                CLI client (derived commands, HTTP calls)
 ├── eventbus/           In-process pub/sub with ring-buffered subscriptions
@@ -192,7 +199,7 @@ migrations/             Embedded SQL migrations
 
 ## Key Design Decisions
 
-- **Operations as data** — `model.Operations()` defines every operation once; HTTP routes, CLI commands, and OpenAPI docs are all derived from it
+- **Resources and Operations as data** — `model.Resources()` and `model.Operations()` define the full domain surface; HTTP routes, CLI commands, and OpenAPI docs are all derived from explicit Names
 - **`Optional[T]`** for partial updates — cleanly distinguishes "not provided" from "set to nil" with JSON marshaling support
 - **Typed actions** — `model.Action` enum with constants; HTTP method and status are derived by the transport layer
 - **Attachments are references** — all attachments (including files) are typed references; file storage is infrastructure, not domain
@@ -204,8 +211,9 @@ migrations/             Embedded SQL migrations
 Requires Go 1.25+ and [just](https://github.com/casey/just).
 
 ```
-just check          # fmt-check + vet + test
-just test           # run tests
+just check          # fmt-check + vet + test (full suite)
+just test           # unit + integration + QA smoke test (45 endpoint checks)
+just test-unit      # unit + integration tests only (no server startup)
 just build          # build server + CLI binaries
 just run            # start the server locally
 just fmt            # format code
@@ -217,6 +225,8 @@ just docker-down    # stop
 just docker-logs    # follow logs
 just clean          # remove build artifacts
 ```
+
+Set `TASKFLOW_DEV_MODE=true` to disable all rate limiting (useful for testing and development). See [TESTING.md](TESTING.md) for the full manual QA checklist.
 
 ### Testing with the simulator
 

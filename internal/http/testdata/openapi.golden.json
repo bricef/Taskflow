@@ -146,6 +146,50 @@
         ],
         "type": "object"
       },
+      "BoardDetail": {
+        "properties": {
+          "audit": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "board": {
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workflow": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "board",
+          "workflow",
+          "tasks",
+          "audit"
+        ],
+        "type": "object"
+      },
+      "BoardOverview": {
+        "properties": {
+          "task_counts": {
+            "type": "string"
+          },
+          "total_tasks": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_counts",
+          "total_tasks"
+        ],
+        "type": "object"
+      },
       "Comment": {
         "properties": {
           "actor": {
@@ -408,6 +452,29 @@
         },
         "required": [
           "count"
+        ],
+        "type": "object"
+      },
+      "SystemStats": {
+        "properties": {
+          "activity": {
+            "type": "string"
+          },
+          "actors": {
+            "type": "string"
+          },
+          "boards": {
+            "type": "string"
+          },
+          "tasks": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "actors",
+          "boards",
+          "tasks",
+          "activity"
         ],
         "type": "object"
       },
@@ -941,9 +1008,27 @@
     },
     "/admin/stats": {
       "get": {
+        "operationId": "admin_stats",
         "responses": {
           "200": {
-            "description": "System statistics"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStats"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Client error"
           }
         },
         "security": [
@@ -951,7 +1036,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "System-wide statistics (actors, boards, tasks, activity)",
+        "summary": "System-wide statistics",
         "tags": [
           "admin"
         ]
@@ -1360,6 +1445,7 @@
     },
     "/boards/{slug}/detail": {
       "get": {
+        "operationId": "board_detail",
         "parameters": [
           {
             "in": "path",
@@ -1372,7 +1458,24 @@
         ],
         "responses": {
           "200": {
-            "description": "Complete board detail"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardDetail"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Client error"
           }
         },
         "security": [
@@ -1381,6 +1484,52 @@
           }
         ],
         "summary": "Get complete board with all tasks, comments, attachments, dependencies, and audit",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
+    "/boards/{slug}/overview": {
+      "get": {
+        "operationId": "board_overview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardOverview"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Client error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Board with task counts by state",
         "tags": [
           "boards"
         ]

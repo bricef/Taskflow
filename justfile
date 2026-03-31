@@ -2,8 +2,13 @@
 default:
     @just --list
 
-# Run all tests
+# Run all tests (unit + integration + QA smoke)
 test *args:
+    go test -count=1 ./... {{args}}
+    ./scripts/qa-test.sh
+
+# Run unit and integration tests only (no QA smoke)
+test-unit *args:
     go test -count=1 ./... {{args}}
 
 # Run tests with verbose output

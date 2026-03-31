@@ -169,29 +169,6 @@ func buildCommand(verb string, pathParams []model.PathParam, spec cmdSpec) *cobr
 }
 
 func addConvenienceCommands(root *cobra.Command, getGroup func(string) *cobra.Command) {
-	// taskflow board detail <slug>
-	getGroup("board").AddCommand(&cobra.Command{
-		Use:   "detail <slug>",
-		Short: "Get complete board with all tasks, comments, attachments, and audit",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := getConfig()
-			return doGet(cmd, cfg, "/boards/"+args[0]+"/detail")
-		},
-	})
-
-	// taskflow admin stats
-	adminCmd := &cobra.Command{Use: "admin", Short: "Administrative commands"}
-	adminCmd.AddCommand(&cobra.Command{
-		Use:   "stats",
-		Short: "Show system-wide statistics",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := getConfig()
-			return doGet(cmd, cfg, "/admin/stats")
-		},
-	})
-	root.AddCommand(adminCmd)
-
 	// taskflow search --q <query>
 	searchCmd := &cobra.Command{
 		Use:   "search",

@@ -195,6 +195,14 @@ func Resources() []Resource {
 		ListRes("/boards/{slug}/tasks/{num}/attachments", "List attachments on a task").Name("attachment_list").
 			Output([]Attachment{}).Build(),
 
+		// Views
+		GetRes("/boards/{slug}/detail", "Get complete board with all tasks, comments, attachments, dependencies, and audit").Name("board_detail").
+			Output(BoardDetail{}).Build(),
+		GetRes("/boards/{slug}/overview", "Board with task counts by state").Name("board_overview").
+			Output(BoardOverview{}).Build(),
+		GetRes("/admin/stats", "System-wide statistics").Name("admin_stats").Role(RoleAdmin).
+			Output(SystemStats{}).Build(),
+
 		// Webhooks
 		ListRes("/webhooks", "List webhooks").Name("webhook_list").Role(RoleAdmin).
 			Output([]Webhook{}).Build(),

@@ -140,31 +140,6 @@ func generateOpenAPISpec(routes []Route) []byte {
 func addConvenienceEndpoints(paths map[string]any) {
 	secured := []any{map[string]any{"bearerAuth": []any{}}}
 
-	paths["/boards/{slug}/detail"] = map[string]any{
-		"get": map[string]any{
-			"summary":  "Get complete board with all tasks, comments, attachments, dependencies, and audit",
-			"tags":     []string{"boards"},
-			"security": secured,
-			"parameters": []any{
-				map[string]any{"name": "slug", "in": "path", "required": true, "schema": map[string]any{"type": "string"}},
-			},
-			"responses": map[string]any{
-				"200": map[string]any{"description": "Complete board detail"},
-			},
-		},
-	}
-
-	paths["/admin/stats"] = map[string]any{
-		"get": map[string]any{
-			"summary":  "System-wide statistics (actors, boards, tasks, activity)",
-			"tags":     []string{"admin"},
-			"security": secured,
-			"responses": map[string]any{
-				"200": map[string]any{"description": "System statistics"},
-			},
-		},
-	}
-
 	paths["/search"] = map[string]any{
 		"get": map[string]any{
 			"summary":  "Search tasks across all boards",

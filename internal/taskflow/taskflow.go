@@ -72,4 +72,9 @@ type TaskFlow interface {
 	// Audit
 	QueryAuditByTask(ctx context.Context, boardSlug string, taskNum int) ([]model.AuditEntry, error)
 	QueryAuditByBoard(ctx context.Context, boardSlug string) ([]model.AuditEntry, error)
+
+	// Views (composite read-only queries)
+	BoardDetail(ctx context.Context, slug string) (model.BoardDetail, error)
+	BoardOverview(ctx context.Context, slug string) (model.BoardOverview, error)
+	SystemStats(ctx context.Context) (model.SystemStats, error)
 }

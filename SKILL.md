@@ -93,10 +93,20 @@ taskflow board delete <board-slug>
 
 ```bash
 # Task audit log
-taskflow audit list <board-slug> <num>
+taskflow task audit <board-slug> <num>
 
 # Board audit log
-taskflow audit list <board-slug>
+taskflow board audit <board-slug>
+```
+
+### Views
+
+```bash
+# Board overview (task counts by state)
+taskflow board overview <board-slug>
+
+# System-wide statistics (admin only)
+taskflow admin stats
 ```
 
 ## Key Concepts
