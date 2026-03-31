@@ -346,6 +346,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeTab = (m.activeTab + 1) % tabCount
 				m.viewport.GotoTop()
 			}
+		case "shift+tab":
+			if m.view == viewBoard && m.detail == nil {
+				m.activeTab = (m.activeTab - 1 + tabCount) % tabCount
+				m.viewport.GotoTop()
+			}
 		case "t":
 			if m.view == viewBoard && m.transition == nil && m.assign == nil {
 				return m, m.openTransitionFromContext()
