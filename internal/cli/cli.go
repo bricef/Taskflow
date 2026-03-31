@@ -195,7 +195,7 @@ func doGet(cmd *cobra.Command, cfg Config, path string) error {
 	}
 	cmd.SilenceUsage = true
 
-	client := httpclient.New(cfg.ServerURL, cfg.APIKey).WithContext(cmd.Context())
+	client := httpclient.New(cfg.ServerURL, cfg.APIKey)
 	var raw json.RawMessage
 	if err := client.Do("GET", path, nil, &raw); err != nil {
 		return err
@@ -350,7 +350,7 @@ func makeRunFunc(spec cmdSpec, pathParams []model.PathParam) func(*cobra.Command
 			params[p.Name] = args[i]
 		}
 
-		client := httpclient.New(cfg.ServerURL, cfg.APIKey).WithContext(cmd.Context())
+		client := httpclient.New(cfg.ServerURL, cfg.APIKey)
 		var raw json.RawMessage
 
 		var err error
