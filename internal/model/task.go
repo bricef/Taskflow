@@ -87,18 +87,21 @@ type UpdateTaskParams struct {
 	DueDate     Optional[*time.Time] `json:"due_date"` // Set with nil value clears the due date.
 }
 
+// TaskFilter describes query parameters for filtering task lists.
+// Fields with a `query` tag are exposed as query parameters on list endpoints.
 type TaskFilter struct {
-	BoardSlug      string
-	State          *string
-	Assignee       *string
-	Priority       *Priority
-	Tag            *string
-	Query          *string // Full-text search query.
-	IncludeClosed  bool
-	IncludeDeleted bool
+	BoardSlug      string    // path param, not a query param
+	State          *string   `query:"state,Filter by workflow state"`
+	Assignee       *string   `query:"assignee,Filter by assignee name"`
+	Priority       *Priority `query:"priority,Filter by priority (critical/high/medium/low/none)"`
+	Tag            *string   `query:"tag,Filter by tag"`
+	Query          *string   `query:"q,Full-text search query"`
+	IncludeClosed  bool      `query:"include_closed,Include tasks in terminal states"`
+	IncludeDeleted bool      `query:"include_deleted,Include soft-deleted tasks"`
 }
 
+// TaskSort describes query parameters for sorting task lists.
 type TaskSort struct {
-	Field string // "created_at", "updated_at", "priority", "due_date"
-	Desc  bool
+	Field string `query:"sort,Sort field (created_at/updated_at/priority/due_date)"`
+	Desc  bool   `query:"order,string,Sort order (asc/desc)"`
 }

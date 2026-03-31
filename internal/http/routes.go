@@ -20,11 +20,11 @@ type Route struct {
 	Path    string
 	Summary string
 	MinRole model.Role
-	Input   any              // nil for resources
+	Input   any                // nil for resources
 	Output  any
-	Params  []model.QueryParam // query params (resources only)
-	Method  string           // "GET", "POST", etc.
-	Status  int              // 200, 201, 204
+	Params  []model.QueryParam // derived from Filter/Sort structs for resources
+	Method  string             // "GET", "POST", etc.
+	Status  int                // 200, 201, 204
 	Handler handler
 }
 
@@ -52,7 +52,7 @@ func (s *Server) allRoutes() []Route {
 			Summary: res.Summary,
 			MinRole: res.MinRole,
 			Output:  res.Output,
-			Params:  res.Params,
+			Params:  res.QueryParams(),
 			Method:  "GET",
 			Status:  200,
 			Handler: h,

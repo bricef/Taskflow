@@ -23,17 +23,25 @@ const (
 // Resource describes a read-only domain resource as runtime metadata.
 // Resources are always served via GET and return 200.
 type Resource struct {
-	Name    string       // canonical identifier, e.g. "board_list"
-	Path    string       // resource address pattern: /boards/{slug}
-	Summary string       // human-readable description
-	MinRole Role         // minimum role required (defaults to RoleReadOnly)
-	Output  any          // zero-value of response type (for schema generation)
-	Params  []QueryParam // query parameters (path params inferred from Path)
+	Name    string // canonical identifier, e.g. "board_list"
+	Path    string // resource address pattern: /boards/{slug}
+	Summary string // human-readable description
+	MinRole Role   // minimum role required (defaults to RoleReadOnly)
+	Output  any    // zero-value of response type (for schema generation)
+	Filter  any    // nil, or zero-value of filter struct (query params derived from `query` tags)
+	Sort    any    // nil, or zero-value of sort struct (query params derived from `query` tags)
 }
 
 // PathParams returns the path parameters inferred from the Path pattern.
 func (r Resource) PathParams() []PathParam {
 	return InferPathParams(r.Path)
+}
+
+// QueryParams returns query parameters derived from the Filter and Sort structs.
+func (r Resource) QueryParams() []QueryParam {
+	params := QueryParamsFrom(r.Filter)
+	params = append(params, QueryParamsFrom(r.Sort)...)
+	return params
 }
 
 // Operation describes a domain mutation as runtime metadata.
@@ -51,13 +59,6 @@ type Operation struct {
 // PathParams returns the path parameters inferred from the Path pattern.
 func (op Operation) PathParams() []PathParam {
 	return InferPathParams(op.Path)
-}
-
-// QueryParam describes a query string parameter.
-type QueryParam struct {
-	Name string
-	Type string // "string", "integer", "boolean"
-	Desc string
 }
 
 // PathParam describes a path parameter inferred from an operation's Path.
@@ -105,14 +106,12 @@ func newRes(path, summary string) *resBuilder {
 func ListRes(path, summary string) *resBuilder  { return newRes(path, summary) }
 func GetRes(path, summary string) *resBuilder    { return newRes(path, summary) }
 
-func (b *resBuilder) Name(n string) *resBuilder             { b.res.Name = n; return b }
-func (b *resBuilder) Role(r Role) *resBuilder                { b.res.MinRole = r; return b }
-func (b *resBuilder) Output(v any) *resBuilder               { b.res.Output = v; return b }
-func (b *resBuilder) QueryParams(params ...QueryParam) *resBuilder {
-	b.res.Params = append(b.res.Params, params...)
-	return b
-}
-func (b *resBuilder) Build() Resource { return b.res }
+func (b *resBuilder) Name(n string) *resBuilder   { b.res.Name = n; return b }
+func (b *resBuilder) Role(r Role) *resBuilder      { b.res.MinRole = r; return b }
+func (b *resBuilder) Output(v any) *resBuilder     { b.res.Output = v; return b }
+func (b *resBuilder) FilterType(v any) *resBuilder { b.res.Filter = v; return b }
+func (b *resBuilder) SortType(v any) *resBuilder   { b.res.Sort = v; return b }
+func (b *resBuilder) Build() Resource              { return b.res }
 
 // --- Operation builder ---
 
@@ -138,9 +137,6 @@ func (b *opBuilder) Input(v any) *opBuilder     { b.op.Input = v; return b }
 func (b *opBuilder) Output(v any) *opBuilder    { b.op.Output = v; return b }
 func (b *opBuilder) Build() Operation           { return b.op }
 
-func Q(name, typ, desc string) QueryParam {
-	return QueryParam{Name: name, Type: typ, Desc: desc}
-}
 
 // Resources returns the canonical list of all read-only domain resources.
 func Resources() []Resource {
@@ -153,8 +149,7 @@ func Resources() []Resource {
 
 		// Boards
 		ListRes("/boards", "List boards").Name("board_list").
-			Output([]Board{}).
-			QueryParams(Q("include_deleted", "boolean", "Include soft-deleted boards")).Build(),
+			Output([]Board{}).FilterType(ListBoardsParams{}).Build(),
 		GetRes("/boards/{slug}", "Get a board").Name("board_get").
 			Output(Board{}).Build(),
 
@@ -164,18 +159,7 @@ func Resources() []Resource {
 
 		// Tasks
 		ListRes("/boards/{slug}/tasks", "List tasks (with filters and search)").Name("task_list").
-			Output([]Task{}).
-			QueryParams(
-				Q("state", "string", "Filter by workflow state"),
-				Q("assignee", "string", "Filter by assignee name"),
-				Q("priority", "string", "Filter by priority (critical/high/medium/low/none)"),
-				Q("tag", "string", "Filter by tag"),
-				Q("q", "string", "Full-text search query"),
-				Q("include_closed", "boolean", "Include tasks in terminal states"),
-				Q("include_deleted", "boolean", "Include soft-deleted tasks"),
-				Q("sort", "string", "Sort field (created_at/updated_at/priority/due_date)"),
-				Q("order", "string", "Sort order (asc/desc)"),
-			).Build(),
+			Output([]Task{}).FilterType(TaskFilter{}).SortType(TaskSort{}).Build(),
 		GetRes("/boards/{slug}/tasks/{num}", "Get a task").Name("task_get").
 			Output(Task{}).Build(),
 

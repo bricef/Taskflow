@@ -56,6 +56,7 @@ type UpdateBoardParams struct {
 	Description Optional[string] `json:"description"`
 }
 
+// ListBoardsParams describes query parameters for filtering board lists.
 type ListBoardsParams struct {
-	IncludeDeleted bool
+	IncludeDeleted bool `query:"include_deleted,Include soft-deleted boards"`
 }

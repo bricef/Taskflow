@@ -24,7 +24,7 @@ func TestOpenAPISpecGolden(t *testing.T) {
 			Summary: res.Summary,
 			MinRole: res.MinRole,
 			Output:  res.Output,
-			Params:  res.Params,
+			Params:  res.QueryParams(),
 			Method:  "GET",
 			Status:  200,
 		})

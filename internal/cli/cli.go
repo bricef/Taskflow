@@ -108,7 +108,7 @@ func BuildCLI(cfg *Config) *cobra.Command {
 			summary: res.Summary,
 			method:  "GET",
 			output:  res.Output,
-			params:  res.Params,
+			params:  res.QueryParams(),
 		}
 		group, verb := splitName(res.Name)
 		cmd := buildCommand(verb, res.PathParams(), spec)
