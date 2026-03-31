@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/repo"
 	"github.com/bricef/taskflow/internal/service"
 	"github.com/bricef/taskflow/internal/sqlite"
 	"github.com/bricef/taskflow/internal/taskflow"
@@ -21,6 +23,20 @@ func NewTestService(t *testing.T) taskflow.TaskFlow {
 	}
 	t.Cleanup(func() { store.Close() })
 	return service.New(store)
+}
+
+// NewTestServiceWithBus creates a service with an event bus and returns
+// the service, store, and bus for integration testing.
+func NewTestServiceWithBus(t *testing.T) (taskflow.TaskFlow, repo.Store, *eventbus.EventBus) {
+	t.Helper()
+	store, err := sqlite.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create test store: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	bus := eventbus.New()
+	svc := service.New(store, service.WithEventBus(bus))
+	return svc, store, bus
 }
 
 // SeedActor creates a test actor with sensible defaults.

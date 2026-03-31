@@ -519,6 +519,7 @@ func TestCreateAndListComments(t *testing.T) {
 func TestWebhookCRUD(t *testing.T) {
 	env := newTestEnv(t)
 
+	// Create.
 	resp := env.request(t, "POST", "/webhooks", map[string]any{
 		"url": "https://example.com/hook", "events": []string{"task.created"}, "secret": "s3cret",
 	}, env.adminKey)
@@ -531,7 +532,11 @@ func TestWebhookCRUD(t *testing.T) {
 	if webhook.URL != "https://example.com/hook" {
 		t.Errorf("expected URL, got %s", webhook.URL)
 	}
+	if !webhook.Active {
+		t.Error("expected webhook to be active by default")
+	}
 
+	// List.
 	resp = env.request(t, "GET", "/webhooks", nil, env.adminKey)
 	var webhooks []model.Webhook
 	env.decode(t, resp, &webhooks)
@@ -539,10 +544,126 @@ func TestWebhookCRUD(t *testing.T) {
 		t.Errorf("expected 1 webhook, got %d", len(webhooks))
 	}
 
+	// Get.
+	resp = env.request(t, "GET", fmt.Sprintf("/webhooks/%d", webhook.ID), nil, env.adminKey)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200 on get, got %d", resp.StatusCode)
+	}
+	var got model.Webhook
+	env.decode(t, resp, &got)
+	if got.URL != webhook.URL {
+		t.Errorf("expected URL %s, got %s", webhook.URL, got.URL)
+	}
+
+	// Update.
+	resp = env.request(t, "PATCH", fmt.Sprintf("/webhooks/%d", webhook.ID), map[string]any{
+		"url": "https://example.com/updated", "active": false,
+	}, env.adminKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200 on update, got %d: %s", resp.StatusCode, body)
+	}
+	env.decode(t, resp, &got)
+	if got.URL != "https://example.com/updated" {
+		t.Errorf("expected updated URL, got %s", got.URL)
+	}
+	if got.Active {
+		t.Error("expected webhook to be inactive after update")
+	}
+
+	// Delete.
 	resp = env.request(t, "DELETE", fmt.Sprintf("/webhooks/%d", webhook.ID), nil, env.adminKey)
 	if resp.StatusCode != 204 {
 		t.Fatalf("expected 204, got %d", resp.StatusCode)
 	}
+
+	// Get after delete — should 404.
+	resp = env.request(t, "GET", fmt.Sprintf("/webhooks/%d", webhook.ID), nil, env.adminKey)
+	if resp.StatusCode != 404 {
+		t.Fatalf("expected 404 after delete, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestWebhookValidation(t *testing.T) {
+	env := newTestEnv(t)
+
+	tests := []struct {
+		name string
+		body map[string]any
+	}{
+		{"missing url", map[string]any{"events": []string{"task.created"}, "secret": "s"}},
+		{"missing events", map[string]any{"url": "https://x.com", "secret": "s"}},
+		{"empty events", map[string]any{"url": "https://x.com", "events": []string{}, "secret": "s"}},
+		{"missing secret", map[string]any{"url": "https://x.com", "events": []string{"task.created"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := env.request(t, "POST", "/webhooks", tt.body, env.adminKey)
+			if resp.StatusCode != 400 {
+				body, _ := io.ReadAll(resp.Body)
+				t.Errorf("expected 400, got %d: %s", resp.StatusCode, body)
+			}
+			resp.Body.Close()
+		})
+	}
+}
+
+func TestWebhookRequiresAdmin(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Member should not be able to create webhooks.
+	resp := env.request(t, "POST", "/webhooks", map[string]any{
+		"url": "https://example.com/hook", "events": []string{"task.created"}, "secret": "s",
+	}, env.memberKey)
+	if resp.StatusCode != 403 {
+		t.Errorf("expected 403 for member creating webhook, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Member should not be able to list webhooks.
+	resp = env.request(t, "GET", "/webhooks", nil, env.memberKey)
+	if resp.StatusCode != 403 {
+		t.Errorf("expected 403 for member listing webhooks, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestWebhookDeliveriesEndpoint(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Create a webhook.
+	resp := env.request(t, "POST", "/webhooks", map[string]any{
+		"url": "https://example.com/hook", "events": []string{"task.created"}, "secret": "s",
+	}, env.adminKey)
+	var webhook model.Webhook
+	env.decode(t, resp, &webhook)
+
+	// List deliveries — should be empty initially.
+	resp = env.request(t, "GET", fmt.Sprintf("/webhooks/%d/deliveries", webhook.ID), nil, env.adminKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+	var deliveries []model.WebhookDelivery
+	env.decode(t, resp, &deliveries)
+	if len(deliveries) != 0 {
+		t.Errorf("expected 0 deliveries, got %d", len(deliveries))
+	}
+
+	// Deliveries for non-existent webhook — should 404.
+	resp = env.request(t, "GET", "/webhooks/9999/deliveries", nil, env.adminKey)
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404 for non-existent webhook, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Member should not access deliveries.
+	resp = env.request(t, "GET", fmt.Sprintf("/webhooks/%d/deliveries", webhook.ID), nil, env.memberKey)
+	if resp.StatusCode != 403 {
+		t.Errorf("expected 403 for member, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
 }
 
 // --- Board Detail ---
