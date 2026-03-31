@@ -5,23 +5,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/bricef/taskflow/internal/eventbus"
 	"github.com/bricef/taskflow/internal/httpclient"
 )
 
-// LiveEvent is a Bubble Tea message carrying a domain event.
-type LiveEvent struct {
-	Event eventbus.Event
-}
-
-// LiveEventError is a Bubble Tea message indicating a connection error.
-type LiveEventError struct {
-	Err       error
-	Permanent bool
-}
-
-// LiveEventConnected is sent when the event stream is established.
-type LiveEventConnected struct{}
+// liveConnected is a Bubble Tea message sent when the event stream connects.
+type liveConnected struct{}
 
 // startLiveEvents connects to the event stream and forwards domain events
 // into the Bubble Tea program. Returns a cancel function that stops the stream.
@@ -36,17 +24,17 @@ func startLiveEvents(p *tea.Program, client *httpclient.Client, boardSlug string
 				if !ok {
 					return
 				}
-				p.Send(LiveEvent{Event: evt})
+				p.Send(evt)
 			case err, ok := <-stream.Errors:
 				if !ok {
 					return
 				}
-				p.Send(LiveEventError{Err: err.Err, Permanent: err.Permanent})
+				p.Send(err)
 				if err.Permanent {
 					return
 				}
 			case <-stream.Connected:
-				p.Send(LiveEventConnected{})
+				p.Send(liveConnected{})
 			case <-ctx.Done():
 				return
 			}

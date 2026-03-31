@@ -488,22 +488,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case LiveEventConnected:
+	case liveConnected:
 		m.liveStatus = "live"
 		m.lastError = ""
 		return m, nil
 
-	case LiveEvent:
-		m.eventLog.addEvent(msg.Event)
-		m.applyEventToKanban(msg.Event)
-		m.applyEventToList(msg.Event)
-		// Refresh the detail overlay if it's showing the affected task.
-		if cmd := m.refreshDetailIfAffected(msg.Event); cmd != nil {
+	case eventbus.Event:
+		m.eventLog.addEvent(msg)
+		m.applyEventToKanban(msg)
+		m.applyEventToList(msg)
+		if cmd := m.refreshDetailIfAffected(msg); cmd != nil {
 			return m, cmd
 		}
 		return m, nil
 
-	case LiveEventError:
+	case httpclient.StreamError:
 		m.lastError = msg.Err.Error()
 		if msg.Permanent {
 			m.liveStatus = "error"
