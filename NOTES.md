@@ -37,7 +37,7 @@ Great question. Here's what I'd want as an AI agent using TaskFlow:
 
 - [x] Batch operations. If I'm triaging a backlog, I'd want to create 10 tasks or transition 5 tasks in a single call rather than 10/5 sequential requests. A POST /batch endpoint accepting an array of operations would be huge.
 
-- [ ] Webhook/event notifications. When another actor (human or AI) transitions a task I'm assigned to, I'd want to be notified rather than polling. The webhook infrastructure is there (CRUD done), but dispatch isn't implemented yet.
+- [x] Webhook/event notifications. Webhook dispatcher subscribes to the event bus and delivers matching events as signed HTTP POST requests (HMAC-SHA256). Supports board-scoped and global webhooks, event type filtering, and active/inactive toggle.
 
 - [x] Task assignment to self. The API requires knowing my actor name to set assignee. It would be nice if the authenticated actor's name were available as a special value like "@me" so I don't have to discover my own identity first.
 

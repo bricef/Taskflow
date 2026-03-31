@@ -13,6 +13,7 @@ import (
 	"github.com/bricef/taskflow/internal/service"
 	"github.com/bricef/taskflow/internal/sqlite"
 	"github.com/bricef/taskflow/internal/taskflow"
+	"github.com/bricef/taskflow/internal/webhook"
 
 	taskflowhttp "github.com/bricef/taskflow/internal/http"
 )
@@ -33,6 +34,10 @@ func main() {
 	if err := seedAdmin(svc); err != nil {
 		log.Fatalf("failed to seed admin: %v", err)
 	}
+
+	// Start webhook dispatcher.
+	whDispatcher := webhook.NewDispatcher(bus, svc)
+	defer whDispatcher.Stop()
 
 	srv := taskflowhttp.NewServer(svc, taskflowhttp.ServerConfig{EventBus: bus})
 
