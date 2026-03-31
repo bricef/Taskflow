@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/bricef/taskflow/internal/httpclient"
+	"github.com/bricef/taskflow/internal/model"
 )
 
 type actor struct {
@@ -77,10 +78,15 @@ func main() {
 	log.Printf("Simulating activity on %s (board: %s)", *url, *board)
 	log.Printf("Press Ctrl+C to stop")
 
+	clients := map[string]*httpclient.Client{}
+	for _, a := range actors {
+		clients[a.name] = httpclient.New(*url, a.apiKey)
+	}
+
 	sim := &simulator{
-		baseURL:   *url,
 		boardSlug: *board,
 		nextTitle: 0,
+		clients:   clients,
 	}
 
 	// Ensure the board exists, create if not.
@@ -116,22 +122,26 @@ type taskInfo struct {
 }
 
 type simulator struct {
-	baseURL   string
 	boardSlug string
 	tasks     []taskInfo
 	nextTitle int
+	clients   map[string]*httpclient.Client // keyed by actor name
+}
+
+func (s *simulator) client(a actor) *httpclient.Client {
+	return s.clients[a.name]
 }
 
 func (s *simulator) ensureBoard() {
-	// Try to get the board; if 404, create it.
-	err := s.doRequest("GET", fmt.Sprintf("/boards/%s", s.boardSlug), actors[0].apiKey, nil, nil)
+	c := s.client(actors[0])
+	p := httpclient.PathParams{"slug": s.boardSlug}
+	_, err := httpclient.GetOne[model.Board](c, model.ResBoardGet, p, nil)
 	if err == nil {
 		log.Printf("Board %q exists", s.boardSlug)
 		return
 	}
 	log.Printf("Board %q not found, creating...", s.boardSlug)
-	body := map[string]string{"slug": s.boardSlug, "name": s.boardSlug}
-	err = s.doRequest("POST", "/boards", actors[0].apiKey, body, nil)
+	_, err = httpclient.Exec[model.Board](c, model.OpBoardCreate, nil, map[string]string{"slug": s.boardSlug, "name": s.boardSlug})
 	if err != nil {
 		log.Fatalf("Failed to create board: %v", err)
 	}
@@ -179,9 +189,16 @@ func (s *simulator) anyStateOverWIP() bool {
 	return false
 }
 
+func (s *simulator) boardParams() httpclient.PathParams {
+	return httpclient.PathParams{"slug": s.boardSlug}
+}
+
+func (s *simulator) taskParams(num int) httpclient.PathParams {
+	return httpclient.PathParams{"slug": s.boardSlug, "num": fmt.Sprint(num)}
+}
+
 func (s *simulator) refreshTasks() {
-	var tasks []taskInfo
-	err := s.doRequest("GET", fmt.Sprintf("/boards/%s/tasks", s.boardSlug), actors[0].apiKey, nil, &tasks)
+	tasks, err := httpclient.GetMany[taskInfo](s.client(actors[0]), model.ResTaskList, s.boardParams(), nil)
 	if err != nil {
 		log.Printf("  warning: failed to refresh tasks: %v", err)
 		return
@@ -194,9 +211,7 @@ func (s *simulator) createTask(a actor) {
 	s.nextTitle++
 	priority := priorities[rand.Intn(len(priorities))]
 
-	body := map[string]any{"title": title, "priority": priority}
-	var result taskInfo
-	err := s.doRequest("POST", fmt.Sprintf("/boards/%s/tasks", s.boardSlug), a.apiKey, body, &result)
+	result, err := httpclient.Exec[taskInfo](s.client(a), model.OpTaskCreate, s.boardParams(), map[string]any{"title": title, "priority": priority})
 	if err != nil {
 		log.Printf("  [%s] create failed: %v", a.name, err)
 		return
@@ -206,7 +221,6 @@ func (s *simulator) createTask(a actor) {
 }
 
 func (s *simulator) transitionTask(a actor) {
-	// Find a non-terminal task.
 	candidates := s.nonTerminalTasks()
 	if len(candidates) == 0 {
 		s.createTask(a)
@@ -214,14 +228,12 @@ func (s *simulator) transitionTask(a actor) {
 	}
 	task := candidates[rand.Intn(len(candidates))]
 
-	// Get available transitions.
 	transition := s.pickTransition(task)
 	if transition == "" {
 		return
 	}
 
-	body := map[string]string{"transition": transition}
-	err := s.doRequest("POST", fmt.Sprintf("/boards/%s/tasks/%d/transition", s.boardSlug, task.Num), a.apiKey, body, nil)
+	err := httpclient.ExecNoResult(s.client(a), model.OpTaskTransition, s.taskParams(task.Num), map[string]string{"transition": transition})
 	if err != nil {
 		log.Printf("  [%s] transition #%d %s failed: %v", a.name, task.Num, transition, err)
 		return
@@ -238,8 +250,7 @@ func (s *simulator) assignTask(a actor) {
 	task := candidates[rand.Intn(len(candidates))]
 	target := actors[rand.Intn(len(actors))]
 
-	body := map[string]any{"assignee": target.name}
-	err := s.doRequest("PATCH", fmt.Sprintf("/boards/%s/tasks/%d", s.boardSlug, task.Num), a.apiKey, body, nil)
+	err := httpclient.ExecNoResult(s.client(a), model.OpTaskUpdate, s.taskParams(task.Num), map[string]any{"assignee": target.name})
 	if err != nil {
 		log.Printf("  [%s] assign #%d failed: %v", a.name, task.Num, err)
 		return
@@ -254,8 +265,7 @@ func (s *simulator) commentOnTask(a actor) {
 	task := s.tasks[rand.Intn(len(s.tasks))]
 	comment := commentBodies[rand.Intn(len(commentBodies))]
 
-	body := map[string]string{"body": comment}
-	err := s.doRequest("POST", fmt.Sprintf("/boards/%s/tasks/%d/comments", s.boardSlug, task.Num), a.apiKey, body, nil)
+	err := httpclient.ExecNoResult(s.client(a), model.OpCommentCreate, s.taskParams(task.Num), map[string]string{"body": comment})
 	if err != nil {
 		log.Printf("  [%s] comment on #%d failed: %v", a.name, task.Num, err)
 		return
@@ -294,9 +304,6 @@ func (s *simulator) pickTransition(task taskInfo) string {
 	return opts[rand.Intn(len(opts))]
 }
 
-func (s *simulator) doRequest(method, path, apiKey string, body any, out any) error {
-	return httpclient.New(s.baseURL, apiKey).Do(method, path, body, out)
-}
 
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
