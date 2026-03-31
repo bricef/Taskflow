@@ -80,23 +80,24 @@ This keeps the MCP handlers independent of whether they're running in-process or
 
 ## MCP Resources (read-only)
 
-Resources expose data that agents can read. Changes are signalled via `notifications/resources/list_changed`.
+Resources expose data that agents can read. All URIs use the `taskflow://` scheme (see NOTES.md for full scheme definition). Changes are signalled via `notifications/resources/list_changed`.
 
 | Resource URI | Description |
 |-------------|-------------|
-| `boards` | List of all boards |
-| `boards/{slug}` | Board detail with workflow |
-| `boards/{slug}/tasks` | All tasks on a board |
-| `boards/{slug}/tasks/{num}` | Full task detail: metadata, comments, dependencies, attachments, audit |
-| `boards/{slug}/workflow` | Workflow definition (states, transitions) |
-| `boards/{slug}/audit` | Board-level audit trail |
-| `boards/{slug}/tags` | Tags in use on a board |
-| `actors` | List of actors |
-| `search?q={query}` | Cross-board task search |
+| `taskflow://boards` | List of all boards |
+| `taskflow://boards/{slug}` | Board detail with workflow and task counts by state |
+| `taskflow://boards/{slug}/tasks` | All tasks on a board |
+| `taskflow://boards/{slug}/tasks/{num}` | Full task detail: metadata, comments, dependencies, attachments, audit |
+| `taskflow://boards/{slug}/workflow` | Workflow definition (states, transitions) |
+| `taskflow://boards/{slug}/audit` | Board-level audit trail |
+| `taskflow://boards/{slug}/tags` | Tags in use on a board |
+| `taskflow://actors` | List of actors |
+| `taskflow://search?q={query}` | Cross-board task search |
+| `taskflow://stats` | System stats (admin only) |
 
 ## MCP Tools (mutations)
 
-Tools expose actions that change state. Each tool maps to one or more domain operations.
+Tools expose actions that change state. Each tool maps to one or more domain operations. Transition errors preserve available transitions in the error detail for agent self-correction.
 
 | Tool | Description | Maps to |
 |------|-------------|---------|
@@ -108,10 +109,12 @@ Tools expose actions that change state. Each tool maps to one or more domain ope
 | `transition_task` | Execute a workflow transition | POST /boards/{slug}/tasks/{num}/transition |
 | `delete_task` | Soft-delete a task | DELETE /boards/{slug}/tasks/{num} |
 | `add_comment` | Add a comment to a task | POST /boards/{slug}/tasks/{num}/comments |
+| `update_comment` | Edit a comment | PUT /comments/{id} |
 | `add_dependency` | Link two tasks | POST /boards/{slug}/tasks/{num}/dependencies |
 | `remove_dependency` | Remove a dependency | DELETE /dependencies/{id} |
 | `add_attachment` | Attach a reference to a task | POST /boards/{slug}/tasks/{num}/attachments |
 | `remove_attachment` | Remove an attachment | DELETE /attachments/{id} |
+| `batch` | Execute up to 50 operations in a single call | POST /batch |
 
 Admin-only tools (role checked by the API/service layer):
 
@@ -125,6 +128,8 @@ Admin-only tools (role checked by the API/service layer):
 | `reassign_tasks` | Move tasks between boards |
 
 ## Notification System
+
+The MCP server subscribes to the **global SSE endpoint** (`GET /events`) with `?assignee=@me` to receive events relevant to the agent's tasks across all boards. This requires a new global SSE endpoint as a prerequisite (see Increment 0).
 
 ### Standard MCP notifications
 
@@ -147,6 +152,14 @@ Notifications are cleared after delivery. If the queue exceeds 50 entries, older
 
 ## Increments
 
+### Increment 0: Prerequisites (1 day)
+
+API features needed before MCP work:
+
+- **Global SSE endpoint** (`GET /events`) with optional `?boards=` and `?assignee=` filters. Supports `@me` for assignee. Complements the existing per-board `GET /boards/{slug}/events`.
+- **Cross-board "my tasks"** — `GET /tasks?assignee=@me` or similar. Returns tasks assigned to the caller across all boards.
+- **Board overview with task counts** — enrich board detail / board list responses with task counts by state.
+
 ### Increment 1: Shared package + stdio binary scaffold (1 day)
 
 - `internal/mcp/` — shared package with Backend interface
@@ -155,20 +168,22 @@ Notifications are cleared after delivery. If the queue exceeds 50 entries, older
 - MCP server setup with official SDK (stdio transport)
 - Capability negotiation (tools + resources)
 - Configuration via env vars (`TASKFLOW_SERVER_URL`, `TASKFLOW_API_KEY`)
-- Reuse HTTP client from TUI or extract to a shared package
+- Extract shared HTTP client from TUI into a common package
 
 ### Increment 2: Resources (1 day)
 
 - Implement all resource handlers in `internal/mcp/`
-- Resource URI routing and template matching
+- `taskflow://` URI scheme with template matching
 - JSON response formatting
+- Full task detail aggregation (task + comments + deps + attachments + audit)
 - Test with stdio binary against running server
 
 ### Increment 3: Tools (1-2 days)
 
 - Implement all tool handlers in `internal/mcp/`
 - Input schema definitions
-- Error mapping (API errors → MCP tool errors)
+- Error mapping (API errors → MCP tool errors, preserving transition context)
+- Batch tool wrapping `POST /batch`
 - Test with stdio binary against running server
 
 ### Increment 4: HTTP transport + notifications (1-2 days)
@@ -176,7 +191,7 @@ Notifications are cleared after delivery. If the queue exceeds 50 entries, older
 - `internal/mcp/servicebackend/` — Backend implementation using direct service calls
 - Mount `/mcp` endpoint on the TaskFlow server (HTTP+SSE transport)
 - Auth via existing Bearer token middleware
-- SSE subscription goroutine (reuse SSE client pattern)
+- SSE subscription via global `/events?assignee=@me` endpoint
 - Event queue with 50-entry cap
 - Standard MCP `notifications/resources/list_changed` on SSE events
 - Piggyback `_notifications` on tool responses
@@ -189,4 +204,4 @@ Notifications are cleared after delivery. If the queue exceeds 50 entries, older
 - Integration tests with mock MCP client
 - Update README, CLI skill doc, and dashboard docs
 
-**Total estimate: 5-7 days**
+**Total estimate: 6-8 days**

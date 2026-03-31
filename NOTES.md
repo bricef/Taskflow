@@ -15,6 +15,42 @@ The following operations remain **allowed**:
 - [ ] **TUI resize**: Resizing the terminal (especially making it larger) causes layout issues. The kanban columns, event log, and viewport don't reliably recalculate their dimensions. Needs a deeper investigation into how Bubble Tea's value-receiver model interacts with viewport sizing.
 - [ ] **space below help**: We still have a line of deadspace at the bottom. Lt's fix that.
 
+## Architecture decisions
+
+### MCP Resource URI Scheme
+
+MCP resources use the `taskflow://` URI scheme, mapping directly to the API path structure:
+
+```
+taskflow://boards                          — list all boards
+taskflow://boards/{slug}                   — board detail with task counts by state
+taskflow://boards/{slug}/tasks             — task list (supports query params)
+taskflow://boards/{slug}/tasks/{num}       — full task detail (comments, deps, attachments, audit)
+taskflow://boards/{slug}/workflow          — workflow definition
+taskflow://boards/{slug}/audit             — board audit trail
+taskflow://boards/{slug}/tags              — tags in use
+taskflow://actors                          — actor list
+taskflow://search?q={query}                — cross-board search
+taskflow://stats                           — system stats (admin)
+```
+
+### Global SSE Endpoint
+
+`GET /events` — global event stream with optional filtering:
+- `?boards=platform,product` — filter to specific boards
+- `?assignee=alice` or `?assignee=@me` — filter to events on tasks assigned to a user
+
+This complements the existing per-board `GET /boards/{slug}/events` endpoint. The TUI currently uses per-board SSE; it should be revisited to use the global endpoint once available.
+
+## Cross-surface improvements (from MCP review)
+
+These features were identified during MCP planning and should be integrated into the TUI, CLI, and dashboard as well:
+
+- [ ] **"My tasks" view**: Cross-board task list filtered by assignee (`@me`). Already implemented as API feature for MCP. Integrate into TUI (new tab or filter), CLI (`taskflow task list --assignee @me`), and dashboard.
+- [ ] **Board overview with task counts**: Board detail endpoint should include task counts by state. Use in dashboard board cards, TUI board selector, CLI board get.
+- [ ] **Transition error context in CLI/TUI**: When a transition fails, show available transitions in the error message (API already returns them).
+- [ ] **TUI SSE architecture**: Revisit TUI event listening to use the global `/events` endpoint instead of per-board SSE. Would enable cross-board notifications in the board selector and simplify connection management.
+
 ## Planned Dashboard Features
 
 - [ ] **Cumulative flow diagram (CFD)**: Stacked area chart showing task counts per state over time, derived from audit log.
