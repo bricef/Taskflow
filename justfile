@@ -19,6 +19,7 @@ test-v *args:
 build:
     go build -o taskflow-server ./cmd/taskflow-server
     go build -o taskflow ./cmd/taskflow
+    go build -o taskflow-mcp ./cmd/taskflow-mcp
 
 # Format all Go files
 fmt:
