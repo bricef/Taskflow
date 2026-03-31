@@ -128,6 +128,7 @@ func (s *Server) registerRoutes() {
 	// Authenticated routes — derived from operations.
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware(s.svc))
+		r.Use(rateLimitMiddleware(newRateLimiter(s.cfg.RateLimitPerSecond)))
 
 		// Aggregate views and utilities (not domain operations).
 		r.Get("/boards/{slug}/detail", s.boardDetailHandler)

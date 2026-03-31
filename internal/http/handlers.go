@@ -97,6 +97,12 @@ func (s *Server) listTasks(ctx context.Context, r *http.Request) (any, error) {
 	}
 	var sort *model.TaskSort
 	if field := queryStr(r, "sort"); field != nil {
+		validSortFields := map[string]bool{
+			"created_at": true, "updated_at": true, "due_date": true, "priority": true,
+		}
+		if !validSortFields[*field] {
+			return nil, &model.ValidationError{Field: "sort", Message: "must be one of: created_at, updated_at, due_date, priority"}
+		}
 		sort = &model.TaskSort{
 			Field: *field,
 			Desc:  r.URL.Query().Get("order") == "desc",

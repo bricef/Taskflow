@@ -84,8 +84,11 @@ func (s *Store) TaskList(ctx context.Context, filter model.TaskFilter, sort *mod
 	q := queryBuilder{}
 
 	if filter.Query != nil && *filter.Query != "" {
+		// Sanitize FTS5 query: wrap in double quotes to treat as phrase
+		// and avoid syntax errors from special characters.
+		safeQuery := `"` + strings.ReplaceAll(*filter.Query, `"`, `""`) + `"`
 		q.from = "tasks t JOIN tasks_fts fts ON t.rowid = fts.rowid"
-		q.where("fts.tasks_fts MATCH ?", *filter.Query)
+		q.where("fts.tasks_fts MATCH ?", safeQuery)
 	} else {
 		q.from = "tasks t"
 	}
