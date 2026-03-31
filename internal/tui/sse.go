@@ -2,6 +2,7 @@ package tui
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -27,35 +28,53 @@ type SSEError struct {
 // SSEConnected is sent when the SSE connection is established.
 type SSEConnected struct{}
 
-// startSSE returns a tea.Cmd that connects to the SSE endpoint and streams
-// events into the Bubble Tea program. It reconnects on error with backoff.
+// startSSE connects to the SSE endpoint and streams events into the
+// Bubble Tea program. It reconnects on error with backoff. Returns a
+// cancel function that stops the goroutine and closes the connection.
 type sseResult struct {
 	err       error
 	permanent bool
 }
 
-func startSSE(p *tea.Program, serverURL, boardSlug, apiKey string) {
+func startSSE(p *tea.Program, serverURL, boardSlug, apiKey string) context.CancelFunc {
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		backoff := time.Second
 		for {
-			result := streamSSE(p, serverURL, boardSlug, apiKey)
+			result := streamSSE(ctx, p, serverURL, boardSlug, apiKey)
+			if ctx.Err() != nil {
+				return // cancelled, don't send error or retry
+			}
 			p.Send(SSEError{Err: result.err, Permanent: result.permanent})
 			if result.permanent {
 				return
 			}
-			time.Sleep(backoff)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
 			if backoff < 30*time.Second {
 				backoff *= 2
 			}
 		}
 	}()
+	return cancel
 }
 
-func streamSSE(p *tea.Program, serverURL, boardSlug, apiKey string) sseResult {
+func streamSSE(ctx context.Context, p *tea.Program, serverURL, boardSlug, apiKey string) sseResult {
 	url := serverURL + "/boards/" + boardSlug + "/events?token=" + apiKey
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
+		return sseResult{err: fmt.Errorf("could not create request: %w", err)}
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		if ctx.Err() != nil {
+			return sseResult{err: ctx.Err()}
+		}
 		return sseResult{err: fmt.Errorf("could not connect to server at %s: %w", serverURL, err)}
 	}
 	defer resp.Body.Close()
@@ -77,6 +96,9 @@ func streamSSE(p *tea.Program, serverURL, boardSlug, apiKey string) sseResult {
 	var eventType, data string
 
 	for scanner.Scan() {
+		if ctx.Err() != nil {
+			return sseResult{err: ctx.Err()}
+		}
 		line := scanner.Text()
 
 		switch {
@@ -97,6 +119,9 @@ func streamSSE(p *tea.Program, serverURL, boardSlug, apiKey string) sseResult {
 		}
 	}
 
+	if ctx.Err() != nil {
+		return sseResult{err: ctx.Err()}
+	}
 	if err := scanner.Err(); err != nil {
 		return sseResult{err: err}
 	}

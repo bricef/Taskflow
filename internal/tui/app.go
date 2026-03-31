@@ -62,7 +62,8 @@ type Model struct {
 	activeTab   boardTab
 	sseStatus   string
 	lastError   string
-	eventLog    eventLogModel
+	eventLog     eventLogModel
+	sseCancel    func() // cancels the active SSE goroutine
 	kanban       kanbanModel
 	listView     listViewModel
 	workflowView workflowViewModel
@@ -330,6 +331,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.view == viewBoard {
+				if m.sseCancel != nil {
+					m.sseCancel()
+					m.sseCancel = nil
+				}
 				m.view = viewSelector
 				m.activeBoard = nil
 				m.sseStatus = "disconnected"
@@ -396,6 +401,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case boardSelected:
+		// Cancel any existing SSE connection.
+		if m.sseCancel != nil {
+			m.sseCancel()
+			m.sseCancel = nil
+		}
 		m.activeBoard = &msg.board
 		m.view = viewBoard
 		m.activeTab = tabKanban
@@ -405,7 +415,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listView = newListView()
 		m.resizeViewport()
 		if m.cfg.Program != nil && *m.cfg.Program != nil {
-			startSSE(*m.cfg.Program, m.cfg.ServerURL, msg.board.Slug, m.cfg.APIKey)
+			m.sseCancel = startSSE(*m.cfg.Program, m.cfg.ServerURL, msg.board.Slug, m.cfg.APIKey)
 		}
 		return m, fetchBoardData(m.client, msg.board.Slug)
 
