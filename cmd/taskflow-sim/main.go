@@ -140,20 +140,19 @@ func (s *simulator) ensureBoard() {
 }
 
 // pickAction returns a weighted random action.
-const wipLimit = 20
+const wipLimitPerState = 20
 
 // pickAction returns a weighted random action.
-// Skips "create" if non-terminal tasks exceed the WIP limit.
+// Skips "create" if any non-terminal state has 20+ tasks.
 func (s *simulator) pickAction() string {
 	if len(s.tasks) == 0 {
 		return "create"
 	}
-	active := len(s.nonTerminalTasks())
 	r := rand.Intn(100)
 	switch {
 	case r < 20:
-		if active >= wipLimit {
-			return "transition" // push work forward instead
+		if s.anyStateOverWIP() {
+			return "transition"
 		}
 		return "create"
 	case r < 55:
@@ -163,6 +162,22 @@ func (s *simulator) pickAction() string {
 	default:
 		return "comment"
 	}
+}
+
+func (s *simulator) anyStateOverWIP() bool {
+	counts := map[string]int{}
+	terminal := map[string]bool{"done": true, "cancelled": true, "shipped": true, "wontfix": true}
+	for _, t := range s.tasks {
+		if !terminal[t.State] {
+			counts[t.State]++
+		}
+	}
+	for _, c := range counts {
+		if c >= wipLimitPerState {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *simulator) refreshTasks() {
