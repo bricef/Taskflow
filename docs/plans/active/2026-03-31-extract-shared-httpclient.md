@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-31
 **Status:** Active
-**Prerequisite:** Model Resource/Operation split (must land first)
+**Prerequisite:** Model Resource/Operation split (done)
 
 ## Problem
 
