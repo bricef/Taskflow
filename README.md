@@ -34,7 +34,7 @@ taskflow-tui
 
 ## Status
 
-**Phase 1 complete. Phase 2 substantially complete.**
+**Phases 1, 2, and 4 complete. Phase 3 (MCP server) remaining.**
 
 ### Phase 1 — Server + CLI
 - 37 domain operations (actors, boards, tasks, workflows, comments, dependencies, attachments, webhooks, audit, tags)
@@ -54,11 +54,22 @@ taskflow-tui
   - **List** — sortable table (cycle sort with `s`, reverse with `S`)
   - **Workflow** — layered graph visualisation with Unicode connectors
   - **Events** — live event stream with side-by-side detail pane
-- Task detail overlay with comments, dependencies, attachments, and audit trail
+- Task detail overlay with dependency tree, comments, attachments, and audit trail
 - Inline actions: transition (`t`), assign (`a`), comment (`c`) — from kanban, list, or detail views
 - SSE live updates across kanban, list, and detail views
+- Board creation and archival from TUI
 - Toggleable help (`?`), done-state toggle (`d`)
 - Activity simulator (`taskflow-sim`) for testing SSE updates
+
+### Phase 3 — AI Integration (MCP Server)
+- Not yet started — see [PRD](docs/00-Taskflow-PRD.md) section 10
+
+### Phase 4 — Notifications, Dashboard & Polish
+- Webhook dispatch with HMAC-SHA256 signatures, retry (3 attempts with backoff), and delivery logging
+- Delivery status API: `GET /webhooks/{id}/deliveries`
+- HTML dashboard at `/dashboard` with system stats, board overview, and RBAC-aware views
+- Live board view at `/dashboard/board/{slug}` with kanban and SSE event stream
+- Archived board semantics (mutations blocked, comments allowed)
 
 See [docs/](docs/) for the PRD, phase plans, API reference, and CLI reference.
 
