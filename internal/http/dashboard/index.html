@@ -283,10 +283,10 @@ function renderDashboard(stats, boardData) {
     html += '<div class="grid">';
     html += statCard('Boards', stats.boards.active, stats.boards.total + ' total');
     html += statCard('Tasks', stats.tasks.total,
-      stats.tasks.created_last_7_days + ' created / ' +
-      stats.tasks.completed_last_7_days + ' completed (7d)');
+      stats.tasks.created_last_7d + ' created / ' +
+      stats.tasks.completed_last_7d + ' completed (7d)');
     html += statCard('Actors', stats.actors.active, stats.actors.total + ' total');
-    html += statCard('Events (7d)', stats.activity.events_last_7_days, stats.activity.total_events + ' total');
+    html += statCard('Events (7d)', stats.activity.last_7d, stats.activity.total_events + ' total');
     html += '</div>';
 
     // Task state breakdown.
@@ -302,7 +302,7 @@ function renderDashboard(stats, boardData) {
     if (stats.activity.by_actor && stats.activity.by_actor.length > 0) {
       html += '<div class="section"><h2>Actor Activity (7d)</h2><div class="card">';
       for (const a of stats.activity.by_actor) {
-        html += '<div class="activity-item"><span class="actor">' + esc(a.actor) + '</span> <span class="count">' + a.events + ' events</span></div>';
+        html += '<div class="activity-item"><span class="actor">' + esc(a.name) + '</span> <span class="count">' + a.events_last_7d + ' events</span></div>';
       }
       html += '</div></div>';
     }
