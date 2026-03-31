@@ -39,18 +39,17 @@ taskflow-tui
 ## Features
 
 - HTTP API with auth (SHA-256 keys), RBAC, idempotency keys, and batch operations
-- 41 domain endpoints (18 Resources + 23 Operations) auto-derived from the model
+- 42 domain endpoints (19 Resources + 23 Operations) auto-derived from the model
 - OpenAPI 3.1 spec auto-generated at startup
 - CLI with commands derived from the same model
 - Interactive TUI with kanban, list, workflow graph, and live event stream — see **[TUI Reference](docs/tui.md)**
+- MCP server for AI agent integration (Claude Code, Aider, Cursor) with notification piggyback — see **[MCP Server](docs/mcp.md)**
 - Real-time event streaming (SSE) with before/after task snapshots
 - Webhook dispatch with HMAC-SHA256 signatures, retry, and delivery logging
 - HTML dashboard at `/dashboard`
 - Docker deployment with seed admin bootstrap
 
-- MCP server for AI agent integration (Claude Code, Aider, Cursor) — see **[MCP Server](docs/mcp.md)**
-
-See [docs/](docs/) for API, CLI, and TUI reference.
+See [docs/](docs/) for API, CLI, TUI, and MCP reference.
 
 ## Roles
 
@@ -111,7 +110,7 @@ Tasks are moved between states by name (e.g. `--transition start`), not by targe
 
 ## Architecture
 
-Operations are defined once in `model.Resources()` and `model.Operations()` and derived into HTTP routes, CLI commands, OpenAPI specs, and the shared `httpclient`. All clients (CLI, TUI, simulator) are pure HTTP consumers — they import no server internals.
+Operations are defined once in `model.Resources()` and `model.Operations()` and derived into HTTP routes, CLI commands, OpenAPI specs, MCP tools/resources, and the shared `httpclient`. All clients (CLI, TUI, MCP, simulator) are pure HTTP consumers — they import no server internals.
 
 See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full architectural reference: dependency flow, package responsibilities, event system, query param derivation, and design rationale.
 

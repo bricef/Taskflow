@@ -73,7 +73,7 @@ These features were identified during MCP planning and should be integrated into
 
 Great question. Here's what I'd want as an AI agent using TaskFlow:
 
-- [ ] MCP server interface. The PRD mentions it but it's not built yet. For me, an MCP tool interface would be the most natural way to interact — I could create tasks, transition them, and check board state without constructing HTTP requests. The operation definitions in model.Operations() could derive MCP tool definitions the same way they derive HTTP routes and CLI commands.
+- [x] MCP server interface. Tools and resources auto-derived from model.Operations() and model.Resources(). Notification piggyback delivers change awareness on tool responses. Task ref shorthand, whoami tool, and rich descriptions for agent guidance.
 
 - [x] Structured error responses with actionable context. The current error format is good ({"error": "invalid_transition", "message": "..."}) but when a transition fails, I'd love the response to include the available transitions so I can self-correct without a second round-trip:
 

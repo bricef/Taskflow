@@ -4,7 +4,7 @@ This document describes the current architecture of TaskFlow for developers work
 
 ## Overview
 
-TaskFlow is a task tracker with kanban boards and workflow state machines. The server is the single source of truth; all clients (CLI, TUI, simulator, future MCP) are pure HTTP consumers that import no server internals.
+TaskFlow is a task tracker with kanban boards and workflow state machines. The server is the single source of truth; all clients (CLI, TUI, MCP, simulator) are pure HTTP consumers that import no server internals.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -34,9 +34,9 @@ TaskFlow is a task tracker with kanban boards and workflow state machines. The s
 │  Accepts model.Resource and model.Operation directly     │
 │  Handles path substitution, query params, auth           │
 └──────────────────────────────────────────────────────────┘
-        ▲              ▲              ▲
-        │              │              │
-      CLI            TUI         Simulator
+        ▲           ▲           ▲           ▲
+        │           │           │           │
+      CLI         TUI         MCP      Simulator
 ```
 
 ## Define once, derive everywhere
@@ -53,6 +53,7 @@ Each entry has an explicit `Name` (e.g. `task_list`, `board_create`) that serves
 | HTTP server | Routes, handler mapping, status codes |
 | OpenAPI spec | Paths, methods, parameters, schemas, operationIds |
 | CLI | Command tree (`<resource>_<action>` → group + subcommand), flags |
+| MCP server | Resources (taskflow:// URIs), tools (input schemas), descriptions |
 | httpclient | Path substitution, HTTP method, query string building |
 
 Named references are exported as package-level variables (`model.ResTaskList`, `model.OpTaskCreate`, etc.) so consumers reference domain types directly without string lookups.
@@ -70,6 +71,7 @@ internal/
 ├── transport/          Maps domain actions to HTTP semantics (method, status code)
 ├── httpclient/         Domain-aware HTTP client for all consumers
 ├── http/               HTTP server (routes, middleware, OpenAPI generation)
+├── mcp/                MCP server (tools + resources derived from model, notifications)
 ├── cli/                CLI (commands derived from model)
 ├── eventbus/           In-process pub/sub with ring-buffered subscriptions
 ├── tui/                Interactive terminal UI (Bubble Tea)
@@ -79,6 +81,7 @@ cmd/
 ├── taskflow-server/    Server binary
 ├── taskflow/           CLI binary
 ├── taskflow-tui/       TUI binary
+├── taskflow-mcp/       MCP server binary (stdio transport)
 ├── taskflow-seed/      Test data generator
 └── taskflow-sim/       Activity simulator
 ```
@@ -100,6 +103,7 @@ sqlite         — depends on model, repo (storage implementation)
 transport      — depends on model (HTTP method/status mapping)
 httpclient     — depends on model, transport, eventbus
 http           — depends on model, transport, service, taskflow, eventbus
+mcp            — depends on model, httpclient, eventbus
 cli            — depends on model, httpclient
 tui            — depends on model, httpclient, eventbus
 ```

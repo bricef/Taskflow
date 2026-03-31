@@ -127,17 +127,43 @@ Tools are mutations that change state. Path parameters and body fields are passe
 | `webhook_update` | Update a webhook (admin) | `id`, fields to change |
 | `webhook_delete` | Delete a webhook (admin) | `id` |
 
-## Workflow Tips for Agents
+### Identity
 
-1. **Check available transitions** before transitioning: read the `workflow_get` resource for the board, then match the task's current state to available transitions.
+| Tool | Description |
+|------|-------------|
+| `whoami` | Returns your actor identity (name, role, type) |
 
-2. **Use `@me` for self-assignment**: when creating or updating tasks, use `@me` as the assignee value.
+## Convenience Features
 
-3. **Transition by name, not state**: pass the transition name (e.g. `start`, `submit`, `approve`), not the target state.
+### Task references
 
-4. **Board detail for full context**: use `board_detail` to get a complete snapshot of a board including all tasks with their comments, dependencies, and audit.
+Tools that take `slug` + `num` also accept a `task_ref` shorthand like `"platform/3"`. This is parsed in the MCP layer — the domain model is unchanged.
 
-5. **Task search across boards**: use `task_search` to find tasks across all boards by keyword.
+### Notifications
+
+The MCP server subscribes to the global event stream at startup. Events from other actors are buffered and piggybacked onto tool responses as a text block:
+
+```
+--- 2 notification(s) from other actors ---
+  [2026-04-01T10:15:00Z] alice moved platform/3 from backlog to in_progress
+  [2026-04-01T10:16:30Z] brice commented on platform/7
+```
+
+This gives the agent awareness of changes without polling. Notifications are cleared after delivery. If no events have arrived, tool responses are unchanged.
+
+## Tips for Agents
+
+1. **Use `task_detail`** instead of `task_get` when you need full context — it includes comments, dependencies, attachments, and audit in one request.
+
+2. **Use `whoami`** to discover your identity. This tells you your actor name, role, and type.
+
+3. **Use `@me`** as the assignee value when creating or updating tasks to assign to yourself.
+
+4. **Transition by name, not state**: pass the transition name (e.g. `start`, `submit`, `approve`), not the target state. On failure, the error includes available transitions.
+
+5. **Use `task_ref`** shorthand (e.g. `"platform/3"`) instead of separate `slug` and `num` for conciseness.
+
+6. **Use `task_search`** to find tasks across all boards by keyword, assignee, state, or priority.
 
 ## Architecture
 
@@ -145,6 +171,10 @@ The MCP server is a thin adapter over `internal/httpclient`. Resources and tools
 
 ```
 AI Agent ←→ taskflow-mcp (stdio) ←→ httpclient ←→ TaskFlow Server
+                                        │
+                                   Subscribe (events)
+                                        │
+                                   Notification buffer
 ```
 
-Each agent instance runs as a separate process with its own API key. The agent's identity comes from the API key — all actions are attributed to the corresponding actor in the audit trail.
+Each agent instance runs as a separate process with its own API key. The agent's identity is resolved at startup via `/me` and used to filter out self-events from the notification stream.
