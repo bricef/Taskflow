@@ -828,6 +828,31 @@ func TestAtMeAlias(t *testing.T) {
 		t.Errorf("expected assignee 'member', got %v", task.Assignee)
 	}
 
+	// Update assignee to nil, then back to @me via PATCH.
+	resp = env.request(t, "PATCH", "/boards/my-board/tasks/1", map[string]any{
+		"assignee": nil,
+	}, env.memberKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200 on unassign, got %d: %s", resp.StatusCode, body)
+	}
+	env.decode(t, resp, &task)
+	if task.Assignee != nil {
+		t.Errorf("expected nil assignee after unassign, got %v", *task.Assignee)
+	}
+
+	resp = env.request(t, "PATCH", "/boards/my-board/tasks/1", map[string]any{
+		"assignee": "@me",
+	}, env.memberKey)
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200 on @me reassign, got %d: %s", resp.StatusCode, body)
+	}
+	env.decode(t, resp, &task)
+	if task.Assignee == nil || *task.Assignee != "member" {
+		t.Errorf("expected assignee 'member' after @me update, got %v", task.Assignee)
+	}
+
 	// Filter by @me.
 	resp = env.request(t, "GET", "/boards/my-board/tasks?assignee=@me", nil, env.memberKey)
 	if resp.StatusCode != 200 {
