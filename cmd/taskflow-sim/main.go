@@ -140,13 +140,21 @@ func (s *simulator) ensureBoard() {
 }
 
 // pickAction returns a weighted random action.
+const wipLimit = 20
+
+// pickAction returns a weighted random action.
+// Skips "create" if non-terminal tasks exceed the WIP limit.
 func (s *simulator) pickAction() string {
 	if len(s.tasks) == 0 {
 		return "create"
 	}
+	active := len(s.nonTerminalTasks())
 	r := rand.Intn(100)
 	switch {
 	case r < 20:
+		if active >= wipLimit {
+			return "transition" // push work forward instead
+		}
 		return "create"
 	case r < 55:
 		return "transition"
