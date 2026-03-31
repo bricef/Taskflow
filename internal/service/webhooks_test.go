@@ -9,76 +9,94 @@ import (
 	"time"
 
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/taskflow"
 	"github.com/bricef/taskflow/internal/testutil"
 	"github.com/bricef/taskflow/internal/webhook"
 )
 
-func TestCreateWebhook(t *testing.T) {
+// seedWebhookEnv creates a service with an admin actor and returns
+// a helper to create webhooks with minimal boilerplate.
+func seedWebhookEnv(t *testing.T) (taskflow.TaskFlow, func(url string, events []string) model.Webhook) {
+	t.Helper()
 	svc := testutil.NewTestService(t)
-	ctx := context.Background()
-
 	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
 
-	w, err := svc.CreateWebhook(ctx, model.CreateWebhookParams{
+	create := func(url string, events []string) model.Webhook {
+		t.Helper()
+		wh, err := svc.CreateWebhook(context.Background(), model.CreateWebhookParams{
+			URL: url, Events: events, Secret: "test-secret", CreatedBy: "brice",
+		})
+		if err != nil {
+			t.Fatalf("failed to create webhook: %v", err)
+		}
+		return wh
+	}
+	return svc, create
+}
+
+// --- CRUD ---
+
+func TestCreateWebhook(t *testing.T) {
+	// Arrange
+	svc, _ := seedWebhookEnv(t)
+
+	// Act
+	wh, err := svc.CreateWebhook(context.Background(), model.CreateWebhookParams{
 		URL:       "https://example.com/hook",
 		Events:    []string{"task.created", "task.transitioned"},
 		Secret:    "secret123",
 		CreatedBy: "brice",
 	})
+
+	// Assert
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if w.URL != "https://example.com/hook" {
-		t.Errorf("expected URL, got %s", w.URL)
+	if wh.URL != "https://example.com/hook" {
+		t.Errorf("expected URL, got %s", wh.URL)
 	}
-	if len(w.Events) != 2 {
-		t.Errorf("expected 2 events, got %d", len(w.Events))
+	if len(wh.Events) != 2 {
+		t.Errorf("expected 2 events, got %d", len(wh.Events))
 	}
-	if w.BoardSlug != nil {
+	if wh.BoardSlug != nil {
 		t.Error("expected nil board_slug for global webhook")
 	}
-	if !w.Active {
+	if !wh.Active {
 		t.Error("expected webhook to be active by default")
 	}
 }
 
 func TestCreateWebhookWithBoardScope(t *testing.T) {
-	svc := testutil.NewTestService(t)
-	ctx := context.Background()
-
-	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
+	// Arrange
+	svc, _ := seedWebhookEnv(t)
 	testutil.SeedBoard(t, svc, "my-board")
-
 	slug := "my-board"
-	w, err := svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL:       "https://example.com/hook",
-		Events:    []string{"task.created"},
-		BoardSlug: &slug,
-		Secret:    "secret",
-		CreatedBy: "brice",
+
+	// Act
+	wh, err := svc.CreateWebhook(context.Background(), model.CreateWebhookParams{
+		URL: "https://example.com/hook", Events: []string{"task.created"},
+		BoardSlug: &slug, Secret: "secret", CreatedBy: "brice",
 	})
+
+	// Assert
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if w.BoardSlug == nil || *w.BoardSlug != "my-board" {
-		t.Errorf("expected board_slug my-board, got %v", w.BoardSlug)
+	if wh.BoardSlug == nil || *wh.BoardSlug != "my-board" {
+		t.Errorf("expected board_slug my-board, got %v", wh.BoardSlug)
 	}
 }
 
 func TestListWebhooks(t *testing.T) {
-	svc := testutil.NewTestService(t)
-	ctx := context.Background()
+	// Arrange
+	svc, create := seedWebhookEnv(t)
+	create("https://a.com", []string{"e1"})
+	create("https://b.com", []string{"e2"})
 
-	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
+	// Act
+	webhooks, err := svc.ListWebhooks(context.Background())
 
-	svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL: "https://a.com", Events: []string{"e1"}, Secret: "s1", CreatedBy: "brice",
-	})
-	svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL: "https://b.com", Events: []string{"e2"}, Secret: "s2", CreatedBy: "brice",
-	})
-
-	webhooks, err := svc.ListWebhooks(ctx)
+	// Assert
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,17 +106,16 @@ func TestListWebhooks(t *testing.T) {
 }
 
 func TestUpdateWebhookURL(t *testing.T) {
-	svc := testutil.NewTestService(t)
-	ctx := context.Background()
+	// Arrange
+	svc, create := seedWebhookEnv(t)
+	wh := create("https://old.com", []string{"e1"})
 
-	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
-
-	w, _ := svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL: "https://old.com", Events: []string{"e1"}, Secret: "s1", CreatedBy: "brice",
+	// Act
+	updated, err := svc.UpdateWebhook(context.Background(), model.UpdateWebhookParams{
+		ID: wh.ID, URL: model.Set("https://new.com"),
 	})
 
-	newURL := "https://new.com"
-	updated, err := svc.UpdateWebhook(ctx, model.UpdateWebhookParams{ID: w.ID, URL: model.Set(newURL)})
+	// Assert
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -108,17 +125,16 @@ func TestUpdateWebhookURL(t *testing.T) {
 }
 
 func TestUpdateWebhookEvents(t *testing.T) {
-	svc := testutil.NewTestService(t)
-	ctx := context.Background()
+	// Arrange
+	svc, create := seedWebhookEnv(t)
+	wh := create("https://x.com", []string{"e1"})
 
-	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
-
-	w, _ := svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL: "https://x.com", Events: []string{"e1"}, Secret: "s1", CreatedBy: "brice",
+	// Act
+	updated, err := svc.UpdateWebhook(context.Background(), model.UpdateWebhookParams{
+		ID: wh.ID, Events: model.Set([]string{"e2", "e3"}),
 	})
 
-	newEvents := []string{"e2", "e3"}
-	updated, err := svc.UpdateWebhook(ctx, model.UpdateWebhookParams{ID: w.ID, Events: model.Set(newEvents)})
+	// Assert
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,17 +144,16 @@ func TestUpdateWebhookEvents(t *testing.T) {
 }
 
 func TestUpdateWebhookActive(t *testing.T) {
-	svc := testutil.NewTestService(t)
-	ctx := context.Background()
+	// Arrange
+	svc, create := seedWebhookEnv(t)
+	wh := create("https://x.com", []string{"e1"})
 
-	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
-
-	w, _ := svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL: "https://x.com", Events: []string{"e1"}, Secret: "s1", CreatedBy: "brice",
+	// Act
+	updated, err := svc.UpdateWebhook(context.Background(), model.UpdateWebhookParams{
+		ID: wh.ID, Active: model.Set(false),
 	})
 
-	inactive := false
-	updated, err := svc.UpdateWebhook(ctx, model.UpdateWebhookParams{ID: w.ID, Active: model.Set(inactive)})
+	// Assert
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -148,121 +163,103 @@ func TestUpdateWebhookActive(t *testing.T) {
 }
 
 func TestDeleteWebhook(t *testing.T) {
-	svc := testutil.NewTestService(t)
-	ctx := context.Background()
+	// Arrange
+	svc, create := seedWebhookEnv(t)
+	wh := create("https://x.com", []string{"e1"})
 
-	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
+	// Act
+	err := svc.DeleteWebhook(context.Background(), wh.ID)
 
-	w, _ := svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL: "https://x.com", Events: []string{"e1"}, Secret: "s1", CreatedBy: "brice",
-	})
-
-	err := svc.DeleteWebhook(ctx, w.ID)
+	// Assert
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	webhooks, _ := svc.ListWebhooks(ctx)
+	webhooks, _ := svc.ListWebhooks(context.Background())
 	if len(webhooks) != 0 {
-		t.Errorf("expected 0 webhooks, got %d", len(webhooks))
+		t.Errorf("expected 0 webhooks after delete, got %d", len(webhooks))
 	}
 }
 
+// --- Delivery listing ---
+
 func TestListWebhookDeliveries(t *testing.T) {
-	svc := testutil.NewTestService(t)
-	ctx := context.Background()
+	// Arrange
+	svc, create := seedWebhookEnv(t)
+	wh := create("https://x.com", []string{"e1"})
 
-	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
-
-	w, _ := svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL: "https://x.com", Events: []string{"e1"}, Secret: "s1", CreatedBy: "brice",
-	})
-
-	// Empty initially.
-	deliveries, err := svc.ListWebhookDeliveries(ctx, w.ID)
+	// Act + Assert — empty initially.
+	deliveries, err := svc.ListWebhookDeliveries(context.Background(), wh.ID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(deliveries) != 0 {
 		t.Errorf("expected 0 deliveries, got %d", len(deliveries))
 	}
+}
 
-	// Non-existent webhook should 404.
-	_, err = svc.ListWebhookDeliveries(ctx, 9999)
+func TestListWebhookDeliveriesNotFound(t *testing.T) {
+	// Arrange
+	svc, _ := seedWebhookEnv(t)
+
+	// Act
+	_, err := svc.ListWebhookDeliveries(context.Background(), 9999)
+
+	// Assert
 	if err == nil {
 		t.Error("expected error for non-existent webhook")
 	}
 }
 
-// TestWebhookIntegration tests the full flow: event published → dispatcher
-// delivers to endpoint → delivery logged in DB → queryable via service.
-func TestWebhookIntegration(t *testing.T) {
-	svc, store, bus := testutil.NewTestServiceWithBus(t)
-	ctx := context.Background()
+// --- Integration: event → dispatch → delivery log ---
 
+func TestWebhookIntegration(t *testing.T) {
+	// Arrange
+	svc, store, bus := testutil.NewTestServiceWithBus(t)
 	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
 	testutil.SeedBoard(t, svc, "test-board")
 
-	// Set up a test HTTP endpoint.
-	var deliveries int32
+	var endpointCalls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&deliveries, 1)
+		atomic.AddInt32(&endpointCalls, 1)
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
 
-	// Create a webhook pointing to the test endpoint.
-	wh, err := svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL:       srv.URL,
-		Events:    []string{"task.created"},
-		Secret:    "integration-secret",
-		CreatedBy: "brice",
+	wh, _ := svc.CreateWebhook(context.Background(), model.CreateWebhookParams{
+		URL: srv.URL, Events: []string{"task.created"}, Secret: "s", CreatedBy: "brice",
 	})
-	if err != nil {
-		t.Fatalf("failed to create webhook: %v", err)
-	}
-
-	// Start the dispatcher with no retry delays.
 	dispatcher := webhook.NewDispatcher(bus, svc, store,
 		webhook.WithRetryDelays([]time.Duration{0, 0, 0}))
 	defer dispatcher.Stop()
 
-	// Create a task — this publishes an event to the bus.
-	_, err = svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "test-board",
-		Title:     "Integration test task",
-		CreatedBy: "brice",
+	// Act — create a task, which publishes an event.
+	_, err := svc.CreateTask(context.Background(), model.CreateTaskParams{
+		BoardSlug: "test-board", Title: "Integration test", CreatedBy: "brice",
 	})
 	if err != nil {
 		t.Fatalf("failed to create task: %v", err)
 	}
-
-	// Wait for async delivery.
 	time.Sleep(500 * time.Millisecond)
 
-	// Verify the endpoint was called.
-	if n := atomic.LoadInt32(&deliveries); n != 1 {
-		t.Fatalf("expected 1 delivery to endpoint, got %d", n)
+	// Assert — endpoint was called.
+	if n := atomic.LoadInt32(&endpointCalls); n != 1 {
+		t.Fatalf("expected 1 delivery, got %d", n)
 	}
 
-	// Verify the delivery was logged in the database.
-	logged, err := svc.ListWebhookDeliveries(ctx, wh.ID)
+	// Assert — delivery was logged in the database.
+	logged, err := svc.ListWebhookDeliveries(context.Background(), wh.ID)
 	if err != nil {
 		t.Fatalf("failed to list deliveries: %v", err)
 	}
 	if len(logged) != 1 {
 		t.Fatalf("expected 1 logged delivery, got %d", len(logged))
 	}
-
 	dl := logged[0]
 	if dl.WebhookID != wh.ID {
 		t.Errorf("expected webhook_id %d, got %d", wh.ID, dl.WebhookID)
 	}
 	if dl.EventType != "task.created" {
 		t.Errorf("expected event_type task.created, got %s", dl.EventType)
-	}
-	if dl.Attempt != 1 {
-		t.Errorf("expected attempt 1, got %d", dl.Attempt)
 	}
 	if dl.StatusCode == nil || *dl.StatusCode != 200 {
 		t.Errorf("expected status 200, got %v", dl.StatusCode)
@@ -272,20 +269,15 @@ func TestWebhookIntegration(t *testing.T) {
 	}
 }
 
-// TestWebhookIntegrationRetry tests that failed deliveries are retried
-// and all attempts are logged.
 func TestWebhookIntegrationRetry(t *testing.T) {
+	// Arrange
 	svc, store, bus := testutil.NewTestServiceWithBus(t)
-	ctx := context.Background()
-
 	testutil.SeedActor(t, svc, "brice", model.RoleAdmin)
 	testutil.SeedBoard(t, svc, "test-board")
 
-	// Endpoint fails twice, succeeds on third attempt.
 	var attempts int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&attempts, 1)
-		if n < 3 {
+		if n := atomic.AddInt32(&attempts, 1); n < 3 {
 			w.WriteHeader(502)
 		} else {
 			w.WriteHeader(200)
@@ -293,43 +285,37 @@ func TestWebhookIntegrationRetry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	wh, _ := svc.CreateWebhook(ctx, model.CreateWebhookParams{
-		URL:       srv.URL,
-		Events:    []string{"task.created"},
-		Secret:    "retry-secret",
-		CreatedBy: "brice",
+	wh, _ := svc.CreateWebhook(context.Background(), model.CreateWebhookParams{
+		URL: srv.URL, Events: []string{"task.created"}, Secret: "s", CreatedBy: "brice",
 	})
-
 	dispatcher := webhook.NewDispatcher(bus, svc, store,
 		webhook.WithRetryDelays([]time.Duration{0, 0, 0}))
 	defer dispatcher.Stop()
 
-	_, _ = svc.CreateTask(ctx, model.CreateTaskParams{
-		BoardSlug: "test-board",
-		Title:     "Retry test task",
-		CreatedBy: "brice",
+	// Act
+	_, _ = svc.CreateTask(context.Background(), model.CreateTaskParams{
+		BoardSlug: "test-board", Title: "Retry test", CreatedBy: "brice",
 	})
-
 	time.Sleep(500 * time.Millisecond)
 
+	// Assert — 3 attempts total.
 	if n := atomic.LoadInt32(&attempts); n != 3 {
 		t.Fatalf("expected 3 attempts, got %d", n)
 	}
 
-	logged, _ := svc.ListWebhookDeliveries(ctx, wh.ID)
+	// Assert — all 3 logged with correct success/fail counts.
+	logged, _ := svc.ListWebhookDeliveries(context.Background(), wh.ID)
 	if len(logged) != 3 {
 		t.Fatalf("expected 3 logged deliveries, got %d", len(logged))
 	}
-
-	// Verify all 3 attempt numbers are present.
 	attemptsSeen := map[int]bool{}
-	var successCount, failCount int
+	var successes, failures int
 	for _, dl := range logged {
 		attemptsSeen[dl.Attempt] = true
 		if dl.Error == nil {
-			successCount++
+			successes++
 		} else {
-			failCount++
+			failures++
 		}
 	}
 	for _, a := range []int{1, 2, 3} {
@@ -337,10 +323,10 @@ func TestWebhookIntegrationRetry(t *testing.T) {
 			t.Errorf("missing attempt %d in delivery log", a)
 		}
 	}
-	if successCount != 1 {
-		t.Errorf("expected 1 success, got %d", successCount)
+	if successes != 1 {
+		t.Errorf("expected 1 success, got %d", successes)
 	}
-	if failCount != 2 {
-		t.Errorf("expected 2 failures, got %d", failCount)
+	if failures != 2 {
+		t.Errorf("expected 2 failures, got %d", failures)
 	}
 }

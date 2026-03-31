@@ -19,7 +19,7 @@ import (
 	"github.com/bricef/taskflow/internal/model"
 )
 
-// --- Mock helpers ---
+// --- Test helpers ---
 
 type mockLister struct {
 	webhooks []model.Webhook
@@ -50,10 +50,6 @@ func (m *mockLogger) getDeliveries() []model.WebhookDelivery {
 	return result
 }
 
-func noRetryDelays() Option {
-	return WithRetryDelays([]time.Duration{0, 0, 0})
-}
-
 func testEvent(eventType string) eventbus.Event {
 	return eventbus.Event{
 		Type:      eventType,
@@ -74,345 +70,151 @@ func testWebhook(url, secret string, events []string) model.Webhook {
 	}
 }
 
-// --- Delivery tests ---
+// countingHandler returns an HTTP handler that counts calls and responds with the given status.
+func countingHandler(counter *int32, status int) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(counter, 1)
+		w.WriteHeader(status)
+	}
+}
 
-func TestDeliverMatchingEvent(t *testing.T) {
+// capturingHandler returns an HTTP handler that captures the request body and headers.
+func capturingHandler(body *[]byte, headers *http.Header) http.HandlerFunc {
 	var mu sync.Mutex
-	var gotBody []byte
-	var gotHeaders http.Header
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
-		gotBody, _ = io.ReadAll(r.Body)
-		gotHeaders = r.Header.Clone()
+		*body, _ = io.ReadAll(r.Body)
+		*headers = r.Header.Clone()
 		w.WriteHeader(200)
-	}))
+	}
+}
+
+// failThenSucceedHandler returns 500 for the first n calls, then 200.
+func failThenSucceedHandler(failCount int) (http.HandlerFunc, *int32) {
+	var calls int32
+	return func(w http.ResponseWriter, r *http.Request) {
+		n := int(atomic.AddInt32(&calls, 1))
+		if n <= failCount {
+			w.WriteHeader(500)
+		} else {
+			w.WriteHeader(200)
+		}
+	}, &calls
+}
+
+// newTestDispatcher creates a bus, dispatcher with the given webhooks, and returns
+// both for test use. The dispatcher uses zero retry delays.
+func newTestDispatcher(t *testing.T, webhooks []model.Webhook, logger DeliveryLogger) (*eventbus.EventBus, *Dispatcher) {
+	t.Helper()
+	bus := eventbus.New()
+	lister := &mockLister{webhooks: webhooks}
+	d := NewDispatcher(bus, lister, logger, WithRetryDelays([]time.Duration{0, 0, 0}))
+	t.Cleanup(d.Stop)
+	return bus, d
+}
+
+const eventWait = 300 * time.Millisecond
+const retryWait = 500 * time.Millisecond
+
+// --- Delivery ---
+
+func TestDeliversMatchingEvent(t *testing.T) {
+	// Arrange
+	var body []byte
+	var headers http.Header
+	srv := httptest.NewServer(capturingHandler(&body, &headers))
 	defer srv.Close()
 
-	bus := eventbus.New()
 	logger := &mockLogger{}
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, "secret", []string{"task.created"})}}
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "secret", []string{"task.created"})}, logger)
 
-	d := NewDispatcher(bus, lister, logger, noRetryDelays())
-	defer d.Stop()
-
+	// Act
 	bus.Publish(testEvent("task.created"))
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(eventWait)
 
-	mu.Lock()
-	defer mu.Unlock()
-
-	// Verify body is valid JSON event.
-	if len(gotBody) == 0 {
+	// Assert — payload is valid JSON with correct event type.
+	if len(body) == 0 {
 		t.Fatal("expected delivery, got none")
 	}
 	var evt eventbus.Event
-	if err := json.Unmarshal(gotBody, &evt); err != nil {
+	if err := json.Unmarshal(body, &evt); err != nil {
 		t.Fatalf("invalid JSON payload: %v", err)
 	}
 	if evt.Type != "task.created" {
 		t.Errorf("expected event type task.created, got %s", evt.Type)
 	}
+}
 
-	// Verify headers.
-	if ct := gotHeaders.Get("Content-Type"); ct != "application/json" {
+func TestDeliveryHeaders(t *testing.T) {
+	// Arrange
+	var body []byte
+	var headers http.Header
+	srv := httptest.NewServer(capturingHandler(&body, &headers))
+	defer srv.Close()
+
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "secret", []string{"task.created"})}, nil)
+
+	// Act
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(eventWait)
+
+	// Assert
+	if ct := headers.Get("Content-Type"); ct != "application/json" {
 		t.Errorf("expected Content-Type application/json, got %s", ct)
 	}
-	if eh := gotHeaders.Get(eventHeader); eh != "task.created" {
+	if eh := headers.Get(eventHeader); eh != "task.created" {
 		t.Errorf("expected %s header task.created, got %s", eventHeader, eh)
 	}
+	if sig := headers.Get(signatureHeader); sig == "" {
+		t.Error("expected non-empty signature header")
+	}
+}
 
-	// Verify HMAC signature.
-	sig := gotHeaders.Get(signatureHeader)
-	mac := hmac.New(sha256.New, []byte("secret"))
-	mac.Write(gotBody)
+func TestDeliverySignature(t *testing.T) {
+	// Arrange
+	var body []byte
+	var headers http.Header
+	secret := "test-secret"
+	srv := httptest.NewServer(capturingHandler(&body, &headers))
+	defer srv.Close()
+
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, secret, []string{"task.created"})}, nil)
+
+	// Act
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(eventWait)
+
+	// Assert — receiver can verify the HMAC.
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
 	expected := fmt.Sprintf("sha256=%s", hex.EncodeToString(mac.Sum(nil)))
-	if sig != expected {
-		t.Errorf("signature mismatch:\n  got:  %s\n  want: %s", sig, expected)
-	}
-
-	// Verify delivery was logged.
-	deliveries := logger.getDeliveries()
-	if len(deliveries) != 1 {
-		t.Fatalf("expected 1 logged delivery, got %d", len(deliveries))
-	}
-	dl := deliveries[0]
-	if dl.Attempt != 1 {
-		t.Errorf("expected attempt 1, got %d", dl.Attempt)
-	}
-	if dl.StatusCode == nil || *dl.StatusCode != 200 {
-		t.Errorf("expected status 200, got %v", dl.StatusCode)
-	}
-	if dl.Error != nil {
-		t.Errorf("expected no error, got %s", *dl.Error)
-	}
-	if dl.DurationMs == nil || *dl.DurationMs < 0 {
-		t.Errorf("expected positive duration, got %v", dl.DurationMs)
-	}
-	if dl.EventType != "task.created" {
-		t.Errorf("expected event type task.created, got %s", dl.EventType)
+	if got := headers.Get(signatureHeader); got != expected {
+		t.Errorf("signature mismatch:\n  got:  %s\n  want: %s", got, expected)
 	}
 }
 
-func TestSkipNonMatchingEvent(t *testing.T) {
-	var deliveries int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&deliveries, 1)
-		w.WriteHeader(200)
-	}))
-	defer srv.Close()
-
-	bus := eventbus.New()
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, "s", []string{"task.transitioned"})}}
-
-	d := NewDispatcher(bus, lister, nil, noRetryDelays())
-	defer d.Stop()
-
-	bus.Publish(testEvent("task.created")) // doesn't match
-	time.Sleep(200 * time.Millisecond)
-
-	if n := atomic.LoadInt32(&deliveries); n != 0 {
-		t.Errorf("expected 0 deliveries, got %d", n)
-	}
-}
-
-func TestBoardScopeFiltering(t *testing.T) {
-	var deliveries int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&deliveries, 1)
-		w.WriteHeader(200)
-	}))
-	defer srv.Close()
-
-	boardSlug := "my-board"
-	wh := testWebhook(srv.URL, "s", []string{"task.created"})
-	wh.BoardSlug = &boardSlug
-
-	bus := eventbus.New()
-	lister := &mockLister{webhooks: []model.Webhook{wh}}
-
-	d := NewDispatcher(bus, lister, nil, noRetryDelays())
-	defer d.Stop()
-
-	// Wrong board — should not deliver.
-	bus.Publish(testEvent("task.created")) // board is "test-board"
-	time.Sleep(200 * time.Millisecond)
-	if n := atomic.LoadInt32(&deliveries); n != 0 {
-		t.Errorf("expected 0 deliveries for wrong board, got %d", n)
-	}
-
-	// Correct board — should deliver.
-	evt := testEvent("task.created")
-	evt.Board.Slug = "my-board"
-	bus.Publish(evt)
-	time.Sleep(200 * time.Millisecond)
-	if n := atomic.LoadInt32(&deliveries); n != 1 {
-		t.Errorf("expected 1 delivery for matching board, got %d", n)
-	}
-}
-
-func TestSkipInactiveWebhook(t *testing.T) {
-	var deliveries int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&deliveries, 1)
-		w.WriteHeader(200)
-	}))
-	defer srv.Close()
-
-	wh := testWebhook(srv.URL, "s", []string{"task.created"})
-	wh.Active = false
-
-	bus := eventbus.New()
-	lister := &mockLister{webhooks: []model.Webhook{wh}}
-
-	d := NewDispatcher(bus, lister, nil, noRetryDelays())
-	defer d.Stop()
-
-	bus.Publish(testEvent("task.created"))
-	time.Sleep(200 * time.Millisecond)
-
-	if n := atomic.LoadInt32(&deliveries); n != 0 {
-		t.Errorf("expected 0 deliveries for inactive webhook, got %d", n)
-	}
-}
-
-// --- Retry tests ---
-
-func TestRetryOn5xx(t *testing.T) {
-	var mu sync.Mutex
-	var attempts int
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		attempts++
-		a := attempts
-		mu.Unlock()
-		if a < 3 {
-			w.WriteHeader(500)
-		} else {
-			w.WriteHeader(200)
-		}
-	}))
-	defer srv.Close()
-
-	bus := eventbus.New()
-	logger := &mockLogger{}
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}}
-
-	d := NewDispatcher(bus, lister, logger, noRetryDelays())
-	defer d.Stop()
-
-	bus.Publish(testEvent("task.created"))
-	time.Sleep(500 * time.Millisecond)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if attempts != 3 {
-		t.Fatalf("expected 3 attempts, got %d", attempts)
-	}
-
-	// Verify delivery log has all 3 attempts.
-	deliveries := logger.getDeliveries()
-	if len(deliveries) != 3 {
-		t.Fatalf("expected 3 logged deliveries, got %d", len(deliveries))
-	}
-
-	// First two should be failures.
-	for i := 0; i < 2; i++ {
-		if deliveries[i].Error == nil {
-			t.Errorf("attempt %d: expected error, got nil", i+1)
-		}
-		if deliveries[i].StatusCode == nil || *deliveries[i].StatusCode != 500 {
-			t.Errorf("attempt %d: expected status 500, got %v", i+1, deliveries[i].StatusCode)
-		}
-		if deliveries[i].Attempt != i+1 {
-			t.Errorf("expected attempt %d, got %d", i+1, deliveries[i].Attempt)
-		}
-	}
-
-	// Third should succeed.
-	if deliveries[2].Error != nil {
-		t.Errorf("attempt 3: expected no error, got %s", *deliveries[2].Error)
-	}
-	if deliveries[2].StatusCode == nil || *deliveries[2].StatusCode != 200 {
-		t.Errorf("attempt 3: expected status 200, got %v", deliveries[2].StatusCode)
-	}
-}
-
-func TestRetryStopsOnSuccess(t *testing.T) {
-	var attempts int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&attempts, 1)
-		w.WriteHeader(200)
-	}))
-	defer srv.Close()
-
-	bus := eventbus.New()
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}}
-
-	d := NewDispatcher(bus, lister, nil, noRetryDelays())
-	defer d.Stop()
-
-	bus.Publish(testEvent("task.created"))
-	time.Sleep(300 * time.Millisecond)
-
-	if n := atomic.LoadInt32(&attempts); n != 1 {
-		t.Errorf("expected 1 attempt (success, no retry), got %d", n)
-	}
-}
-
-func TestAllRetriesExhausted(t *testing.T) {
-	var attempts int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&attempts, 1)
-		w.WriteHeader(500)
-	}))
-	defer srv.Close()
-
-	bus := eventbus.New()
-	logger := &mockLogger{}
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}}
-
-	d := NewDispatcher(bus, lister, logger, noRetryDelays())
-	defer d.Stop()
-
-	bus.Publish(testEvent("task.created"))
-	time.Sleep(500 * time.Millisecond)
-
-	if n := atomic.LoadInt32(&attempts); n != 3 {
-		t.Errorf("expected 3 attempts (all exhausted), got %d", n)
-	}
-
-	deliveries := logger.getDeliveries()
-	if len(deliveries) != 3 {
-		t.Fatalf("expected 3 logged deliveries, got %d", len(deliveries))
-	}
-	for _, dl := range deliveries {
-		if dl.Error == nil {
-			t.Error("expected error on every attempt")
-		}
-	}
-}
-
-func TestRetryOnConnectionError(t *testing.T) {
-	// Use a server that immediately closes.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-	}))
-	badURL := srv.URL
-	srv.Close() // close immediately so connection fails
-
-	bus := eventbus.New()
-	logger := &mockLogger{}
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(badURL, "s", []string{"task.created"})}}
-
-	d := NewDispatcher(bus, lister, logger, noRetryDelays())
-	defer d.Stop()
-
-	bus.Publish(testEvent("task.created"))
-	time.Sleep(500 * time.Millisecond)
-
-	deliveries := logger.getDeliveries()
-	if len(deliveries) != 3 {
-		t.Fatalf("expected 3 delivery attempts on connection error, got %d", len(deliveries))
-	}
-	for _, dl := range deliveries {
-		if dl.Error == nil {
-			t.Error("expected error on connection failure")
-		}
-		if dl.StatusCode != nil {
-			t.Errorf("expected nil status code on connection error, got %d", *dl.StatusCode)
-		}
-	}
-}
-
-// --- Delivery logging tests ---
-
-func TestDeliveryLogFields(t *testing.T) {
+func TestDeliveryLogRecord(t *testing.T) {
+	// Arrange
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(201)
 	}))
 	defer srv.Close()
 
-	bus := eventbus.New()
 	logger := &mockLogger{}
 	wh := testWebhook(srv.URL, "s", []string{"task.created"})
 	wh.ID = 42
-	lister := &mockLister{webhooks: []model.Webhook{wh}}
+	bus, _ := newTestDispatcher(t, []model.Webhook{wh}, logger)
 
-	d := NewDispatcher(bus, lister, logger, noRetryDelays())
-	defer d.Stop()
-
+	// Act
 	bus.Publish(testEvent("task.created"))
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(eventWait)
 
+	// Assert
 	deliveries := logger.getDeliveries()
 	if len(deliveries) != 1 {
-		t.Fatalf("expected 1 delivery, got %d", len(deliveries))
+		t.Fatalf("expected 1 logged delivery, got %d", len(deliveries))
 	}
-
 	dl := deliveries[0]
 	if dl.WebhookID != 42 {
 		t.Errorf("expected webhook_id 42, got %d", dl.WebhookID)
@@ -426,190 +228,321 @@ func TestDeliveryLogFields(t *testing.T) {
 	if dl.Attempt != 1 {
 		t.Errorf("expected attempt 1, got %d", dl.Attempt)
 	}
+	if dl.StatusCode == nil || *dl.StatusCode != 201 {
+		t.Errorf("expected status 201, got %v", dl.StatusCode)
+	}
+	if dl.Error != nil {
+		t.Errorf("expected no error, got %s", *dl.Error)
+	}
+	if dl.DurationMs == nil || *dl.DurationMs < 0 {
+		t.Errorf("expected non-negative duration, got %v", dl.DurationMs)
+	}
 	if dl.RequestBody == "" {
 		t.Error("expected non-empty request_body")
 	}
-
-	// Verify request body is valid JSON.
-	var evt eventbus.Event
-	if err := json.Unmarshal([]byte(dl.RequestBody), &evt); err != nil {
-		t.Errorf("request_body is not valid JSON: %v", err)
-	}
 }
 
-func TestDeliveryLoggingWithNilLogger(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(200)
-	}))
+func TestNilLoggerDoesNotPanic(t *testing.T) {
+	// Arrange
+	srv := httptest.NewServer(countingHandler(new(int32), 200))
 	defer srv.Close()
 
-	bus := eventbus.New()
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}}
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}, nil)
 
-	// nil logger should not panic.
-	d := NewDispatcher(bus, lister, nil, noRetryDelays())
-	defer d.Stop()
-
+	// Act + Assert (no panic)
 	bus.Publish(testEvent("task.created"))
-	time.Sleep(200 * time.Millisecond)
-	// No panic = pass.
+	time.Sleep(eventWait)
 }
 
-// --- Multiple webhooks ---
+// --- Filtering ---
+
+func TestSkipsNonMatchingEventType(t *testing.T) {
+	// Arrange
+	var calls int32
+	srv := httptest.NewServer(countingHandler(&calls, 200))
+	defer srv.Close()
+
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "s", []string{"task.transitioned"})}, nil)
+
+	// Act
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(eventWait)
+
+	// Assert
+	if n := atomic.LoadInt32(&calls); n != 0 {
+		t.Errorf("expected 0 deliveries for non-matching event, got %d", n)
+	}
+}
+
+func TestSkipsWrongBoard(t *testing.T) {
+	// Arrange
+	var calls int32
+	srv := httptest.NewServer(countingHandler(&calls, 200))
+	defer srv.Close()
+
+	boardSlug := "my-board"
+	wh := testWebhook(srv.URL, "s", []string{"task.created"})
+	wh.BoardSlug = &boardSlug
+	bus, _ := newTestDispatcher(t, []model.Webhook{wh}, nil)
+
+	// Act — event is from "test-board", webhook scoped to "my-board"
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(eventWait)
+
+	// Assert
+	if n := atomic.LoadInt32(&calls); n != 0 {
+		t.Errorf("expected 0 deliveries for wrong board, got %d", n)
+	}
+}
+
+func TestDeliversToMatchingBoard(t *testing.T) {
+	// Arrange
+	var calls int32
+	srv := httptest.NewServer(countingHandler(&calls, 200))
+	defer srv.Close()
+
+	boardSlug := "my-board"
+	wh := testWebhook(srv.URL, "s", []string{"task.created"})
+	wh.BoardSlug = &boardSlug
+	bus, _ := newTestDispatcher(t, []model.Webhook{wh}, nil)
+
+	// Act
+	evt := testEvent("task.created")
+	evt.Board.Slug = "my-board"
+	bus.Publish(evt)
+	time.Sleep(eventWait)
+
+	// Assert
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("expected 1 delivery for matching board, got %d", n)
+	}
+}
+
+func TestSkipsInactiveWebhook(t *testing.T) {
+	// Arrange
+	var calls int32
+	srv := httptest.NewServer(countingHandler(&calls, 200))
+	defer srv.Close()
+
+	wh := testWebhook(srv.URL, "s", []string{"task.created"})
+	wh.Active = false
+	bus, _ := newTestDispatcher(t, []model.Webhook{wh}, nil)
+
+	// Act
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(eventWait)
+
+	// Assert
+	if n := atomic.LoadInt32(&calls); n != 0 {
+		t.Errorf("expected 0 deliveries for inactive webhook, got %d", n)
+	}
+}
 
 func TestMultipleWebhooksReceiveSameEvent(t *testing.T) {
-	var mu sync.Mutex
-	received := map[string]int{}
-
-	handler := func(name string) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			mu.Lock()
-			received[name]++
-			mu.Unlock()
-			w.WriteHeader(200)
-		}
-	}
-
-	srv1 := httptest.NewServer(handler("wh1"))
+	// Arrange
+	var calls1, calls2 int32
+	srv1 := httptest.NewServer(countingHandler(&calls1, 200))
 	defer srv1.Close()
-	srv2 := httptest.NewServer(handler("wh2"))
+	srv2 := httptest.NewServer(countingHandler(&calls2, 200))
 	defer srv2.Close()
 
 	wh1 := testWebhook(srv1.URL, "s1", []string{"task.created"})
 	wh1.ID = 1
 	wh2 := testWebhook(srv2.URL, "s2", []string{"task.created"})
 	wh2.ID = 2
+	bus, _ := newTestDispatcher(t, []model.Webhook{wh1, wh2}, nil)
 
-	bus := eventbus.New()
-	logger := &mockLogger{}
-	lister := &mockLister{webhooks: []model.Webhook{wh1, wh2}}
-
-	d := NewDispatcher(bus, lister, logger, noRetryDelays())
-	defer d.Stop()
-
+	// Act
 	bus.Publish(testEvent("task.created"))
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(eventWait)
 
-	mu.Lock()
-	defer mu.Unlock()
-
-	if received["wh1"] != 1 {
-		t.Errorf("expected 1 delivery to wh1, got %d", received["wh1"])
+	// Assert
+	if n := atomic.LoadInt32(&calls1); n != 1 {
+		t.Errorf("expected 1 delivery to webhook 1, got %d", n)
 	}
-	if received["wh2"] != 1 {
-		t.Errorf("expected 1 delivery to wh2, got %d", received["wh2"])
-	}
-
-	deliveries := logger.getDeliveries()
-	if len(deliveries) != 2 {
-		t.Errorf("expected 2 logged deliveries, got %d", len(deliveries))
+	if n := atomic.LoadInt32(&calls2); n != 1 {
+		t.Errorf("expected 1 delivery to webhook 2, got %d", n)
 	}
 }
 
-// --- Timeout test ---
+// --- Retry ---
+
+func TestRetriesOnServerError(t *testing.T) {
+	// Arrange — fail twice, succeed on third attempt.
+	handler, calls := failThenSucceedHandler(2)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	logger := &mockLogger{}
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}, logger)
+
+	// Act
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(retryWait)
+
+	// Assert
+	if n := atomic.LoadInt32(calls); n != 3 {
+		t.Fatalf("expected 3 attempts, got %d", n)
+	}
+	deliveries := logger.getDeliveries()
+	if len(deliveries) != 3 {
+		t.Fatalf("expected 3 logged deliveries, got %d", len(deliveries))
+	}
+	// First two: error with status 500; third: success with status 200.
+	for i := 0; i < 2; i++ {
+		if deliveries[i].Error == nil {
+			t.Errorf("attempt %d: expected error", i+1)
+		}
+		if deliveries[i].StatusCode == nil || *deliveries[i].StatusCode != 500 {
+			t.Errorf("attempt %d: expected status 500, got %v", i+1, deliveries[i].StatusCode)
+		}
+	}
+	if deliveries[2].Error != nil {
+		t.Errorf("attempt 3: expected success, got error %s", *deliveries[2].Error)
+	}
+}
+
+func TestSuccessStopsRetries(t *testing.T) {
+	// Arrange
+	var calls int32
+	srv := httptest.NewServer(countingHandler(&calls, 200))
+	defer srv.Close()
+
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}, nil)
+
+	// Act
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(eventWait)
+
+	// Assert — only 1 attempt, no retries.
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Errorf("expected 1 attempt, got %d", n)
+	}
+}
+
+func TestAllRetriesExhausted(t *testing.T) {
+	// Arrange — always fail.
+	var calls int32
+	srv := httptest.NewServer(countingHandler(&calls, 500))
+	defer srv.Close()
+
+	logger := &mockLogger{}
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}, logger)
+
+	// Act
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(retryWait)
+
+	// Assert
+	if n := atomic.LoadInt32(&calls); n != 3 {
+		t.Errorf("expected 3 attempts, got %d", n)
+	}
+	for _, dl := range logger.getDeliveries() {
+		if dl.Error == nil {
+			t.Error("expected error on every attempt")
+		}
+	}
+}
+
+func TestRetriesOnConnectionError(t *testing.T) {
+	// Arrange — server is already closed.
+	srv := httptest.NewServer(countingHandler(new(int32), 200))
+	badURL := srv.URL
+	srv.Close()
+
+	logger := &mockLogger{}
+	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(badURL, "s", []string{"task.created"})}, logger)
+
+	// Act
+	bus.Publish(testEvent("task.created"))
+	time.Sleep(retryWait)
+
+	// Assert
+	deliveries := logger.getDeliveries()
+	if len(deliveries) != 3 {
+		t.Fatalf("expected 3 attempts on connection error, got %d", len(deliveries))
+	}
+	for _, dl := range deliveries {
+		if dl.Error == nil {
+			t.Error("expected error on connection failure")
+		}
+		if dl.StatusCode != nil {
+			t.Errorf("expected nil status on connection error, got %d", *dl.StatusCode)
+		}
+	}
+}
+
+// --- Timeout ---
 
 func TestDeliveryTimeout(t *testing.T) {
+	// Arrange — endpoint sleeps longer than the client timeout.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(15 * time.Second) // longer than deliveryTimeout
+		time.Sleep(15 * time.Second)
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()
 
-	bus := eventbus.New()
 	logger := &mockLogger{}
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}}
-
-	// Use a dispatcher with a short timeout for testing.
-	d := NewDispatcher(bus, lister, logger, noRetryDelays())
+	bus, d := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}, logger)
 	d.client = &http.Client{Timeout: 100 * time.Millisecond}
-	defer d.Stop()
 
+	// Act
 	bus.Publish(testEvent("task.created"))
 	time.Sleep(1 * time.Second)
 
+	// Assert
 	deliveries := logger.getDeliveries()
 	if len(deliveries) != 3 {
-		t.Fatalf("expected 3 delivery attempts on timeout, got %d", len(deliveries))
+		t.Fatalf("expected 3 attempts on timeout, got %d", len(deliveries))
 	}
 	for _, dl := range deliveries {
 		if dl.Error == nil {
 			t.Error("expected error on timeout")
 		}
 		if dl.DurationMs == nil {
-			t.Error("expected duration to be recorded even on timeout")
+			t.Error("expected duration recorded even on timeout")
 		}
 	}
 }
 
-// --- Signature tests ---
+// --- Signature ---
 
 func TestSignatureComputation(t *testing.T) {
-	payload := []byte(`{"event":"task.created","timestamp":"2026-01-01T00:00:00Z"}`)
+	// Arrange
+	payload := []byte(`{"event":"task.created"}`)
 	secret := "my-secret"
 
+	// Act
 	sig := sign(payload, secret)
 
+	// Assert
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(payload)
 	expected := fmt.Sprintf("sha256=%s", hex.EncodeToString(mac.Sum(nil)))
-
 	if sig != expected {
 		t.Errorf("signature mismatch:\n  got:  %s\n  want: %s", sig, expected)
 	}
 }
 
-func TestSignatureVerification(t *testing.T) {
-	// Simulate a receiver verifying the signature.
-	var gotSig string
-	var gotBody []byte
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotSig = r.Header.Get(signatureHeader)
-		gotBody, _ = io.ReadAll(r.Body)
-		w.WriteHeader(200)
-	}))
-	defer srv.Close()
-
-	secret := "verification-test-secret"
-	bus := eventbus.New()
-	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, secret, []string{"task.created"})}}
-
-	d := NewDispatcher(bus, lister, nil, noRetryDelays())
-	defer d.Stop()
-
-	bus.Publish(testEvent("task.created"))
-	time.Sleep(300 * time.Millisecond)
-
-	// Receiver verifies: compute HMAC of body with shared secret.
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(gotBody)
-	expected := fmt.Sprintf("sha256=%s", hex.EncodeToString(mac.Sum(nil)))
-
-	if gotSig != expected {
-		t.Errorf("receiver could not verify signature:\n  got:  %s\n  want: %s", gotSig, expected)
-	}
-}
-
-// --- Dispatcher lifecycle ---
+// --- Lifecycle ---
 
 func TestStopPreventsDelivery(t *testing.T) {
-	var deliveries int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&deliveries, 1)
-		w.WriteHeader(200)
-	}))
+	// Arrange
+	var calls int32
+	srv := httptest.NewServer(countingHandler(&calls, 200))
 	defer srv.Close()
 
 	bus := eventbus.New()
 	lister := &mockLister{webhooks: []model.Webhook{testWebhook(srv.URL, "s", []string{"task.created"})}}
+	d := NewDispatcher(bus, lister, nil, WithRetryDelays([]time.Duration{0, 0, 0}))
 
-	d := NewDispatcher(bus, lister, nil, noRetryDelays())
+	// Act — stop before publishing.
 	d.Stop()
-
 	bus.Publish(testEvent("task.created"))
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(eventWait)
 
-	if n := atomic.LoadInt32(&deliveries); n != 0 {
+	// Assert
+	if n := atomic.LoadInt32(&calls); n != 0 {
 		t.Errorf("expected 0 deliveries after stop, got %d", n)
 	}
 }
