@@ -122,7 +122,7 @@ func (c *Client) do(method, path string, body any, out any) error {
 		sv := resp.Header.Get("X-TaskFlow-Version")
 		switch {
 		case sv == "":
-			fmt.Fprintf(os.Stderr, "Warning: server at %s did not report a version (X-TaskFlow-Version header missing)\n", c.baseURL)
+			fmt.Fprintf(os.Stderr, "Warning: server at %s did not report a version — client is %s\n", c.baseURL, version.Version)
 		case sv != version.Version:
 			fmt.Fprintf(os.Stderr, "Warning: client version (%s) differs from server (%s)\n", version.Version, sv)
 		}
