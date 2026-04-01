@@ -243,7 +243,7 @@ func (m detailModel) render(width, height int) string {
 
 	// Description.
 	if t.Description != "" {
-		b.WriteString(detailSectionStyle.Render("Description") + "\n")
+		b.WriteString(detailSectionStyle.Render("Description") + "\n\n")
 		descWidth := width - 2
 		if descWidth < 20 {
 			descWidth = 20
@@ -255,13 +255,13 @@ func (m detailModel) render(width, height int) string {
 
 	// Dependency tree.
 	if len(d.dependencies) > 0 {
-		b.WriteString(detailSectionStyle.Render("Dependencies") + "\n")
+		b.WriteString(detailSectionStyle.Render("Dependencies") + "\n\n")
 		b.WriteString(buildDepTree(t, d.dependencies, d.related))
 	}
 
 	// Attachments.
 	if len(d.attachments) > 0 {
-		b.WriteString(detailSectionStyle.Render("Attachments") + "\n")
+		b.WriteString(detailSectionStyle.Render("Attachments") + "\n\n")
 		for _, att := range d.attachments {
 			b.WriteString(fmt.Sprintf("  [%s] %s — %s\n", dimStyle.Render(string(att.RefType)), att.Label, att.Reference))
 		}
@@ -269,7 +269,7 @@ func (m detailModel) render(width, height int) string {
 
 	// Comments.
 	if len(d.comments) > 0 {
-		b.WriteString(detailSectionStyle.Render(fmt.Sprintf("Comments (%d)", len(d.comments))) + "\n")
+		b.WriteString(detailSectionStyle.Render(fmt.Sprintf("Comments (%d)", len(d.comments))) + "\n\n")
 		indentLen := 2 + 16 + 1 // "  " + "YYYY-MM-DD HH:MM" + " "
 		for _, c := range d.comments {
 			ts := c.CreatedAt.Format("2006-01-02 15:04")
@@ -299,7 +299,7 @@ func (m detailModel) render(width, height int) string {
 
 	// Audit (last 10).
 	if len(d.audit) > 0 {
-		b.WriteString(detailSectionStyle.Render("Recent Activity") + "\n")
+		b.WriteString(detailSectionStyle.Render("Recent Activity") + "\n\n")
 		start := 0
 		if len(d.audit) > 10 {
 			start = len(d.audit) - 10

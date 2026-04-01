@@ -92,39 +92,38 @@ func buildDepTree(current model.Task, deps []model.Dependency, related map[strin
 
 	var b strings.Builder
 
-	// Parents (tasks that depend on current task).
-	for i, p := range parents {
-		prefix := "├── "
-		if i == len(parents)-1 && len(children) == 0 && len(relatesTo) == 0 {
-			prefix = "├── "
-		}
-		b.WriteString(renderDepNode(prefix, p) + "\n")
-		b.WriteString("│\n")
+	// Parents (tasks that depend on current task) — outer level.
+	for _, p := range parents {
+		b.WriteString(renderDepNode("◆ ", p) + "\n")
 	}
 
-	// Current task (highlighted).
+	// Current task (highlighted) — indented under parents.
 	currentTitle := current.Title
 	if len(currentTitle) > 50 {
 		currentTitle = currentTitle[:47] + "..."
 	}
-	b.WriteString(depCurrentStyle.Render(fmt.Sprintf("◆ %s: %s", currentRef, currentTitle)) + "  " + dimStyle.Render("["+current.State+"]") + "\n")
-
-	// Children (tasks that current depends on).
-	for i, c := range children {
-		connector := "├── "
-		if i == len(children)-1 && len(relatesTo) == 0 {
-			connector = "└── "
-		}
-		b.WriteString(renderDepNode(connector, c) + "\n")
+	prefix := ""
+	childIndent := ""
+	if len(parents) > 0 {
+		prefix = "└──"
+		childIndent = "   "
 	}
+	b.WriteString(prefix + depCurrentStyle.Render(fmt.Sprintf("◆ %s: %s", currentRef, currentTitle)) + "  " + dimStyle.Render("["+current.State+"]") + "\n")
 
-	// Related tasks.
-	for i, r := range relatesTo {
-		connector := "├── "
-		if i == len(relatesTo)-1 {
-			connector = "└── "
+	// Children and related — indented under current task.
+	allBelow := make([]string, 0, len(children)+len(relatesTo))
+	for _, c := range children {
+		allBelow = append(allBelow, renderDepNode("◆ ", c))
+	}
+	for _, r := range relatesTo {
+		allBelow = append(allBelow, renderRelated("◆ ", r))
+	}
+	for i, line := range allBelow {
+		connector := "├──"
+		if i == len(allBelow)-1 {
+			connector = "└──"
 		}
-		b.WriteString(renderRelated(connector, r) + "\n")
+		b.WriteString(childIndent + connector + line + "\n")
 	}
 
 	return b.String()
@@ -140,7 +139,7 @@ func renderDepNode(prefix string, node depTreeNode) string {
 	}
 	ref := depRefStyle.Render(node.ref)
 	state := dimStyle.Render("[" + node.state + "]")
-	return fmt.Sprintf("%s%s: %s  %s", prefix, ref, title, state)
+	return prefix + fmt.Sprintf("%s: %s  %s", ref, title, state)
 }
 
 func renderRelated(prefix string, node depTreeNode) string {
@@ -154,5 +153,5 @@ func renderRelated(prefix string, node depTreeNode) string {
 	ref := depRefStyle.Render(node.ref)
 	state := dimStyle.Render("[" + node.state + "]")
 	label := depTypeStyle.Render("relates to")
-	return fmt.Sprintf("%s%s %s: %s  %s", prefix, label, ref, title, state)
+	return prefix + fmt.Sprintf("%s %s:  %s  %s", label, ref, title, state)
 }

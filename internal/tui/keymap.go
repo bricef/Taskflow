@@ -299,21 +299,23 @@ var detailKeyMap = detailKeys{
 
 // commentKeys defines key bindings shown when the comment textarea is active.
 type commentKeys struct {
-	Submit key.Binding
-	Cancel key.Binding
+	Submit  key.Binding
+	Newline key.Binding
+	Cancel  key.Binding
 }
 
 func (k commentKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Submit, k.Cancel}
+	return []key.Binding{k.Submit, k.Newline, k.Cancel}
 }
 
 func (k commentKeys) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Submit, k.Cancel}}
+	return [][]key.Binding{{k.Submit, k.Newline, k.Cancel}}
 }
 
 var commentKeyMap = commentKeys{
-	Submit: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "submit")),
-	Cancel: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+	Submit:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "submit")),
+	Newline: key.NewBinding(key.WithKeys("ctrl+j"), key.WithHelp("ctrl+j", "newline")),
+	Cancel:  key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 }
 
 var keyHelp = key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help"))
