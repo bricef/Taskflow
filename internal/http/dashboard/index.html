@@ -279,7 +279,7 @@ function renderDashboard(stats, boardData) {
   let html = '';
 
   // Stats cards (admin only).
-  if (stats) {
+  if (stats && (stats.boards.total > 0 || stats.actors.total > 0)) {
     html += '<div class="grid">';
     html += statCard('Boards', stats.boards.active, stats.boards.total + ' total');
     html += statCard('Tasks', stats.tasks.total,
@@ -311,7 +311,12 @@ function renderDashboard(stats, boardData) {
   // Board overview.
   html += '<div class="section"><h2>Boards</h2>';
   if (boardData.length === 0) {
-    html += '<p style="color: var(--text-dim)">No boards found.</p>';
+    html += '<div class="card" style="text-align: center; padding: 2rem;">';
+    html += '<p style="font-size: 1.1rem; margin-bottom: 0.75rem;">No boards yet</p>';
+    html += '<p style="color: var(--text-dim); margin-bottom: 1rem;">Create your first board to get started:</p>';
+    html += '<code style="display: block; background: var(--bg); padding: 0.75rem; border-radius: var(--radius); color: var(--accent); font-size: 0.9rem;">';
+    html += 'taskflow board create --slug my-board --name "My Board"</code>';
+    html += '</div>';
   }
   for (const { board, tasks } of boardData) {
     const stateCounts = {};
