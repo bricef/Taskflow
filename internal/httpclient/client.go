@@ -94,7 +94,7 @@ func (c *Client) do(method, path string, body any, out any) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return &ConnectionError{URL: c.baseURL, Err: err}
 	}
 	defer resp.Body.Close()
 
@@ -152,6 +152,26 @@ func (e *APIError) Error() string {
 	}
 	return fmt.Sprintf("error %d", e.StatusCode)
 }
+
+// ConnectionError is returned when the HTTP request fails at the transport
+// level (server unreachable, DNS failure, timeout, etc.).
+type ConnectionError struct {
+	URL string
+	Err error
+}
+
+func (e *ConnectionError) Error() string {
+	return fmt.Sprintf(`could not connect to TaskFlow server at %s
+
+%v
+
+Is the server running? Check your configuration:
+  --url <url>                                (CLI flag)
+  export TASKFLOW_URL=<url>                  (environment variable)
+  url: <url> in ~/.config/taskflow/config.yaml  (config file)`, e.URL, e.Err)
+}
+
+func (e *ConnectionError) Unwrap() error { return e.Err }
 
 func decodeError(resp *http.Response) error {
 	apiErr := &APIError{StatusCode: resp.StatusCode}
