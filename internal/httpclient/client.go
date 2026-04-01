@@ -119,7 +119,11 @@ func (c *Client) do(method, path string, body any, out any) error {
 
 	// Check server version once per client instance.
 	c.versionCheck.Do(func() {
-		if sv := resp.Header.Get("X-TaskFlow-Version"); sv != "" && sv != version.Version {
+		sv := resp.Header.Get("X-TaskFlow-Version")
+		switch {
+		case sv == "":
+			fmt.Fprintf(os.Stderr, "Warning: server at %s did not report a version (X-TaskFlow-Version header missing)\n", c.baseURL)
+		case sv != version.Version:
 			fmt.Fprintf(os.Stderr, "Warning: client version (%s) differs from server (%s)\n", version.Version, sv)
 		}
 	})
