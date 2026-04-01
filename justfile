@@ -4,16 +4,16 @@ default:
 
 # Run all tests (unit + integration + QA smoke)
 test *args:
-    go test -count=1 ./... {{args}}
+    go test -count=1 -race ./... {{args}}
     ./scripts/qa-test.sh
 
 # Run unit and integration tests only (no QA smoke)
 test-unit *args:
-    go test -count=1 ./... {{args}}
+    go test -count=1 -race ./... {{args}}
 
 # Run tests with verbose output
 test-v *args:
-    go test -v -count=1 ./... {{args}}
+    go test -v -count=1 -race ./... {{args}}
 
 # Build all binaries
 build:
@@ -77,4 +77,4 @@ tui-test:
 
 # Clean build artifacts
 clean:
-    rm -f taskflow taskflow-server *.db seed-admin-key.txt
+    rm -f taskflow taskflow-server taskflow-mcp *.db seed-admin-key.txt

@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,29 +16,16 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Check formatting
-        run: test -z "$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
+      - uses: extractions/setup-just@v2
 
-      - name: Vet
-        run: go vet ./...
-
-      - name: Unit and integration tests
-        run: go test -count=1 -race ./...
+      - name: Check (fmt + vet + test + QA smoke)
+        run: just check
 
       - name: Build all binaries
-        run: |
-          go build -o taskflow-server ./cmd/taskflow-server
-          go build -o taskflow ./cmd/taskflow
-          go build -o taskflow-mcp ./cmd/taskflow-mcp
-
-      - name: QA smoke test
-        run: |
-          # Install jq for the QA script.
-          sudo apt-get install -qy jq
-          ./scripts/qa-test.sh
+        run: just build
 
   docker:
-    needs: test
+    needs: check
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
