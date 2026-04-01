@@ -222,6 +222,10 @@ just clean          # remove build artifacts
 
 Set `TASKFLOW_DEV_MODE=true` to disable all rate limiting (useful for testing and development). See [TESTING.md](TESTING.md) for the full manual QA checklist.
 
+### Deployment note
+
+The server must be hosted at the root of a domain (e.g. `https://taskflow.example.com`). Hosting at a subpath (e.g. `/taskflow`) is not currently supported — the dashboard, OpenAPI spec, and SSE endpoints generate absolute paths without a configurable prefix.
+
 ### Testing with the simulator
 
 The activity simulator generates realistic board activity for testing SSE live updates:

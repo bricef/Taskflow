@@ -28,6 +28,10 @@ See also [TUI improvements plan](docs/plans/active/2026-03-31-tui-improvements.m
 - [ ] Due date visual indicator in TUI kanban (e.g. red highlight for past-due tasks)
 - [ ] Backup/restore: `taskflow admin backup` command (SQLite makes this easy but no tooling exists)
 
+## Deployment
+
+- [ ] Base path prefix support (`TASKFLOW_BASE_PATH`) — currently the server must be hosted at the root of a domain; hosting at a subpath (e.g. `/taskflow`) requires code changes to route registration, OpenAPI generation, and dashboard links
+
 ## Admin
 
 - [ ] Webhook management from TUI (admin users currently need CLI or API)
