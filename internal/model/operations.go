@@ -237,6 +237,7 @@ func Operations() []Operation {
 		Create("/actors", "Create an actor").Name("actor_create").Role(RoleAdmin).
 			Input(CreateActorParams{}).Output(Actor{}).Build(),
 		Update("/actors/{name}", "Update an actor").Name("actor_update").Role(RoleAdmin).
+			Desc("Update actor details. Set --active false to deactivate (revokes API key access, preserves audit history). Set --active true to reactivate.").
 			Input(UpdateActorParams{}).Output(Actor{}).Build(),
 
 		// Boards
