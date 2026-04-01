@@ -1,3 +1,5 @@
+<!-- GitHub topics: task-management kanban workflow state-machine mcp tui cli go ai-agents collaboration audit-trail -->
+
 # TaskFlow
 
 ![TaskFlow TUI](docs/images/tui-screenshot.png)
@@ -7,6 +9,19 @@
 TaskFlow is a task tracker where humans and AI agents work side by side. Tasks live on kanban boards with configurable workflow state machines. Every action — by any actor — is recorded in a full audit trail. Access it via CLI, interactive TUI, MCP for AI agents, or the HTTP API directly.
 
 
+
+## Install
+
+```bash
+# Install all binaries
+go install github.com/bricef/taskflow/cmd/taskflow-server@latest
+go install github.com/bricef/taskflow/cmd/taskflow@latest
+go install github.com/bricef/taskflow/cmd/taskflow-tui@latest
+go install github.com/bricef/taskflow/cmd/taskflow-mcp@latest
+
+# Or use Docker
+docker pull fractallambda/taskflow:latest
+```
 
 ## Getting Started
 
