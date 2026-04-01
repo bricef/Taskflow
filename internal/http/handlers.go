@@ -2,7 +2,10 @@ package http
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -18,6 +21,42 @@ func (s *Server) updateActor(ctx context.Context, r *http.Request) (any, error) 
 	}
 	p.Name = urlParamStr(r, "name")
 	return s.svc.UpdateActor(ctx, p)
+}
+
+// --- Actors ---
+
+func (s *Server) createActor(ctx context.Context, r *http.Request) (any, error) {
+	var p model.CreateActorParams
+	if err := decodeBody(r, &p); err != nil {
+		return nil, err
+	}
+
+	// Generate an API key for the new actor.
+	apiKey, err := generateAPIKey()
+	if err != nil {
+		return nil, fmt.Errorf("generating API key: %w", err)
+	}
+	p.APIKeyHash = HashAPIKey(apiKey)
+
+	actor, err := s.svc.CreateActor(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the actor with the plaintext API key (shown once).
+	type actorWithKey struct {
+		model.Actor
+		APIKey string `json:"api_key"`
+	}
+	return actorWithKey{Actor: actor, APIKey: apiKey}, nil
+}
+
+func generateAPIKey() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // --- Boards ---

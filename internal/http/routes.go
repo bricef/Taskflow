@@ -137,7 +137,7 @@ func (s *Server) resourceHandlers() map[string]handler {
 func (s *Server) operationHandlers() map[string]handler {
 	return map[string]handler{
 		// Actors
-		"actor_create": jsonBody(s.svc.CreateActor),
+		"actor_create": s.createActor,
 		"actor_update": s.updateActor,
 
 		// Boards
