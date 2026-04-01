@@ -56,11 +56,12 @@ run:
 
 # Build Docker image
 docker-build:
-    docker build -t taskflow .
+    docker build --build-arg VERSION={{VERSION}} -t taskflow .
 
 # Build Docker image with BuildKit cache (used in CI)
 docker-build-cached:
     docker buildx build --load \
+      --build-arg VERSION={{VERSION}} \
       --cache-from type=gha --cache-to type=gha,mode=max \
       -t taskflow .
 

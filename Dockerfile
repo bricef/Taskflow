@@ -1,14 +1,17 @@
 # Build stage
 FROM golang:1.25-alpine AS builder
 
+ARG VERSION=dev
+ENV LDFLAGS="-X github.com/bricef/taskflow/internal/version.Version=${VERSION}"
+
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-RUN CGO_ENABLED=0 go build -o /taskflow-server ./cmd/taskflow-server
-RUN CGO_ENABLED=0 go build -o /taskflow ./cmd/taskflow
-RUN CGO_ENABLED=0 go build -o /taskflow-mcp ./cmd/taskflow-mcp
+RUN CGO_ENABLED=0 go build -ldflags "$LDFLAGS" -o /taskflow-server ./cmd/taskflow-server
+RUN CGO_ENABLED=0 go build -ldflags "$LDFLAGS" -o /taskflow ./cmd/taskflow
+RUN CGO_ENABLED=0 go build -ldflags "$LDFLAGS" -o /taskflow-mcp ./cmd/taskflow-mcp
 
 # Runtime stage
 FROM alpine:3.21
