@@ -61,6 +61,33 @@ func (m *eventLogModel) moveDown() {
 	}
 }
 
+func (m *eventLogModel) pageUp(n int) {
+	m.cursor -= n
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+}
+
+func (m *eventLogModel) pageDown(n int) {
+	m.cursor += n
+	if max := len(m.entries) - 1; m.cursor > max {
+		m.cursor = max
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+}
+
+func (m *eventLogModel) gotoTop() {
+	m.cursor = 0
+}
+
+func (m *eventLogModel) gotoBottom() {
+	if len(m.entries) > 0 {
+		m.cursor = len(m.entries) - 1
+	}
+}
+
 func (m *eventLogModel) seedFromAudit(entries []model.AuditEntry) {
 	if len(entries) == 0 {
 		return

@@ -56,6 +56,7 @@ type kanbanKeys struct {
 	Enter      key.Binding
 	Transition key.Binding
 	Assign     key.Binding
+	Take       key.Binding
 	ToggleD    key.Binding
 	Tab        key.Binding
 	Esc        key.Binding
@@ -63,13 +64,13 @@ type kanbanKeys struct {
 }
 
 func (k kanbanKeys) ShortHelp() []key.Binding {
-	return []key.Binding{keyHelp, k.Left, k.Up, k.Enter, k.Transition, k.Assign, k.ToggleD, k.Tab, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Left, k.Up, k.Enter, k.Transition, k.Assign, k.Take, k.ToggleD, k.Tab, k.Esc, k.Quit}
 }
 
 func (k kanbanKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Left, k.Right, k.Up, k.Down},
-		{k.Enter, k.Transition, k.Assign},
+		{k.Enter, k.Transition, k.Assign, k.Take},
 		{k.ToggleD, k.Tab},
 		{k.Esc, k.Quit},
 	}
@@ -83,6 +84,7 @@ var kanbanKeyMap = kanbanKeys{
 	Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
 	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
 	Assign:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign")),
+	Take:       key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "take")),
 	ToggleD:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle done")),
 	Tab:        keyTab,
 	Esc:        keyEsc,
@@ -98,6 +100,7 @@ type listKeys struct {
 	SortDir    key.Binding
 	Transition key.Binding
 	Assign     key.Binding
+	Take       key.Binding
 	ToggleD    key.Binding
 	Tab        key.Binding
 	Esc        key.Binding
@@ -105,13 +108,13 @@ type listKeys struct {
 }
 
 func (k listKeys) ShortHelp() []key.Binding {
-	return []key.Binding{keyHelp, k.Up, k.Enter, k.Sort, k.Transition, k.Assign, k.Tab, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Enter, k.Sort, k.Transition, k.Assign, k.Take, k.Tab, k.Quit}
 }
 
 func (k listKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down},
-		{k.Enter, k.Transition, k.Assign},
+		{k.Enter, k.Transition, k.Assign, k.Take},
 		{k.Sort, k.SortDir, k.ToggleD},
 		{k.Tab, k.Esc, k.Quit},
 	}
@@ -125,6 +128,7 @@ var listKeyMap = listKeys{
 	SortDir:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "reverse sort")),
 	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
 	Assign:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign")),
+	Take:       key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "take")),
 	ToggleD:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle done")),
 	Tab:        keyTab,
 	Esc:        keyEsc,
@@ -135,18 +139,22 @@ var listKeyMap = listKeys{
 type workflowKeys struct {
 	Up   key.Binding
 	Down key.Binding
+	PgUp key.Binding
+	PgDn key.Binding
+	Home key.Binding
+	End  key.Binding
 	Tab  key.Binding
 	Esc  key.Binding
 	Quit key.Binding
 }
 
 func (k workflowKeys) ShortHelp() []key.Binding {
-	return []key.Binding{keyHelp, k.Up, k.Down, k.Tab, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Down, k.PgUp, k.PgDn, k.Tab, k.Esc, k.Quit}
 }
 
 func (k workflowKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down},
+		{k.Up, k.Down, k.PgUp, k.PgDn, k.Home, k.End},
 		{k.Tab, k.Esc, k.Quit},
 	}
 }
@@ -154,6 +162,10 @@ func (k workflowKeys) FullHelp() [][]key.Binding {
 var workflowKeyMap = workflowKeys{
 	Up:   key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
 	Down: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
+	PgUp: key.NewBinding(key.WithKeys("pgup", "ctrl+u"), key.WithHelp("PgUp", "page up")),
+	PgDn: key.NewBinding(key.WithKeys("pgdown", "ctrl+d"), key.WithHelp("PgDn", "page down")),
+	Home: key.NewBinding(key.WithKeys("home"), key.WithHelp("Home", "top")),
+	End:  key.NewBinding(key.WithKeys("end"), key.WithHelp("End", "bottom")),
 	Tab:  keyTab,
 	Esc:  keyEsc,
 	Quit: keyQuit,
@@ -163,6 +175,10 @@ var workflowKeyMap = workflowKeys{
 type eventLogKeys struct {
 	Up    key.Binding
 	Down  key.Binding
+	PgUp  key.Binding
+	PgDn  key.Binding
+	Home  key.Binding
+	End   key.Binding
 	Enter key.Binding
 	Tab   key.Binding
 	Esc   key.Binding
@@ -170,12 +186,12 @@ type eventLogKeys struct {
 }
 
 func (k eventLogKeys) ShortHelp() []key.Binding {
-	return []key.Binding{keyHelp, k.Up, k.Down, k.Enter, k.Tab, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Down, k.PgUp, k.PgDn, k.Enter, k.Tab, k.Esc, k.Quit}
 }
 
 func (k eventLogKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down},
+		{k.Up, k.Down, k.PgUp, k.PgDn, k.Home, k.End},
 		{k.Enter, k.Tab},
 		{k.Esc, k.Quit},
 	}
@@ -184,6 +200,10 @@ func (k eventLogKeys) FullHelp() [][]key.Binding {
 var eventLogKeyMap = eventLogKeys{
 	Up:    key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
 	Down:  key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
+	PgUp:  key.NewBinding(key.WithKeys("pgup", "ctrl+u"), key.WithHelp("PgUp", "page up")),
+	PgDn:  key.NewBinding(key.WithKeys("pgdown", "ctrl+d"), key.WithHelp("PgDn", "page down")),
+	Home:  key.NewBinding(key.WithKeys("home"), key.WithHelp("Home", "top")),
+	End:   key.NewBinding(key.WithKeys("end"), key.WithHelp("End", "bottom")),
 	Enter: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
 	Tab:   keyTab,
 	Esc:   keyEsc,
@@ -194,21 +214,26 @@ var eventLogKeyMap = eventLogKeys{
 type detailKeys struct {
 	Up         key.Binding
 	Down       key.Binding
+	PgUp       key.Binding
+	PgDn       key.Binding
+	Home       key.Binding
+	End        key.Binding
 	Comment    key.Binding
 	Transition key.Binding
 	Assign     key.Binding
+	Take       key.Binding
 	Esc        key.Binding
 	Quit       key.Binding
 }
 
 func (k detailKeys) ShortHelp() []key.Binding {
-	return []key.Binding{keyHelp, k.Up, k.Down, k.Comment, k.Transition, k.Assign, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Down, k.PgUp, k.PgDn, k.Comment, k.Transition, k.Assign, k.Take, k.Esc, k.Quit}
 }
 
 func (k detailKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down},
-		{k.Comment, k.Transition, k.Assign},
+		{k.Up, k.Down, k.PgUp, k.PgDn, k.Home, k.End},
+		{k.Comment, k.Transition, k.Assign, k.Take},
 		{k.Esc, k.Quit},
 	}
 }
@@ -216,9 +241,14 @@ func (k detailKeys) FullHelp() [][]key.Binding {
 var detailKeyMap = detailKeys{
 	Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
 	Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
+	PgUp:       key.NewBinding(key.WithKeys("pgup", "ctrl+u"), key.WithHelp("PgUp", "page up")),
+	PgDn:       key.NewBinding(key.WithKeys("pgdown", "ctrl+d"), key.WithHelp("PgDn", "page down")),
+	Home:       key.NewBinding(key.WithKeys("home"), key.WithHelp("Home", "top")),
+	End:        key.NewBinding(key.WithKeys("end"), key.WithHelp("End", "bottom")),
 	Comment:    key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
 	Assign:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign")),
+	Take:       key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "take")),
 	Esc:        key.NewBinding(key.WithKeys("esc", "backspace"), key.WithHelp("esc/⌫", "close")),
 	Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }

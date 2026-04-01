@@ -64,8 +64,11 @@ type Model struct {
 	eventsCancel func()                    // cancels the event stream
 	boardEvents  map[string]*eventLogModel // per-board event buffers
 
+	// Current authenticated user (fetched via WhoAmI on startup)
+	currentUser *model.Actor
+
 	// Board view (active after selecting a board)
-	activeBoard  *model.Board
+	activeBoard *model.Board
 	activeTab    boardTab
 	kanban       kanbanModel
 	listView     listViewModel
@@ -120,16 +123,27 @@ func (m Model) Init() tea.Cmd {
 		m.eventsCancel = startLiveEvents(*m.cfg.Program, m.client)
 	}
 
+	whoAmI := func() tea.Msg {
+		actor, err := m.client.WhoAmI()
+		return whoAmILoaded{actor: actor, err: err}
+	}
+
 	if m.cfg.BoardSlug != "" {
-		return func() tea.Msg {
+		return tea.Batch(whoAmI, func() tea.Msg {
 			board, err := httpclient.GetOne[model.Board](m.client, model.ResBoardGet, httpclient.PathParams{"slug": m.cfg.BoardSlug}, nil)
 			if err != nil {
 				return boardsLoaded{err: err}
 			}
 			return boardSelected{board: board}
-		}
+		})
 	}
-	return fetchBoards(m.client, m.selector.showArchived)
+	return tea.Batch(whoAmI, fetchBoards(m.client, m.selector.showArchived))
+}
+
+// whoAmILoaded is sent when the current user identity is fetched.
+type whoAmILoaded struct {
+	actor model.Actor
+	err   error
 }
 
 // boardSelected is sent when a board is chosen.
@@ -158,9 +172,21 @@ func (m *Model) openAssignFromContext() tea.Cmd {
 	if task == nil {
 		return nil
 	}
-	am, cmd := newAssign(m.client, m.activeBoard.Slug, *task)
+	am, cmd := newAssign(m.client, m.activeBoard.Slug, *task, m.currentUser)
 	m.assign = am
 	return cmd
+}
+
+func (m *Model) takeTask() tea.Cmd {
+	if m.activeBoard == nil || m.currentUser == nil {
+		return nil
+	}
+	task := m.selectedTaskFromContext()
+	if task == nil {
+		return nil
+	}
+	name := m.currentUser.Name
+	return executeAssign(m.client, m.activeBoard.Slug, task.Num, &name)
 }
 
 func (m *Model) openTransitionFromContext() tea.Cmd {
@@ -354,6 +380,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// When assign or transition overlays are open, delegate all keys
+		// to the overlay (except ctrl+c) so the search filter works.
+		if m.assign != nil {
+			if msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
+			closed, cmd := m.assign.update(msg, m.client)
+			if closed {
+				m.assign = nil
+			}
+			return m, cmd
+		}
+		if m.transition != nil {
+			if msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
+			closed, cmd := m.transition.update(msg, m.client)
+			if closed {
+				m.transition = nil
+			}
+			return m, cmd
+		}
+
 		switch msg.String() {
 		case "?":
 			m.help.ShowAll = !m.help.ShowAll
@@ -362,14 +411,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "esc", "backspace":
-			if m.assign != nil {
-				m.assign = nil
-				return m, nil
-			}
-			if m.transition != nil {
-				m.transition = nil
-				return m, nil
-			}
 			if m.detail != nil {
 				m.detail = nil
 				return m, nil
@@ -393,6 +434,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == viewBoard && m.transition == nil && m.assign == nil {
 				return m, m.openTransitionFromContext()
 			}
+		case "T":
+			if m.view == viewBoard && m.assign == nil && m.transition == nil {
+				return m, m.takeTask()
+			}
 		case "a":
 			if m.view == viewBoard && m.assign == nil && m.transition == nil {
 				return m, m.openAssignFromContext()
@@ -408,29 +453,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// When an overlay is open, delegate to it.
-		if m.assign != nil {
-			closed, cmd := m.assign.update(msg, m.client)
-			if closed {
-				m.assign = nil
-			}
-			return m, cmd
-		}
-		if m.transition != nil {
-			closed, cmd := m.transition.update(msg, m.client)
-			if closed {
-				m.transition = nil
-			}
-			return m, cmd
-		}
 		if m.detail != nil {
+			m.detail.ensureViewport(m.viewport.Width, m.viewport.Height)
 			switch msg.String() {
 			case "down", "j":
-				m.detail.ensureViewport(m.viewport.Width, m.viewport.Height)
 				m.detail.scrollDown()
 			case "up", "k":
-				m.detail.ensureViewport(m.viewport.Width, m.viewport.Height)
 				m.detail.scrollUp()
+			case "pgdown", "ctrl+d":
+				m.detail.halfPageDown()
+			case "pgup", "ctrl+u":
+				m.detail.halfPageUp()
+			case "home":
+				m.detail.gotoTop()
+			case "end":
+				m.detail.gotoBottom()
 			}
 			return m, nil
 		}
@@ -441,6 +478,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.help.Width = msg.Width
 		m.resizeViewport()
 		m.viewport.GotoTop()
+		return m, nil
+
+	case whoAmILoaded:
+		if msg.err == nil {
+			m.currentUser = &msg.actor
+		}
 		return m, nil
 
 	case boardSelected:
@@ -468,6 +511,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.assign = nil
 			}
 			return m, cmd
+		}
+		// "Take" action result (no overlay open).
+		if result, ok := msg.(assignResult); ok && result.err != nil {
+			m.lastError = result.err.Error()
 		}
 		return m, nil
 
@@ -565,6 +612,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				el.moveUp()
 			case "down", "j":
 				el.moveDown()
+			case "pgdown", "ctrl+d":
+				el.pageDown(m.viewport.Height / 2)
+			case "pgup", "ctrl+u":
+				el.pageUp(m.viewport.Height / 2)
+			case "home":
+				el.gotoTop()
+			case "end":
+				el.gotoBottom()
 			}
 		}
 	}

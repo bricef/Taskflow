@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -28,6 +29,7 @@ type transitionModel struct {
 	currentState string
 	transitions  []workflow.Transition
 	cursor       int
+	filter       textinput.Model
 	err          string
 }
 
@@ -36,11 +38,18 @@ type transitionResult struct {
 }
 
 func newTransition(client *httpclient.Client, boardSlug string, task model.Task) (*transitionModel, tea.Cmd) {
+	ti := textinput.New()
+	ti.Placeholder = "type to filter..."
+	ti.CharLimit = 50
+	ti.Width = 30
+	ti.Focus()
+
 	m := &transitionModel{
 		boardSlug:    boardSlug,
 		taskNum:      task.Num,
 		taskTitle:    task.Title,
 		currentState: task.State,
+		filter:       ti,
 	}
 
 	// Fetch available transitions.
@@ -58,6 +67,20 @@ type transitionsLoaded struct {
 	err         error
 }
 
+func (m *transitionModel) filteredTransitions() []workflow.Transition {
+	query := strings.ToLower(m.filter.Value())
+	if query == "" {
+		return m.transitions
+	}
+	var result []workflow.Transition
+	for _, t := range m.transitions {
+		if strings.Contains(strings.ToLower(t.Name), query) || strings.Contains(strings.ToLower(t.To), query) {
+			result = append(result, t)
+		}
+	}
+	return result
+}
+
 func (m *transitionModel) update(msg tea.Msg, client *httpclient.Client) (bool, tea.Cmd) {
 	switch msg := msg.(type) {
 	case transitionsLoaded:
@@ -72,22 +95,41 @@ func (m *transitionModel) update(msg tea.Msg, client *httpclient.Client) (bool, 
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "esc", "backspace":
+		case "esc":
+			if m.filter.Value() != "" {
+				m.filter.SetValue("")
+				m.cursor = 0
+				return false, nil
+			}
 			return true, nil // close
-		case "up", "k":
+		case "up":
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "j":
-			if m.cursor < len(m.transitions)-1 {
+			return false, nil
+		case "down":
+			filtered := m.filteredTransitions()
+			if m.cursor < len(filtered)-1 {
 				m.cursor++
 			}
+			return false, nil
 		case "enter":
-			if m.cursor < len(m.transitions) {
-				tr := m.transitions[m.cursor]
+			filtered := m.filteredTransitions()
+			if m.cursor < len(filtered) {
+				tr := filtered[m.cursor]
 				return false, executeTransition(client, m.boardSlug, m.taskNum, tr.Name)
 			}
+			return false, nil
 		}
+
+		// Pass remaining keys to the text input for filtering.
+		prevValue := m.filter.Value()
+		var cmd tea.Cmd
+		m.filter, cmd = m.filter.Update(msg)
+		if m.filter.Value() != prevValue {
+			m.cursor = 0
+		}
+		return false, cmd
 
 	case transitionResult:
 		if msg.err != nil {
@@ -115,7 +157,12 @@ func (m transitionModel) view(width int) string {
 		b.WriteString(dimStyle.Render("Loading...") + "\n")
 	}
 
-	for i, tr := range m.transitions {
+	if len(m.transitions) > 0 {
+		b.WriteString(m.filter.View() + "\n\n")
+	}
+
+	filtered := m.filteredTransitions()
+	for i, tr := range filtered {
 		cursor := "  "
 		style := dimStyle
 		if i == m.cursor {

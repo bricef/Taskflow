@@ -1,7 +1,7 @@
 # TUI Improvements
 
 **Date:** 2026-03-31
-**Status:** Planned (not started)
+**Status:** Done
 **Prerequisite:** None
 
 ## 1. Page-down scrolling in events, workflow, and list views

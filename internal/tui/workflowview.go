@@ -57,6 +57,14 @@ func (m *workflowViewModel) update(msg tea.KeyMsg, width, height int) {
 		m.vp.ScrollDown(1)
 	case "up", "k":
 		m.vp.ScrollUp(1)
+	case "pgdown", "ctrl+d":
+		m.vp.HalfPageDown()
+	case "pgup", "ctrl+u":
+		m.vp.HalfPageUp()
+	case "home":
+		m.vp.GotoTop()
+	case "end":
+		m.vp.GotoBottom()
 	}
 }
 

@@ -150,6 +150,26 @@ func (m *detailModel) scrollDown() {
 	m.vp.ScrollDown(1)
 }
 
+func (m *detailModel) halfPageUp() {
+	m.ensureViewport(0, 0)
+	m.vp.HalfPageUp()
+}
+
+func (m *detailModel) halfPageDown() {
+	m.ensureViewport(0, 0)
+	m.vp.HalfPageDown()
+}
+
+func (m *detailModel) gotoTop() {
+	m.ensureViewport(0, 0)
+	m.vp.GotoTop()
+}
+
+func (m *detailModel) gotoBottom() {
+	m.ensureViewport(0, 0)
+	m.vp.GotoBottom()
+}
+
 func (m *detailModel) ensureViewport(width, height int) {
 	if width > 0 && height > 0 {
 		m.vp.Width = width
