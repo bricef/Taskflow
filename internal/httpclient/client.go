@@ -13,6 +13,7 @@ import (
 
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/transport"
+	"github.com/bricef/taskflow/internal/version"
 )
 
 // PathParams maps path parameter names to values for URL substitution.
@@ -41,6 +42,20 @@ func (c *Client) WithContext(ctx context.Context) *Client {
 	c2 := *c
 	c2.ctx = ctx
 	return &c2
+}
+
+// Version returns the client's build version.
+func (c *Client) Version() string { return version.Version }
+
+// ServerVersion fetches the server's version from the /health endpoint.
+func (c *Client) ServerVersion() (string, error) {
+	var health struct {
+		Version string `json:"version"`
+	}
+	if err := c.do("GET", "/health", nil, &health); err != nil {
+		return "", err
+	}
+	return health.Version, nil
 }
 
 // WhoAmI returns the authenticated actor for this client's API key.

@@ -13,6 +13,7 @@ import (
 	"github.com/bricef/taskflow/internal/http/dashboard"
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/transport"
+	"github.com/bricef/taskflow/internal/version"
 )
 
 //go:embed landing.html
@@ -184,6 +185,14 @@ func (s *Server) operationHandlers() map[string]handler {
 func (s *Server) registerRoutes() {
 	r := s.router
 
+	// Version header on all responses.
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-TaskFlow-Version", version.Version)
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	// Rate limit public endpoints by IP (disabled in dev mode).
 	if !s.cfg.DevMode {
 		r.Use(httprate.Limit(30, time.Minute, httprate.WithKeyFuncs(httprate.KeyByRealIP)))
@@ -211,7 +220,10 @@ func (s *Server) registerRoutes() {
 	// Public endpoints — no auth required.
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":  "ok",
+			"version": version.Version,
+		})
 	})
 	r.Get("/openapi.json", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

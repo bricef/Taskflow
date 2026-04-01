@@ -14,6 +14,7 @@ import (
 
 	"github.com/bricef/taskflow/internal/httpclient"
 	"github.com/bricef/taskflow/internal/model"
+	"github.com/bricef/taskflow/internal/version"
 )
 
 // NewServer creates an MCP server with all TaskFlow resources and tools registered.
@@ -21,7 +22,7 @@ import (
 func NewServer(client *httpclient.Client, notifier *Notifier) *gomcp.Server {
 	server := gomcp.NewServer(&gomcp.Implementation{
 		Name:    "taskflow",
-		Version: "1.0.0",
+		Version: version.Version,
 	}, nil)
 
 	registerResources(server, client)

@@ -18,11 +18,15 @@ test-unit *args:
 test-v *args:
     go test -v -count=1 -race ./... {{args}}
 
+# Version from git (tag or short sha)
+VERSION := `git describe --tags --always --dirty 2>/dev/null || echo dev`
+LDFLAGS := "-X github.com/bricef/taskflow/internal/version.Version=" + VERSION
+
 # Build all binaries
 build:
-    go build -o taskflow-server ./cmd/taskflow-server
-    go build -o taskflow ./cmd/taskflow
-    go build -o taskflow-mcp ./cmd/taskflow-mcp
+    go build -ldflags '{{LDFLAGS}}' -o taskflow-server ./cmd/taskflow-server
+    go build -ldflags '{{LDFLAGS}}' -o taskflow ./cmd/taskflow
+    go build -ldflags '{{LDFLAGS}}' -o taskflow-mcp ./cmd/taskflow-mcp
 
 # Format all Go files
 fmt:
