@@ -2,6 +2,14 @@
 
 All notable changes to TaskFlow are documented here. Generated automatically on each release.
 
+## v1.0.6 — 2026-04-01
+
+- Add task edit form with dependency and attachment management
+- Add My Tasks view, shared task table, and TUI polish
+- Move TUI improvements plan to done
+- Add TUI improvements: page scrolling, searchable selectors, @me, take
+
+
 ## v1.0.5 — 2026-04-01
 
 - Exclude changelog commits from release notes
