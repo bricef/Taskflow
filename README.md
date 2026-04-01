@@ -1,10 +1,12 @@
 # TaskFlow
 
+![TaskFlow TUI](docs/images/tui-screenshot.png)
+
 **Kanban boards with workflow state machines, built for human + AI collaboration.**
 
 TaskFlow is a task tracker where humans and AI agents work side by side. Tasks live on kanban boards with configurable workflow state machines. Every action — by any actor — is recorded in a full audit trail. Access it via CLI, interactive TUI, MCP for AI agents, or the HTTP API directly.
 
-![TaskFlow TUI](docs/images/tui-screenshot.png)
+
 
 ## Getting Started
 
@@ -140,6 +142,8 @@ Every actor (human or AI) has a role that determines what they can do:
 Requests that exceed the actor's role receive a `403 Forbidden` response. Each Resource and Operation in the model declares its minimum required role.
 
 ## Workflows
+
+![TaskFlow TUI](docs/images/tui-workflow.png)
 
 Each board has a workflow — a state machine that defines how tasks move through stages. Workflows are specified as JSON when creating a board. If omitted, a default workflow is used.
 
