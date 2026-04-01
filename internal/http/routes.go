@@ -18,6 +18,9 @@ import (
 //go:embed landing.html
 var landingPage []byte
 
+//go:embed apidocs.html
+var apiDocsPage []byte
+
 // Route is the HTTP-layer representation of a domain resource or operation.
 type Route struct {
 	Name    string
@@ -212,6 +215,10 @@ func (s *Server) registerRoutes() {
 	r.Get("/openapi.json", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(s.openAPISpec)
+	})
+	r.Get("/docs", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(apiDocsPage)
 	})
 
 	// Authenticated routes — derived from resources and operations.
