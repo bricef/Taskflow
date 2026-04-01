@@ -10,12 +10,8 @@ Outstanding tasks and known issues. See [docs/plans/active/](docs/plans/active/)
 ## TUI
 
 - [ ] Filter bar: filter tasks by assignee, priority, tags, state — applies to both kanban and list views
-- [x] "My tasks" mode in TUI: cross-board view of tasks assigned to current user, with live updates
 - [ ] Board overview in TUI board selector: show task counts by state when selecting a board
-- [ ] Dependency tree visualisation in task detail view
 - [ ] Mouse support (using [bubblezone](https://github.com/lrstanley/bubblezone))
-
-Page scrolling, searchable selectors, @me shortcut, and take action are done — see [TUI improvements plan](docs/plans/done/2026-03-31-tui-improvements.md).
 
 ## MCP
 
@@ -38,6 +34,20 @@ Page scrolling, searchable selectors, @me shortcut, and take action are done —
 
 ## Done
 
+- [x] Task edit form: full edit overlay (title, description, priority, assignee, tags, due date) with dependency and attachment management
+- [x] Dependency tree visualisation in task detail view with parent/child/related indentation
+- [x] "My tasks" mode in TUI: cross-board view of tasks assigned to current user, with live updates
+- [x] Shared task table component with styled cells (coloured priorities, @me assignee)
+- [x] Comment prompt on transition/assign with auto-generated summary line
+- [x] Richer audit detail rendering showing field-level changes in task detail view
+- [x] Board selector split into "Quick Access" and "Boards" sections
+- [x] Consistent keyboard conventions across all text inputs (enter submit, ctrl+j newline, esc cancel)
+- [x] Page scrolling (PgUp/PgDn/Ctrl-U/Ctrl-D/Home/End) in workflow, event log, and detail views
+- [x] Searchable selectors for transition and assignment overlays
+- [x] @me shortcut in assignment overlay and styled @me display across kanban, list, and detail views
+- [x] "Take" action (T) for instant self-assignment from kanban/list/detail
+- [x] Terminal-state tasks hidden by default in board list and My Tasks views (d toggles)
+- [x] Default sort by priority in list views
 - [x] MCP server with auto-derived tools, resources, notifications, whoami, task_ref
 - [x] TUI global event stream with per-board ring buffers
 - [x] Structured error responses with available transitions on failure
