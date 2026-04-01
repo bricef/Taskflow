@@ -79,9 +79,15 @@ func seedAdmin(svc taskflow.TaskFlow) error {
 		return nil // actors already exist, skip seeding
 	}
 
-	apiKey, err := generateAPIKey()
-	if err != nil {
-		return fmt.Errorf("generating API key: %w", err)
+	// Allow setting the seed admin key via environment variable.
+	// If not set, generate a random one.
+	apiKey := os.Getenv("TASKFLOW_SEED_ADMIN_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = generateAPIKey()
+		if err != nil {
+			return fmt.Errorf("generating API key: %w", err)
+		}
 	}
 
 	displayName := envOr("TASKFLOW_SEED_ADMIN_DISPLAY_NAME", name)

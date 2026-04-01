@@ -2,27 +2,72 @@
 
 TaskFlow is a task tracker designed for fluid collaboration between humans and AI agents. It provides a durable server as the single source of truth, with tasks organized on kanban boards that have explicitly configured workflow state machines. Any actor — human or AI — can create, advance, review, and manage tasks, with a full audit trail recording every action with actor attribution and timestamps.
 
-## Quick Start
+## Getting Started
+
+### 1. Start the server
 
 ```bash
-# Option 1: Docker Compose (recommended)
+# Option A: Docker Compose
 just docker-up
-docker compose exec taskflow cat /data/seed-admin-key.txt
 
-# Option 2: Run locally
+# Option B: Run locally
 just build
 just run
-cat seed-admin-key.txt
+```
 
-# Use the CLI
+On first start, the server creates a seed admin actor and writes the API key to `seed-admin-key.txt`. The admin name defaults to the value of `TASKFLOW_SEED_ADMIN_NAME` (set to `admin` in docker-compose.yml).
+
+```bash
+# Get the seed admin key
+cat seed-admin-key.txt                              # local
+docker compose exec taskflow cat /data/seed-admin-key.txt  # Docker
+```
+
+To set a specific key instead of a random one (useful for CI/automation):
+
+```bash
+TASKFLOW_SEED_ADMIN_NAME=admin TASKFLOW_SEED_ADMIN_KEY=my-known-key ./taskflow-server
+```
+
+### 2. Configure the CLI
+
+```bash
 export TASKFLOW_API_KEY=$(cat seed-admin-key.txt)
+# Or add to config file:
+# echo "api_key: $(cat seed-admin-key.txt)" >> ~/.config/taskflow/config.yaml
+```
+
+### 3. Create a board and tasks
+
+```bash
 taskflow board create --slug my-board --name "My Board"
 taskflow task create my-board --title "Fix auth bug" --priority high
 taskflow task list my-board
 taskflow task transition my-board 1 --transition start --comment "On it"
+```
 
-# Or use the TUI
-taskflow-tui
+### 4. Add more actors
+
+Create actors for team members and AI agents. Each gets their own API key for identity and audit attribution.
+
+```bash
+# Create a human member
+taskflow actor create --name alice --display_name "Alice Chen" --type human --role member
+
+# Create an AI agent
+taskflow actor create --name claude --display_name "Claude" --type ai_agent --role member
+```
+
+The API key is returned in the response (shown once). Share it with the actor for CLI, TUI, or MCP configuration.
+
+### 5. Use other interfaces
+
+```bash
+# TUI — interactive terminal UI
+TASKFLOW_API_KEY=<key> taskflow-tui
+
+# MCP — AI agent integration (see docs/mcp.md)
+TASKFLOW_API_KEY=<agent-key> taskflow-mcp
 ```
 
 ## Documentation

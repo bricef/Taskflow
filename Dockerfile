@@ -8,6 +8,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 go build -o /taskflow-server ./cmd/taskflow-server
 RUN CGO_ENABLED=0 go build -o /taskflow ./cmd/taskflow
+RUN CGO_ENABLED=0 go build -o /taskflow-mcp ./cmd/taskflow-mcp
 
 # Runtime stage
 FROM alpine:3.21
@@ -16,6 +17,7 @@ RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /taskflow-server /usr/local/bin/taskflow-server
 COPY --from=builder /taskflow /usr/local/bin/taskflow
+COPY --from=builder /taskflow-mcp /usr/local/bin/taskflow-mcp
 
 RUN mkdir -p /data
 WORKDIR /data

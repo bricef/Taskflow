@@ -1,6 +1,6 @@
 # TaskFlow CLI
 
-The `taskflow` CLI is a thin HTTP client that calls the TaskFlow server. Commands are derived automatically from the domain operation definitions — adding a new server operation makes it available in the CLI with no additional code.
+The `taskflow` CLI is a thin HTTP client that calls the TaskFlow server. Commands are derived automatically from the domain model — every Resource and Operation in the model becomes a CLI command.
 
 ## Configuration
 
@@ -38,34 +38,46 @@ taskflow actor get      <name>
 taskflow actor update   <name> [--display_name <name>] [--role <role>] [--active <bool>]
 ```
 
+### admin
+
+```
+taskflow admin stats                                    # system-wide statistics (admin only)
+```
+
 ### board
 
 ```
-taskflow board create   --slug <slug> --name <name> --workflow <json>
+taskflow board create   --slug <slug> --name <name> [--workflow <json>]
 taskflow board list     [--include_deleted]
 taskflow board get      <slug>
 taskflow board update   <slug> [--name <name>] [--description <desc>]
-taskflow board delete   <slug>
+taskflow board delete   <slug>                          # soft-delete (admin only)
 taskflow board reassign <slug> --target_board <slug> [--states <state1,state2>]
+taskflow board detail   <slug>                          # full board dump
+taskflow board overview <slug>                          # task counts by state
+taskflow board audit    <slug>                          # board audit log
 ```
 
 ### task
 
 ```
-taskflow task create     <slug> --title <title> [--description <desc>] [--priority <priority>] [--tags <t1,t2>]
+taskflow task create     <slug> --title <title> [--description <desc>] [--priority <priority>] [--tags <t1,t2>] [--assignee <name>]
 taskflow task list       <slug> [--state <state>] [--assignee <name>] [--priority <p>] [--tag <tag>] [--q <search>]
                                 [--sort <field>] [--order <asc|desc>] [--include_closed] [--include_deleted]
 taskflow task get        <slug> <num>
-taskflow task update     <slug> <num> [--title <title>] [--description <desc>] [--priority <p>] [--tags <t1,t2>]
+taskflow task detail     <slug> <num>                   # task with comments, deps, attachments, audit
+taskflow task update     <slug> <num> [--title <title>] [--description <desc>] [--priority <p>] [--tags <t1,t2>] [--assignee <name>]
 taskflow task transition <slug> <num> --transition <name> [--comment <text>]
 taskflow task delete     <slug> <num>
+taskflow task search     [--q <query>] [--state <state>] [--assignee <name>] [--priority <p>] [--include_closed]
+taskflow task audit      <slug> <num>                   # task audit log
 ```
 
 ### workflow
 
 ```
 taskflow workflow get    <slug>
-taskflow workflow set    <slug>          (reads workflow JSON from stdin or --workflow flag)
+taskflow workflow set    <slug>                          # reads workflow JSON from --workflow flag
 taskflow workflow health <slug>
 ```
 
@@ -103,34 +115,22 @@ taskflow webhook update  <id> [--url <url>] [--events <e1,e2>] [--active <bool>]
 taskflow webhook delete  <id>
 ```
 
-### audit
+### delivery
 
 ```
-taskflow audit list <slug> <num>       # task audit log
-taskflow audit list <slug>             # board audit log
+taskflow delivery list   <id>                           # webhook delivery attempts
 ```
 
-### Convenience commands
+### tag
 
 ```
-taskflow board detail <slug>                         # complete board dump (tasks, comments, deps, audit)
-taskflow admin stats                                 # system-wide statistics
-taskflow search --q <query> [--state] [--assignee] [--priority]  # cross-board search
+taskflow tag list        <slug>                         # tags in use on a board
 ```
 
-## Input Validation
+## Special Values
 
-The CLI validates required flags before making HTTP requests. Missing required flags show an error with usage:
-
-```
-$ taskflow webhook create
-Usage:
-  taskflow webhook create [flags]
-...
-missing required flag(s): --url, --events, --secret
-```
-
-Optional fields (like `--description`, `--tags`) are not required.
+- **`@me`** — use as `--assignee @me` to assign tasks to yourself or filter by your own tasks
+- **Priority values** — `critical`, `high`, `medium`, `low`, or omit for none
 
 ## Output Formats
 
