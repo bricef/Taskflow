@@ -35,10 +35,28 @@ TASKFLOW_SEED_ADMIN_NAME=admin TASKFLOW_SEED_ADMIN_KEY=my-known-key ./taskflow-s
 
 ### 2. Configure the CLI
 
+Set the API key for the CLI (and TUI). All three methods work — use whichever fits your setup:
+
 ```bash
+# Option A: environment variables (good for quick use)
 export TASKFLOW_API_KEY=$(cat seed-admin-key.txt)
-# Or add to config file:
-# echo "api_key: $(cat seed-admin-key.txt)" >> ~/.config/taskflow/config.yaml
+export TASKFLOW_URL=http://localhost:8374    # default, only needed if server is elsewhere
+
+# Option B: config file (persistent)
+mkdir -p ~/.config/taskflow
+cat > ~/.config/taskflow/config.yaml <<EOF
+url: http://localhost:8374
+api_key: $(cat seed-admin-key.txt)
+EOF
+
+# Option C: flags (one-off commands)
+taskflow --url http://localhost:8374 --api-key <key> board list
+```
+
+For Docker Compose, the server is on `localhost:8374` by default. Get the key with:
+
+```bash
+export TASKFLOW_API_KEY=$(docker compose exec -T taskflow cat /data/seed-admin-key.txt)
 ```
 
 ### 3. Create a board and tasks
@@ -62,16 +80,19 @@ taskflow actor create --name alice --display_name "Alice Chen" --type human --ro
 taskflow actor create --name claude --display_name "Claude" --type ai_agent --role member
 ```
 
-The API key is returned in the response (shown once). Share it with the actor for CLI, TUI, or MCP configuration.
+The API key is returned in the response (shown once). Share it with the actor for their CLI, TUI, or MCP configuration.
 
 ### 5. Use other interfaces
 
 ```bash
-# TUI — interactive terminal UI
-TASKFLOW_API_KEY=<key> taskflow-tui
+# TUI — interactive terminal UI (uses same config as CLI)
+taskflow-tui
 
-# MCP — AI agent integration (see docs/mcp.md)
-TASKFLOW_API_KEY=<agent-key> taskflow-mcp
+# TUI — connect to a specific board directly
+taskflow-tui platform
+
+# MCP — AI agent integration (see docs/mcp.md for Claude Code setup)
+TASKFLOW_URL=http://localhost:8374 TASKFLOW_API_KEY=<agent-key> taskflow-mcp
 ```
 
 ## Documentation
