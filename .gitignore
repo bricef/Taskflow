@@ -1,6 +1,7 @@
 # Binaries (in repo root only)
 /taskflow-server
 /taskflow
+/taskflow-tui
 /taskflow-mcp
 /taskflow-sim
 

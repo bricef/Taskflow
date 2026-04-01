@@ -26,6 +26,7 @@ LDFLAGS := "-X github.com/bricef/taskflow/internal/version.Version=" + VERSION
 build:
     go build -ldflags '{{LDFLAGS}}' -o taskflow-server ./cmd/taskflow-server
     go build -ldflags '{{LDFLAGS}}' -o taskflow ./cmd/taskflow
+    go build -ldflags '{{LDFLAGS}}' -o taskflow-tui ./cmd/taskflow-tui
     go build -ldflags '{{LDFLAGS}}' -o taskflow-mcp ./cmd/taskflow-mcp
 
 # Format all Go files
@@ -111,7 +112,7 @@ dist:
         dir="dist/staging/taskflow-${os}-${arch}"
         mkdir -p "$dir"
         echo "Building ${os}/${arch}..."
-        for bin in taskflow-server taskflow taskflow-mcp; do
+        for bin in taskflow-server taskflow taskflow-tui taskflow-mcp; do
             CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
                 go build -ldflags '{{LDFLAGS}}' -o "${dir}/${bin}" "./cmd/${bin}"
         done
@@ -140,4 +141,4 @@ release tag:
 
 # Clean build artifacts
 clean:
-    rm -f taskflow taskflow-server taskflow-mcp *.db *.db-wal *.db-shm seed-admin-key.txt
+    rm -f taskflow taskflow-server taskflow-tui taskflow-mcp *.db *.db-wal *.db-shm seed-admin-key.txt
