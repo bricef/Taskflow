@@ -78,16 +78,23 @@ func countingHandler(counter *int32, status int) http.HandlerFunc {
 	}
 }
 
-// capturingHandler returns an HTTP handler that captures the request body and headers.
-func capturingHandler(body *[]byte, headers *http.Header) http.HandlerFunc {
-	var mu sync.Mutex
-	return func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
-		*body, _ = io.ReadAll(r.Body)
-		*headers = r.Header.Clone()
+// capturingHandler returns an HTTP handler that captures the request body and
+// headers, and a channel that is sent to after the capture is complete.
+// The test must receive from the channel before reading body/headers.
+func capturingHandler() (http.HandlerFunc, *[]byte, *http.Header, <-chan struct{}) {
+	var body []byte
+	var headers http.Header
+	done := make(chan struct{}, 1)
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+		headers = r.Header.Clone()
 		w.WriteHeader(200)
+		select {
+		case done <- struct{}{}:
+		default:
+		}
 	}
+	return handler, &body, &headers, done
 }
 
 // failThenSucceedHandler returns 500 for the first n calls, then 200.
@@ -121,9 +128,8 @@ const retryWait = 500 * time.Millisecond
 
 func TestDeliversMatchingEvent(t *testing.T) {
 	// Arrange
-	var body []byte
-	var headers http.Header
-	srv := httptest.NewServer(capturingHandler(&body, &headers))
+	handler, body, _, done := capturingHandler()
+	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
 	logger := &mockLogger{}
@@ -131,14 +137,14 @@ func TestDeliversMatchingEvent(t *testing.T) {
 
 	// Act
 	bus.Publish(testEvent("task.created"))
-	time.Sleep(eventWait)
+	<-done
 
 	// Assert — payload is valid JSON with correct event type.
-	if len(body) == 0 {
+	if len(*body) == 0 {
 		t.Fatal("expected delivery, got none")
 	}
 	var evt eventbus.Event
-	if err := json.Unmarshal(body, &evt); err != nil {
+	if err := json.Unmarshal(*body, &evt); err != nil {
 		t.Fatalf("invalid JSON payload: %v", err)
 	}
 	if evt.Type != "task.created" {
@@ -148,16 +154,15 @@ func TestDeliversMatchingEvent(t *testing.T) {
 
 func TestDeliveryHeaders(t *testing.T) {
 	// Arrange
-	var body []byte
-	var headers http.Header
-	srv := httptest.NewServer(capturingHandler(&body, &headers))
+	handler, _, headers, done := capturingHandler()
+	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
 	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, "secret", []string{"task.created"})}, nil)
 
 	// Act
 	bus.Publish(testEvent("task.created"))
-	time.Sleep(eventWait)
+	<-done
 
 	// Assert
 	if ct := headers.Get("Content-Type"); ct != "application/json" {
@@ -173,21 +178,20 @@ func TestDeliveryHeaders(t *testing.T) {
 
 func TestDeliverySignature(t *testing.T) {
 	// Arrange
-	var body []byte
-	var headers http.Header
 	secret := "test-secret"
-	srv := httptest.NewServer(capturingHandler(&body, &headers))
+	handler, body, headers, done := capturingHandler()
+	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
 	bus, _ := newTestDispatcher(t, []model.Webhook{testWebhook(srv.URL, secret, []string{"task.created"})}, nil)
 
 	// Act
 	bus.Publish(testEvent("task.created"))
-	time.Sleep(eventWait)
+	<-done
 
 	// Assert — receiver can verify the HMAC.
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
+	mac.Write(*body)
 	expected := fmt.Sprintf("sha256=%s", hex.EncodeToString(mac.Sum(nil)))
 	if got := headers.Get(signatureHeader); got != expected {
 		t.Errorf("signature mismatch:\n  got:  %s\n  want: %s", got, expected)
