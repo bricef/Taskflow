@@ -1,6 +1,10 @@
 # TaskFlow
 
-TaskFlow is a task tracker designed for fluid collaboration between humans and AI agents. It provides a durable server as the single source of truth, with tasks organized on kanban boards that have explicitly configured workflow state machines. Any actor — human or AI — can create, advance, review, and manage tasks, with a full audit trail recording every action with actor attribution and timestamps.
+**Kanban boards with workflow state machines, built for human + AI collaboration.**
+
+TaskFlow is a task tracker where humans and AI agents work side by side. Tasks live on kanban boards with configurable workflow state machines. Every action — by any actor — is recorded in a full audit trail. Access it via CLI, interactive TUI, MCP for AI agents, or the HTTP API directly.
+
+![TaskFlow TUI](docs/images/tui-screenshot.png)
 
 ## Getting Started
 
@@ -152,6 +156,18 @@ backlog → in_progress → review → done
 | `to_all` | Transitions from a specific state to every other state |
 
 Tasks are moved between states by name (e.g. `--transition start`), not by target state. Use `taskflow workflow get <board>` or the TUI's Workflow tab to see available transitions.
+
+### Example workflows
+
+**Content pipeline:**
+```json
+{"states":["draft","editing","review","published","archived"],"initial_state":"draft","terminal_states":["published","archived"],"transitions":[{"from":"draft","to":"editing","name":"edit"},{"from":"editing","to":"review","name":"submit"},{"from":"review","to":"published","name":"publish"},{"from":"review","to":"editing","name":"revise"}],"from_all":[{"to":"archived","name":"archive"}]}
+```
+
+**Incident response:**
+```json
+{"states":["reported","triaging","investigating","mitigating","resolved","postmortem"],"initial_state":"reported","terminal_states":["postmortem"],"transitions":[{"from":"reported","to":"triaging","name":"triage"},{"from":"triaging","to":"investigating","name":"investigate"},{"from":"investigating","to":"mitigating","name":"mitigate"},{"from":"mitigating","to":"resolved","name":"resolve"},{"from":"resolved","to":"postmortem","name":"review"}]}
+```
 
 ## Architecture
 

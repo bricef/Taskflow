@@ -1,125 +1,78 @@
 ---
 name: taskflow
-description: Manage tasks on TaskFlow boards via the CLI. Use when asked to create, update, transition, list, or comment on tasks.
+description: Manage tasks on TaskFlow boards. Use the MCP server (preferred) or CLI to create, update, transition, list, and comment on tasks.
 ---
 
-You have access to the `taskflow` CLI which manages tasks on kanban boards with workflow state machines.
+You have access to TaskFlow, a task tracker with kanban boards and workflow state machines. Every action is attributed to your actor identity in the audit trail.
 
-## Prerequisites
+## Integration Options
 
-The CLI needs a running TaskFlow server. Configuration is resolved in this order:
-1. Flags: `--url`, `--api-key`
-2. Environment: `TASKFLOW_URL`, `TASKFLOW_API_KEY`
-3. Config file: `~/.config/taskflow/config.yaml`
-4. Default: `http://localhost:8374`
+**MCP server (preferred):** If TaskFlow is configured as an MCP server, use the MCP tools and resources directly. They provide typed inputs, rich descriptions, and notification piggyback. See the tools list for available operations.
 
-Always use `--json` when you need to parse output programmatically.
+**CLI fallback:** If MCP is not available, use the `taskflow` CLI. Add `--json` when you need to parse output programmatically.
 
-## Common Workflows
+Both use the same API key for authentication and actor identity.
 
-### Discover what's available
+## Quick Reference
+
+### Read data
 
 ```bash
-# List all boards
+# Boards
 taskflow board list
+taskflow board detail <slug>              # full board dump
+taskflow board overview <slug>            # task counts by state
 
-# See a board's workflow (available states and transitions)
-taskflow workflow get <board-slug>
+# Tasks
+taskflow task list <slug>                 # all tasks on a board
+taskflow task detail <slug> <num>         # task with comments, deps, attachments, audit
+taskflow task search --q "auth bug"       # search across all boards
 
-# List tasks on a board
-taskflow task list <board-slug>
-
-# List tasks with filters
-taskflow task list <board-slug> --state in_progress --assignee alice
-taskflow task list <board-slug> --priority high --include_closed
-
-# Search across all boards
-taskflow task search --q "auth bug"
-
-# Get full board detail (tasks, comments, deps, audit)
-taskflow board detail <board-slug>
+# Workflow
+taskflow workflow get <slug>              # see states and transitions
 ```
 
-### Create and manage tasks
+### Manage tasks
 
 ```bash
-# Create a task (priority: critical, high, medium, low, or omit for none)
-taskflow task create <board-slug> --title "Fix the auth bug" --priority high --tags "security,urgent"
+# Create (priority: critical, high, medium, low, or omit)
+taskflow task create <slug> --title "Fix auth bug" --priority high --assignee @me
 
-# Update a task
-taskflow task update <board-slug> <num> --title "New title" --priority medium --assignee alice
+# Transition (use transition NAME, not state name)
+taskflow task transition <slug> <num> --transition start --comment "On it"
 
-# Transition a task through the workflow (e.g. start, submit, approve, reject, cancel)
-taskflow task transition <board-slug> <num> --transition start --comment "Working on this now"
+# Update
+taskflow task update <slug> <num> --priority critical --assignee alice
 
-# Delete a task (soft-delete)
-taskflow task delete <board-slug> <num>
-```
+# Comment
+taskflow comment create <slug> <num> --body "Ready for review"
 
-### Comments
-
-```bash
-# Add a comment
-taskflow comment create <board-slug> <num> --body "This needs review"
-
-# List comments on a task
-taskflow comment list <board-slug> <num>
-```
-
-### Dependencies
-
-```bash
-# Create a dependency (task 3 depends on task 1)
-taskflow dependency create <board-slug> 3 --depends_on_board <board-slug> --depends_on_num 1 --dep_type depends_on
-
-# List dependencies
-taskflow dependency list <board-slug> <num>
+# Delete (soft-delete)
+taskflow task delete <slug> <num>
 ```
 
 ### Boards
 
 ```bash
-# Create a board (default workflow if --workflow omitted)
+# Create (omit --workflow for the default backlog→in_progress→review→done workflow)
 taskflow board create --slug my-board --name "My Board"
 
-# Create with custom workflow
-taskflow board create --slug my-board --name "My Board" --workflow '{"states":["todo","doing","done"],"initial_state":"todo","terminal_states":["done"],"transitions":[{"from":"todo","to":"doing","name":"start"},{"from":"doing","to":"done","name":"finish"}]}'
-
-# Archive a board (soft-delete, comments still allowed)
-taskflow board delete <board-slug>
-```
-
-### Audit trail
-
-```bash
-# Task audit log
-taskflow task audit <board-slug> <num>
-
-# Board audit log
-taskflow board audit <board-slug>
-```
-
-### Views
-
-```bash
-# Board overview (task counts by state)
-taskflow board overview <board-slug>
-
-# System-wide statistics (admin only)
-taskflow admin stats
+# Archive
+taskflow board delete <slug>
 ```
 
 ## Key Concepts
 
-- **Workflow**: Each board has a state machine. Use `taskflow workflow get <slug>` to see available states and transitions before transitioning tasks.
-- **Archived boards**: Archived boards are read-only except for comments. Use `taskflow board list --include_deleted` to see them.
+- **Workflows**: each board has a state machine defining how tasks move. Always check `taskflow workflow get <slug>` before transitioning if you're unsure which transitions are valid.
+- **Transitions by name**: pass the transition name (e.g. `start`, `submit`, `approve`), not the target state. On failure, the error message lists available transitions.
+- **`@me`**: use as assignee to assign tasks to yourself. Works in create, update, and search filters.
+- **Task references**: tasks are identified by `<board-slug> <num>` (CLI) or `board/num` shorthand (MCP `task_ref`).
 - **Priorities**: `critical`, `high`, `medium`, `low`, or omit for none.
-- **Task IDs**: Tasks are numbered per-board. Reference as `<board-slug> <num>`.
-- **Actor**: Your identity is determined by your API key. Use `@me` as assignee to assign to yourself.
+- **Audit trail**: every action is recorded with actor attribution and timestamp.
 
 ## Tips
 
-- When asked to check task status, use `taskflow task get <slug> <num> --json` and parse the JSON.
-- When transitioning, first check available transitions with `taskflow workflow get <slug>` if unsure which transition names are valid.
-- Use `taskflow task list <slug> --json` for programmatic processing of task lists.
-- Comments are the primary way to communicate progress on tasks.
+- Use `task detail` instead of `task get` — it includes comments, dependencies, attachments, and audit in one request.
+- Use `task search --assignee @me` to find all your tasks across boards.
+- Comments are the primary way to communicate progress and context on tasks.
+- When transitioning fails, read the error — it tells you which transitions are available.
