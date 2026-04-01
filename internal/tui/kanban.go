@@ -13,14 +13,15 @@ import (
 
 // kanbanModel is the kanban board tab.
 type kanbanModel struct {
-	workflow  *workflow.Workflow
-	tasks     []model.Task
-	columns   []string // state names in workflow order
-	colCursor int      // selected column
-	rowCursor int      // selected task within column
-	showDone  bool     // show terminal-state columns
-	loading   bool
-	err       error
+	workflow        *workflow.Workflow
+	tasks           []model.Task
+	columns         []string // state names in workflow order
+	colCursor       int      // selected column
+	rowCursor       int      // selected task within column
+	showDone        bool     // show terminal-state columns
+	loading         bool
+	err             error
+	currentUserName string
 }
 
 // boardDataLoaded is sent when workflow + tasks are fetched for the kanban view.
@@ -47,8 +48,8 @@ func fetchBoardData(client *httpclient.Client, slug string) tea.Cmd {
 	}
 }
 
-func newKanban() kanbanModel {
-	return kanbanModel{loading: true}
+func newKanban(currentUserName string) kanbanModel {
+	return kanbanModel{loading: true, currentUserName: currentUserName}
 }
 
 func (m *kanbanModel) load(data boardDataLoaded) {
@@ -110,21 +111,6 @@ func (m kanbanModel) tasksInColumn(state string) []model.Task {
 		}
 	}
 	return result
-}
-
-func priorityRank(p model.Priority) int {
-	switch p {
-	case model.PriorityCritical:
-		return 0
-	case model.PriorityHigh:
-		return 1
-	case model.PriorityMedium:
-		return 2
-	case model.PriorityLow:
-		return 3
-	default:
-		return 4
-	}
 }
 
 func (m *kanbanModel) update(msg tea.KeyMsg) {
@@ -211,14 +197,7 @@ func cardStyleForWidth(w int, selected bool) lipgloss.Style {
 
 var (
 	columnHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")).Padding(0, 1)
-	priorityStyles    = map[model.Priority]lipgloss.Style{
-		model.PriorityCritical: lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),
-		model.PriorityHigh:     lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
-		model.PriorityMedium:   lipgloss.NewStyle().Foreground(lipgloss.Color("214")),
-		model.PriorityLow:      lipgloss.NewStyle().Foreground(lipgloss.Color("241")),
-		model.PriorityNone:     lipgloss.NewStyle().Foreground(lipgloss.Color("241")),
-	}
-	priorityBadge = map[model.Priority]string{
+	priorityBadge     = map[model.Priority]string{
 		model.PriorityCritical: "C",
 		model.PriorityHigh:     "H",
 		model.PriorityMedium:   "M",
@@ -289,7 +268,7 @@ func (m kanbanModel) view(width, height int) string {
 			cards = append(cards, dimStyle.Render(fmt.Sprintf("  ↑ %d more", scrollStart)))
 		}
 		for ri := scrollStart; ri < scrollEnd; ri++ {
-			cards = append(cards, renderCard(tasks[ri], cardWidth, isSelectedCol && ri == m.rowCursor))
+			cards = append(cards, renderCard(tasks[ri], cardWidth, isSelectedCol && ri == m.rowCursor, m.currentUserName))
 		}
 		if scrollEnd < len(tasks) {
 			cards = append(cards, dimStyle.Render(fmt.Sprintf("  ↓ %d more", len(tasks)-scrollEnd)))
@@ -305,9 +284,9 @@ func (m kanbanModel) view(width, height int) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, cols...)
 }
 
-func renderCard(task model.Task, width int, selected bool) string {
+func renderCard(task model.Task, width int, selected bool, currentUserName string) string {
 	badge := priorityBadge[task.Priority]
-	pStyle := priorityStyles[task.Priority]
+	pStyle := priorityStyle[task.Priority]
 
 	title := task.Title
 	maxTitle := width - 8
@@ -317,11 +296,15 @@ func renderCard(task model.Task, width int, selected bool) string {
 
 	line1 := fmt.Sprintf("%s #%d %s", pStyle.Render("["+badge+"]"), task.Num, title)
 
-	assignee := "—"
-	if task.Assignee != nil {
-		assignee = "@" + *task.Assignee
+	var line2 string
+	switch {
+	case task.Assignee == nil:
+		line2 = dimStyle.Render("—")
+	case currentUserName != "" && *task.Assignee == currentUserName:
+		line2 = meStyle.Render("@me")
+	default:
+		line2 = dimStyle.Render("@" + *task.Assignee)
 	}
-	line2 := dimStyle.Render(assignee)
 
 	return cardStyleForWidth(width, selected).Render(line1 + "\n" + line2)
 }

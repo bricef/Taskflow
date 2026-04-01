@@ -12,6 +12,8 @@ import (
 	"github.com/bricef/taskflow/internal/model"
 )
 
+var selectorSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("241"))
+
 // boardsLoaded is sent when the board list has been fetched.
 type boardsLoaded struct {
 	boards []model.Board
@@ -41,6 +43,7 @@ func fetchBoards(client *httpclient.Client, includeArchived bool) tea.Cmd {
 }
 
 // selectorModel is the board selector view.
+// Cursor 0 is always the "My Tasks" entry; boards start at cursor 1.
 type selectorModel struct {
 	boards  []model.Board
 	cursor  int
@@ -101,10 +104,16 @@ func (m selectorModel) filteredBoards() []model.Board {
 	return result
 }
 
+func (m selectorModel) isMyTasksSelected() bool {
+	return m.cursor == 0
+}
+
 func (m selectorModel) selectedBoard() *model.Board {
 	filtered := m.filteredBoards()
-	if m.cursor >= 0 && m.cursor < len(filtered) {
-		return &filtered[m.cursor]
+	// Cursor 0 is "My Tasks"; boards are at cursor 1..N.
+	idx := m.cursor - 1
+	if idx >= 0 && idx < len(filtered) {
+		return &filtered[idx]
 	}
 	return nil
 }
@@ -141,16 +150,20 @@ func (m selectorModel) update(msg tea.Msg, client *httpclient.Client) (selectorM
 		}
 
 		filtered := m.filteredBoards()
+		maxCursor := len(filtered) // 0=MyTasks, 1..N=boards
 		switch msg.String() {
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
 			}
 		case "down", "j":
-			if m.cursor < len(filtered)-1 {
+			if m.cursor < maxCursor {
 				m.cursor++
 			}
 		case "enter":
+			if m.isMyTasksSelected() {
+				return m, nil, func() tea.Msg { return myTasksSelected{} }
+			}
 			if b := m.selectedBoard(); b != nil {
 				return m, b, nil
 			}
@@ -262,20 +275,31 @@ func (m selectorModel) view(width int) string {
 		b.WriteString(dimStyle.Render("Filter: ") + m.filter + "\n\n")
 	}
 
-	filtered := m.filteredBoards()
-	if len(filtered) == 0 {
-		if m.filter != "" {
-			b.WriteString(dimStyle.Render("No boards match filter.") + "\n")
-		} else {
-			b.WriteString(dimStyle.Render("No boards found. Press n to create one.") + "\n")
+	// "My Tasks" section.
+	b.WriteString(selectorSectionStyle.Render("Quick Access") + "\n")
+	{
+		cursor := "  "
+		style := lipgloss.NewStyle()
+		if m.cursor == 0 {
+			cursor = "> "
+			style = style.Bold(true).Foreground(lipgloss.Color("39"))
 		}
-		return b.String()
+		line := fmt.Sprintf("%s★ My Tasks", cursor)
+		b.WriteString(style.Render(line) + "\n")
+	}
+
+	// Boards section.
+	b.WriteString("\n" + selectorSectionStyle.Render("Boards") + "\n")
+
+	filtered := m.filteredBoards()
+	if len(filtered) == 0 && m.filter != "" {
+		b.WriteString(dimStyle.Render("  No boards match filter.") + "\n")
 	}
 
 	for i, board := range filtered {
 		cursor := "  "
 		style := lipgloss.NewStyle()
-		if i == m.cursor {
+		if i+1 == m.cursor { // +1 because My Tasks is at 0
 			cursor = "> "
 			style = style.Bold(true).Foreground(lipgloss.Color("39"))
 		}

@@ -296,20 +296,46 @@ func (m detailModel) render(width, height int) string {
 		}
 		for _, a := range d.audit[start:] {
 			ts := a.CreatedAt.Format("2006-01-02 15:04")
-			detail := ""
-			if len(a.Detail) > 0 && string(a.Detail) != "{}" {
-				var m map[string]any
-				if json.Unmarshal(a.Detail, &m) == nil {
-					if from, ok := m["from"]; ok {
-						detail = fmt.Sprintf(" (%v → %v)", from, m["to"])
-					}
-				}
-			}
+			detail := formatAuditDetail(a.Detail)
 			b.WriteString(fmt.Sprintf("  %s  %-12s  %s%s\n", dimStyle.Render(ts), a.Actor, string(a.Action), detail))
 		}
 	}
 
 	return b.String()
+}
+
+func formatAuditDetail(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "{}" {
+		return ""
+	}
+	var m map[string]any
+	if json.Unmarshal(raw, &m) != nil {
+		return ""
+	}
+	// Transition format: {"from": "todo", "to": "in_progress"}
+	if from, ok := m["from"]; ok {
+		return fmt.Sprintf(" (%v → %v)", from, m["to"])
+	}
+	// Field update format: {"fields": {"assignee": {"old": ..., "new": ...}, ...}}
+	if fields, ok := m["fields"].(map[string]any); ok {
+		var parts []string
+		for name, change := range fields {
+			if ch, ok := change.(map[string]any); ok {
+				oldVal, newVal := ch["old"], ch["new"]
+				if oldVal == nil {
+					oldVal = "none"
+				}
+				if newVal == nil {
+					newVal = "none"
+				}
+				parts = append(parts, fmt.Sprintf("%s: %v → %v", name, oldVal, newVal))
+			}
+		}
+		if len(parts) > 0 {
+			return " (" + strings.Join(parts, ", ") + ")"
+		}
+	}
+	return ""
 }
 
 func field(label, value string) string {

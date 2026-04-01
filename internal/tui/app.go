@@ -27,6 +27,7 @@ type viewMode int
 const (
 	viewSelector viewMode = iota
 	viewBoard
+	viewMyTasks
 )
 
 type boardTab int
@@ -66,6 +67,9 @@ type Model struct {
 
 	// Current authenticated user (fetched via WhoAmI on startup)
 	currentUser *model.Actor
+
+	// "My Tasks" cross-board view
+	myTasks myTasksModel
 
 	// Board view (active after selecting a board)
 	activeBoard *model.Board
@@ -146,6 +150,23 @@ type whoAmILoaded struct {
 	err   error
 }
 
+// myTasksSelected is sent when "My Tasks" is chosen from the selector.
+type myTasksSelected struct{}
+
+// myTasksLoaded is sent when cross-board tasks are fetched.
+type myTasksLoaded struct {
+	tasks []model.Task
+	err   error
+}
+
+func fetchMyTasks(client *httpclient.Client) tea.Cmd {
+	return func() tea.Msg {
+		assignee := "@me"
+		tasks, err := httpclient.GetMany[model.Task](client, model.ResTaskSearch, nil, model.TaskFilter{Assignee: &assignee, IncludeClosed: true})
+		return myTasksLoaded{tasks: tasks, err: err}
+	}
+}
+
 // boardSelected is sent when a board is chosen.
 type boardSelected struct {
 	board model.Board
@@ -154,6 +175,9 @@ type boardSelected struct {
 func (m *Model) selectedTaskFromContext() *model.Task {
 	if m.detail != nil && m.detail.data != nil {
 		return &m.detail.data.task
+	}
+	if m.view == viewMyTasks {
+		return m.myTasks.selectedTask()
 	}
 	switch m.activeTab {
 	case tabKanban:
@@ -164,40 +188,63 @@ func (m *Model) selectedTaskFromContext() *model.Task {
 	return nil
 }
 
-func (m *Model) openAssignFromContext() tea.Cmd {
-	if m.activeBoard == nil {
-		return nil
+func (m *Model) activeBoardSlug() string {
+	if m.view == viewMyTasks {
+		if t := m.selectedTaskFromContext(); t != nil {
+			return t.BoardSlug
+		}
+		return ""
 	}
+	if m.activeBoard != nil {
+		return m.activeBoard.Slug
+	}
+	return ""
+}
+
+func (m *Model) openAssignFromContext() tea.Cmd {
 	task := m.selectedTaskFromContext()
 	if task == nil {
 		return nil
 	}
-	am, cmd := newAssign(m.client, m.activeBoard.Slug, *task, m.currentUser)
+	slug := m.activeBoardSlug()
+	if slug == "" {
+		return nil
+	}
+	am, cmd := newAssign(m.client, slug, *task, m.currentUser)
 	m.assign = am
 	return cmd
 }
 
 func (m *Model) takeTask() tea.Cmd {
-	if m.activeBoard == nil || m.currentUser == nil {
+	if m.currentUser == nil {
 		return nil
 	}
 	task := m.selectedTaskFromContext()
 	if task == nil {
+		return nil
+	}
+	slug := m.activeBoardSlug()
+	if slug == "" {
 		return nil
 	}
 	name := m.currentUser.Name
-	return executeAssign(m.client, m.activeBoard.Slug, task.Num, &name)
+	return executeAssign(m.client, slug, task.Num, &name)
 }
 
 func (m *Model) openTransitionFromContext() tea.Cmd {
-	if m.activeBoard == nil {
-		return nil
-	}
 	task := m.selectedTaskFromContext()
 	if task == nil {
 		return nil
 	}
-	tm, cmd := newTransition(m.client, m.activeBoard.Slug, *task)
+	slug := m.activeBoardSlug()
+	if slug == "" {
+		return nil
+	}
+	actorName := ""
+	if m.currentUser != nil {
+		actorName = m.currentUser.Name
+	}
+	tm, cmd := newTransition(m.client, slug, *task, actorName)
 	m.transition = tm
 	return cmd
 }
@@ -206,34 +253,41 @@ func (m *Model) openDetail() tea.Cmd {
 	var boardSlug string
 	var num int
 
-	if m.activeBoard != nil {
-		boardSlug = m.activeBoard.Slug
-	}
+	if m.view == viewMyTasks {
+		if t := m.myTasks.selectedTask(); t != nil {
+			boardSlug = t.BoardSlug
+			num = t.Num
+		}
+	} else {
+		if m.activeBoard != nil {
+			boardSlug = m.activeBoard.Slug
+		}
 
-	switch m.activeTab {
-	case tabKanban:
-		if t := m.kanban.selectedTask(); t != nil {
-			num = t.Num
-		}
-	case tabList:
-		if t := m.listView.selectedTask(); t != nil {
-			num = t.Num
-		}
-	case tabEventLog:
-		// Try to get task num from the selected event.
-		el := m.activeEventLog()
-		if el.cursor >= 0 && el.cursor < len(el.entries) {
-			entry := el.entries[el.cursor]
-			if entry.event != nil {
-				snap := entry.event.After
-				if snap == nil {
-					snap = entry.event.Before
+		switch m.activeTab {
+		case tabKanban:
+			if t := m.kanban.selectedTask(); t != nil {
+				num = t.Num
+			}
+		case tabList:
+			if t := m.listView.selectedTask(); t != nil {
+				num = t.Num
+			}
+		case tabEventLog:
+			// Try to get task num from the selected event.
+			el := m.activeEventLog()
+			if el.cursor >= 0 && el.cursor < len(el.entries) {
+				entry := el.entries[el.cursor]
+				if entry.event != nil {
+					snap := entry.event.After
+					if snap == nil {
+						snap = entry.event.Before
+					}
+					if snap != nil {
+						num = snap.Num
+					}
+				} else if entry.audit != nil && entry.audit.TaskNum != nil {
+					num = *entry.audit.TaskNum
 				}
-				if snap != nil {
-					num = snap.Num
-				}
-			} else if entry.audit != nil && entry.audit.TaskNum != nil {
-				num = *entry.audit.TaskNum
 			}
 		}
 	}
@@ -272,7 +326,7 @@ func (m *Model) applyEventToKanban(evt eventbus.Event) {
 }
 
 func (m *Model) refreshDetailIfAffected(evt eventbus.Event) tea.Cmd {
-	if m.detail == nil || m.detail.data == nil || m.activeBoard == nil {
+	if m.detail == nil || m.detail.data == nil {
 		return nil
 	}
 	task := m.detail.data.task
@@ -280,12 +334,12 @@ func (m *Model) refreshDetailIfAffected(evt eventbus.Event) tea.Cmd {
 	if snap == nil {
 		snap = evt.Before
 	}
-	if snap == nil || snap.Num != task.Num {
+	if snap == nil || snap.Num != task.Num || evt.Board.Slug != task.BoardSlug {
 		return nil
 	}
 	// Refetch the full detail data.
 	m.detail.loading = true
-	return fetchTaskDetail(m.client, m.activeBoard.Slug, task.Num)
+	return fetchTaskDetail(m.client, task.BoardSlug, task.Num)
 }
 
 func (m *Model) applyEventToList(evt eventbus.Event) {
@@ -305,6 +359,36 @@ func (m *Model) applyEventToList(evt eventbus.Event) {
 			m.listView.removeTask(boardSlug, evt.Before.Num)
 		}
 	}
+}
+
+func (m *Model) applyEventToMyTasks(evt eventbus.Event) tea.Cmd {
+	me := m.currentUser.Name
+	boardSlug := evt.Board.Slug
+
+	isMyTask := func(snap *eventbus.TaskSnapshot) bool {
+		return snap != nil && snap.Assignee != nil && *snap.Assignee == me
+	}
+
+	switch evt.Type {
+	case eventbus.EventTaskDeleted:
+		if isMyTask(evt.Before) {
+			m.myTasks.removeTask(boardSlug, evt.Before.Num)
+		}
+	default:
+		wasMine := isMyTask(evt.Before)
+		isMine := isMyTask(evt.After)
+		switch {
+		case isMine:
+			m.myTasks.updateTask(snapshotToTask(boardSlug, evt.After))
+			// Fetch workflow if we haven't seen this board yet.
+			if _, ok := m.myTasks.workflows[boardSlug]; !ok {
+				return fetchWorkflowsForBoards(m.client, []string{boardSlug})
+			}
+		case wasMine && !isMine:
+			m.myTasks.removeTask(boardSlug, evt.Before.Num)
+		}
+	}
+	return nil
 }
 
 func snapshotToTask(boardSlug string, snap *eventbus.TaskSnapshot) model.Task {
@@ -334,6 +418,9 @@ func (m Model) activeKeyMap() help.KeyMap {
 	}
 	if m.detail != nil {
 		return detailKeyMap
+	}
+	if m.view == viewMyTasks {
+		return myTasksKeyMap
 	}
 	switch m.activeTab {
 	case tabKanban:
@@ -415,7 +502,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detail = nil
 				return m, nil
 			}
-			if m.view == viewBoard {
+			if m.view == viewBoard || m.view == viewMyTasks {
 				m.view = viewSelector
 				m.activeBoard = nil
 				return m, fetchBoards(m.client, m.selector.showArchived)
@@ -431,15 +518,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.GotoTop()
 			}
 		case "t":
-			if m.view == viewBoard && m.transition == nil && m.assign == nil {
+			if (m.view == viewBoard || m.view == viewMyTasks) && m.transition == nil && m.assign == nil {
 				return m, m.openTransitionFromContext()
 			}
 		case "T":
-			if m.view == viewBoard && m.assign == nil && m.transition == nil {
+			if (m.view == viewBoard || m.view == viewMyTasks) && m.assign == nil && m.transition == nil {
 				return m, m.takeTask()
 			}
 		case "a":
-			if m.view == viewBoard && m.assign == nil && m.transition == nil {
+			if (m.view == viewBoard || m.view == viewMyTasks) && m.assign == nil && m.transition == nil {
 				return m, m.openAssignFromContext()
 			}
 		case "c":
@@ -448,7 +535,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.detail.input.Focus()
 			}
 		case "enter":
-			if m.view == viewBoard && m.detail == nil && m.transition == nil && m.assign == nil {
+			if (m.view == viewBoard || m.view == viewMyTasks) && m.detail == nil && m.transition == nil && m.assign == nil {
 				return m, m.openDetail()
 			}
 		}
@@ -486,12 +573,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case myTasksSelected:
+		m.view = viewMyTasks
+		m.activeBoard = nil
+		m.myTasks = newMyTasks()
+		m.resizeViewport()
+		return m, fetchMyTasks(m.client)
+
+	case myTasksLoaded:
+		if msg.err != nil {
+			m.lastError = msg.err.Error()
+			return m, nil
+		}
+		m.myTasks.load(msg.tasks)
+		if slugs := m.myTasks.missingWorkflowSlugs(); len(slugs) > 0 {
+			return m, fetchWorkflowsForBoards(m.client, slugs)
+		}
+		return m, nil
+
+	case myTasksWorkflowsLoaded:
+		for slug, wf := range msg.workflows {
+			m.myTasks.workflows[slug] = wf
+		}
+		m.myTasks.rebuild()
+		return m, nil
+
 	case boardSelected:
 		m.activeBoard = &msg.board
 		m.view = viewBoard
 		m.activeTab = tabKanban
-		m.kanban = newKanban()
-		m.listView = newListView()
+		currentName := ""
+		if m.currentUser != nil {
+			currentName = m.currentUser.Name
+		}
+		m.kanban = newKanban(currentName)
+		m.listView = newListView(currentName)
 		m.resizeViewport()
 		return m, fetchBoardData(m.client, msg.board.Slug)
 
@@ -560,13 +676,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case eventbus.Event:
 		m.boardEventLog(msg.Board.Slug).addEvent(msg)
-		// Only apply to kanban/list/detail if the event is for the active board.
+		// Apply to board views if the event is for the active board.
 		if m.activeBoard != nil && msg.Board.Slug == m.activeBoard.Slug {
 			m.applyEventToKanban(msg)
 			m.applyEventToList(msg)
-			if cmd := m.refreshDetailIfAffected(msg); cmd != nil {
-				return m, cmd
+		}
+		// Apply to "My Tasks" view based on assignee changes.
+		var cmds []tea.Cmd
+		if m.view == viewMyTasks && m.currentUser != nil {
+			if cmd := m.applyEventToMyTasks(msg); cmd != nil {
+				cmds = append(cmds, cmd)
 			}
+		}
+		if cmd := m.refreshDetailIfAffected(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if len(cmds) > 0 {
+			return m, tea.Batch(cmds...)
 		}
 		return m, nil
 
@@ -582,6 +708,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Delegate to sub-views.
 	switch {
+	case m.view == viewMyTasks:
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			m.myTasks.update(keyMsg)
+		}
 	case m.view == viewSelector:
 		var selected *model.Board
 		var cmd tea.Cmd
@@ -642,6 +772,8 @@ func (m Model) View() string {
 		return m.selectorView()
 	case viewBoard:
 		return m.boardView()
+	case viewMyTasks:
+		return m.myTasksView()
 	}
 	return ""
 }
@@ -650,6 +782,47 @@ func (m Model) selectorView() string {
 	var b strings.Builder
 	b.WriteString(m.selector.view(m.width))
 	b.WriteString("\n" + m.help.View(selectorKeyMap))
+	return b.String()
+}
+
+func (m Model) myTasksView() string {
+	m.resizeViewport()
+	var b strings.Builder
+
+	// Header.
+	var status string
+	switch m.liveStatus {
+	case "live":
+		status = lipgloss.NewStyle().Foreground(lipgloss.Color("76")).Render("● live")
+	case "error":
+		status = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("✕ error")
+	default:
+		status = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("◌ " + m.liveStatus)
+	}
+	header := fmt.Sprintf("%s  %s", titleStyle.Render("TaskFlow — My Tasks"), status)
+	if m.lastError != "" {
+		header += "  " + errorStyle.Render(m.lastError)
+	}
+	b.WriteString(header + "\n")
+	b.WriteString("\n") // no tabs
+
+	// Content.
+	if m.detail != nil && m.assign == nil && m.transition == nil {
+		b.WriteString(m.detail.view(m.viewport.Width, m.viewport.Height))
+	} else {
+		var content string
+		if m.assign != nil {
+			content = m.assign.view(m.viewport.Width)
+		} else if m.transition != nil {
+			content = m.transition.view(m.viewport.Width)
+		} else {
+			content = m.myTasks.view(m.viewport.Width, m.viewport.Height)
+		}
+		m.viewport.SetContent(content)
+		b.WriteString(m.viewport.View())
+	}
+
+	b.WriteString("\n" + m.help.View(m.activeKeyMap()))
 	return b.String()
 }
 

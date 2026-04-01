@@ -135,6 +135,48 @@ var listKeyMap = listKeys{
 	Quit:       keyQuit,
 }
 
+// myTasksKeys defines key bindings for the "My Tasks" cross-board view.
+type myTasksKeys struct {
+	Up         key.Binding
+	Down       key.Binding
+	Enter      key.Binding
+	Sort       key.Binding
+	SortDir    key.Binding
+	Transition key.Binding
+	Assign     key.Binding
+	Take       key.Binding
+	ToggleD    key.Binding
+	Esc        key.Binding
+	Quit       key.Binding
+}
+
+func (k myTasksKeys) ShortHelp() []key.Binding {
+	return []key.Binding{keyHelp, k.Up, k.Enter, k.Sort, k.Transition, k.Assign, k.Take, k.ToggleD, k.Esc, k.Quit}
+}
+
+func (k myTasksKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down},
+		{k.Enter, k.Transition, k.Assign, k.Take},
+		{k.Sort, k.SortDir, k.ToggleD},
+		{k.Esc, k.Quit},
+	}
+}
+
+var myTasksKeyMap = myTasksKeys{
+	Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "prev task")),
+	Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "next task")),
+	Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details")),
+	Sort:       key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "cycle sort")),
+	SortDir:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "reverse sort")),
+	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
+	Assign:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign")),
+	Take:       key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "take")),
+	ToggleD:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "toggle done")),
+	Esc:        key.NewBinding(key.WithKeys("esc", "backspace"), key.WithHelp("esc/⌫", "boards")),
+	Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+}
+
 // workflowKeys defines key bindings for the workflow visualisation tab.
 type workflowKeys struct {
 	Up   key.Binding

@@ -10,7 +10,7 @@ Outstanding tasks and known issues. See [docs/plans/active/](docs/plans/active/)
 ## TUI
 
 - [ ] Filter bar: filter tasks by assignee, priority, tags, state — applies to both kanban and list views
-- [ ] "My tasks" mode in TUI: dedicated view or filter for `@me` tasks (API and CLI already support it)
+- [x] "My tasks" mode in TUI: cross-board view of tasks assigned to current user, with live updates
 - [ ] Board overview in TUI board selector: show task counts by state when selecting a board
 - [ ] Dependency tree visualisation in task detail view
 - [ ] Mouse support (using [bubblezone](https://github.com/lrstanley/bubblezone))

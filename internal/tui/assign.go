@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -25,6 +26,11 @@ type assignModel struct {
 	cursor          int
 	filter          textinput.Model
 	err             string
+
+	// Comment phase: after selecting an assignee, prompt for an optional comment.
+	commenting bool
+	assignee   *string // resolved assignee (nil = unassign)
+	comment    textarea.Model
 }
 
 type actorsLoaded struct {
@@ -48,6 +54,13 @@ func newAssign(client *httpclient.Client, boardSlug string, task model.Task, cur
 	ti.Width = 30
 	ti.Focus()
 
+	ta := textarea.New()
+	ta.Placeholder = "Add a comment (optional)..."
+	ta.CharLimit = 500
+	ta.MaxWidth = 60
+	ta.MaxHeight = 4
+	ta.ShowLineNumbers = false
+
 	m := &assignModel{
 		boardSlug:       boardSlug,
 		taskNum:         task.Num,
@@ -55,6 +68,7 @@ func newAssign(client *httpclient.Client, boardSlug string, task model.Task, cur
 		currentAssignee: current,
 		currentUser:     currentUser,
 		filter:          ti,
+		comment:         ta,
 	}
 	return m, func() tea.Msg {
 		actors, err := httpclient.GetMany[model.Actor](client, model.ResActorList, nil, nil)
@@ -80,6 +94,43 @@ func (m *assignModel) filteredActors() []string {
 	return result
 }
 
+func (m *assignModel) enterCommentPhase(assignee *string) tea.Cmd {
+	m.commenting = true
+	m.assignee = assignee
+	m.comment.SetValue("")
+	return m.comment.Focus()
+}
+
+func (m *assignModel) execute(client *httpclient.Client) tea.Cmd {
+	userComment := strings.TrimSpace(m.comment.Value())
+	assignee := m.assignee
+	boardSlug := m.boardSlug
+	taskNum := m.taskNum
+	taskRef := fmt.Sprintf("%s/%d", boardSlug, taskNum)
+	actor := ""
+	if m.currentUser != nil {
+		actor = m.currentUser.Name
+	}
+	return func() tea.Msg {
+		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(taskNum)}
+		task, err := httpclient.Exec[model.Task](client, model.OpTaskUpdate, tp, map[string]any{"assignee": assignee})
+		if err != nil {
+			return assignResult{task: task, err: err}
+		}
+		target := "nobody"
+		if assignee != nil {
+			target = *assignee
+		}
+		summary := fmt.Sprintf("%s assigned %s to %s", actor, taskRef, target)
+		body := summary
+		if userComment != "" {
+			body = summary + "\n\n" + userComment
+		}
+		httpclient.Exec[model.Comment](client, model.OpCommentCreate, tp, map[string]string{"body": body})
+		return assignResult{task: task, err: nil}
+	}
+}
+
 func (m *assignModel) update(msg tea.Msg, client *httpclient.Client) (bool, tea.Cmd) {
 	switch msg := msg.(type) {
 	case actorsLoaded:
@@ -98,6 +149,29 @@ func (m *assignModel) update(msg tea.Msg, client *httpclient.Client) (bool, tea.
 		}
 
 	case tea.KeyMsg:
+		if m.commenting {
+			switch msg.String() {
+			case "ctrl+c":
+				return true, nil
+			case "esc":
+				// Cancel the action entirely.
+				m.commenting = false
+				m.assignee = nil
+				return true, nil
+			case "enter":
+				// Confirm — execute with comment.
+				return false, m.execute(client)
+			case "ctrl+j":
+				// Insert newline in comment.
+				m.comment.InsertString("\n")
+				return false, nil
+			default:
+				var cmd tea.Cmd
+				m.comment, cmd = m.comment.Update(msg)
+				return false, cmd
+			}
+		}
+
 		switch msg.String() {
 		case "esc":
 			if m.filter.Value() != "" {
@@ -129,7 +203,7 @@ func (m *assignModel) update(msg tea.Msg, client *httpclient.Client) (bool, tea.
 					}
 					assignee = &name
 				}
-				return false, executeAssign(client, m.boardSlug, m.taskNum, assignee)
+				return false, m.enterCommentPhase(assignee)
 			}
 			return false, nil
 		}
@@ -146,6 +220,8 @@ func (m *assignModel) update(msg tea.Msg, client *httpclient.Client) (bool, tea.
 	case assignResult:
 		if msg.err != nil {
 			m.err = msg.err.Error()
+			m.commenting = false
+			m.assignee = nil
 			return false, nil
 		}
 		return true, nil
@@ -159,36 +235,47 @@ func (m assignModel) view(width int) string {
 
 	b.WriteString(titleStyle.Render(fmt.Sprintf("Assign %s/%d", m.boardSlug, m.taskNum)) + "\n")
 	b.WriteString(dimStyle.Render(m.taskTitle) + "\n\n")
-	b.WriteString(fmt.Sprintf("Currently: %s\n\n", m.currentAssignee))
 
 	if m.err != "" {
 		b.WriteString(errorStyle.Render(m.err) + "\n\n")
 	}
 
-	if len(m.actors) == 0 && m.err == "" {
-		b.WriteString(dimStyle.Render("Loading...") + "\n")
-	}
-
-	if len(m.actors) > 0 {
-		b.WriteString(m.filter.View() + "\n\n")
-	}
-
-	filtered := m.filteredActors()
-	for i, name := range filtered {
-		cursor := "  "
-		style := dimStyle
-		if i == m.cursor {
-			cursor = "▸ "
-			style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	if m.commenting {
+		target := "unassign"
+		if m.assignee != nil {
+			target = *m.assignee
 		}
-		display := name
-		if name == assignMeSentinel && m.currentUser != nil {
-			display = fmt.Sprintf("@me (%s)", m.currentUser.Name)
-		}
-		b.WriteString(style.Render(cursor+display) + "\n")
-	}
+		b.WriteString(fmt.Sprintf("Assigning to: %s\n\n", transitionSelected.Render(target)))
+		b.WriteString(m.comment.View() + "\n\n")
+		b.WriteString(dimStyle.Render("enter confirm  ctrl+j newline  esc cancel"))
+	} else {
+		b.WriteString(fmt.Sprintf("Currently: %s\n\n", m.currentAssignee))
 
-	b.WriteString("\n" + dimStyle.Render("enter confirm  esc cancel"))
+		if len(m.actors) == 0 && m.err == "" {
+			b.WriteString(dimStyle.Render("Loading...") + "\n")
+		}
+
+		if len(m.actors) > 0 {
+			b.WriteString(m.filter.View() + "\n\n")
+		}
+
+		filtered := m.filteredActors()
+		for i, name := range filtered {
+			cursor := "  "
+			style := dimStyle
+			if i == m.cursor {
+				cursor = "▸ "
+				style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+			}
+			display := name
+			if name == assignMeSentinel && m.currentUser != nil {
+				display = fmt.Sprintf("@me (%s)", m.currentUser.Name)
+			}
+			b.WriteString(style.Render(cursor+display) + "\n")
+		}
+
+		b.WriteString("\n" + dimStyle.Render("enter confirm  esc cancel"))
+	}
 
 	boxWidth := width / 2
 	if boxWidth < 40 {
