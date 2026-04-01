@@ -94,6 +94,24 @@ run-test: seed
 tui-test:
     TASKFLOW_API_KEY=seed-admin-key-for-testing go run ./cmd/taskflow-tui
 
+# Tag and push a release (e.g. just release v0.1.2)
+release tag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! "{{tag}}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Error: tag must be semver (e.g. v0.1.2)" >&2
+        exit 1
+    fi
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Error: working tree is dirty — commit or stash first" >&2
+        exit 1
+    fi
+    echo "Tagging {{tag}}..."
+    git tag -a "{{tag}}" -m "Release {{tag}}"
+    echo "Pushing tag to origin..."
+    git push origin "{{tag}}"
+    echo "Done. CI will build and push docker.io/fractallambda/taskflow:{{tag}}"
+
 # Clean build artifacts
 clean:
     rm -f taskflow taskflow-server taskflow-mcp *.db *.db-wal *.db-shm seed-admin-key.txt
