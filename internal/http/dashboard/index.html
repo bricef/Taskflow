@@ -253,6 +253,8 @@ async function apiFetch(path) {
 }
 
 async function loadDashboard(boards) {
+  boards = boards || [];
+
   // Try to load admin stats — gracefully degrade if not admin.
   let stats = null;
   try {
