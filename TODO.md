@@ -15,7 +15,7 @@ Outstanding tasks and known issues. See [docs/plans/active/](docs/plans/active/)
 - [ ] Dependency tree visualisation in task detail view
 - [ ] Mouse support (using [bubblezone](https://github.com/lrstanley/bubblezone))
 
-See also [TUI improvements plan](docs/plans/active/2026-03-31-tui-improvements.md) for page scrolling, searchable selectors, @me shortcut, and take action.
+Page scrolling, searchable selectors, @me shortcut, and take action are done — see [TUI improvements plan](docs/plans/done/2026-03-31-tui-improvements.md).
 
 ## MCP
 
