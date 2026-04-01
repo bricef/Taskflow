@@ -236,7 +236,7 @@ func Operations() []Operation {
 		// Actors
 		Create("/actors", "Create an actor").Name("actor_create").Role(RoleAdmin).
 			Input(CreateActorParams{}).Output(Actor{}).Build(),
-		CustomAction(ActionSet, "/actors/{name}/rotate-key", "Rotate an actor's API key").Name("actor_rotate_key").Role(RoleAdmin).
+		CustomAction(ActionUpdate, "/actors/{name}/rotate-key", "Rotate an actor's API key").Name("actor_rotate_key").Role(RoleAdmin).
 			Desc("Generate a new API key for the actor. The old key is immediately invalidated. The new key is returned in the response (shown once).").
 			Output(Actor{}).Build(),
 		Update("/actors/{name}", "Update an actor").Name("actor_update").Role(RoleAdmin).
