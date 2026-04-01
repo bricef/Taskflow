@@ -17,6 +17,21 @@ Outstanding tasks and known issues. See [docs/plans/active/](docs/plans/active/)
 
 See also [TUI improvements plan](docs/plans/active/2026-03-31-tui-improvements.md) for page scrolling, searchable selectors, @me shortcut, and take action.
 
+## MCP
+
+- [ ] Integration test with a real MCP client (Claude Code) — pipe tests pass but protocol-level issues may only surface with a real agent
+- [ ] Rate limiting awareness — MCP agents making rapid tool calls could overwhelm the server; consider backpressure or advisory rate info in tool responses
+
+## API
+
+- [ ] Due date filtering: `--overdue` filter and sort support (field exists on Task but isn't queryable)
+- [ ] Due date visual indicator in TUI kanban (e.g. red highlight for past-due tasks)
+- [ ] Backup/restore: `taskflow admin backup` command (SQLite makes this easy but no tooling exists)
+
+## Admin
+
+- [ ] Webhook management from TUI (admin users currently need CLI or API)
+
 ## Done
 
 - [x] MCP server with auto-derived tools, resources, notifications, whoami, task_ref
