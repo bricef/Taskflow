@@ -2,6 +2,11 @@
 
 All notable changes to TaskFlow are documented here. Generated automatically on each release.
 
+## v1.0.5 — 2026-04-01
+
+- Exclude changelog commits from release notes
+
+
 ## v1.0.4 — 2026-04-01
 
 - Update CHANGELOG for v1.0.4
