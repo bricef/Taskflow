@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"sync"
 
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/transport"
@@ -21,19 +23,21 @@ type PathParams = map[string]string
 
 // Client makes authenticated JSON HTTP requests to a TaskFlow server.
 type Client struct {
-	baseURL    string
-	apiKey     string
-	httpClient *http.Client
-	ctx        context.Context
+	baseURL      string
+	apiKey       string
+	httpClient   *http.Client
+	ctx          context.Context
+	versionCheck *sync.Once
 }
 
 // New creates a new Client for the given server.
 func New(baseURL, apiKey string) *Client {
 	return &Client{
-		baseURL:    baseURL,
-		apiKey:     apiKey,
-		httpClient: http.DefaultClient,
-		ctx:        context.Background(),
+		baseURL:      baseURL,
+		apiKey:       apiKey,
+		httpClient:   http.DefaultClient,
+		ctx:          context.Background(),
+		versionCheck: &sync.Once{},
 	}
 }
 
@@ -112,6 +116,13 @@ func (c *Client) do(method, path string, body any, out any) error {
 		return &ConnectionError{URL: c.baseURL, Err: err}
 	}
 	defer resp.Body.Close()
+
+	// Check server version once per client instance.
+	c.versionCheck.Do(func() {
+		if sv := resp.Header.Get("X-TaskFlow-Version"); sv != "" && sv != version.Version {
+			fmt.Fprintf(os.Stderr, "Warning: client version (%s) differs from server (%s)\n", version.Version, sv)
+		}
+	})
 
 	if resp.StatusCode >= 400 {
 		return decodeError(resp)

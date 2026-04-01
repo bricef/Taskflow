@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
 func newTestClient(url string, apiKey string) *Client {
-	return &Client{baseURL: url, apiKey: apiKey, httpClient: http.DefaultClient, ctx: nil}
+	return &Client{baseURL: url, apiKey: apiKey, httpClient: http.DefaultClient, ctx: nil, versionCheck: &sync.Once{}}
 }
 
 func TestGet(t *testing.T) {

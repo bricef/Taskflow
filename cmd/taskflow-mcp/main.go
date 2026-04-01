@@ -30,6 +30,11 @@ func main() {
 
 	client := httpclient.New(serverURL, apiKey)
 
+	// Check server version.
+	if sv, err := client.ServerVersion(); err == nil && sv != client.Version() {
+		fmt.Fprintf(os.Stderr, "Warning: client version (%s) differs from server (%s)\n", client.Version(), sv)
+	}
+
 	// Discover self identity for notification filtering.
 	actor, err := client.WhoAmI()
 	if err != nil {
