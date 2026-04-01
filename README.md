@@ -107,6 +107,8 @@ TASKFLOW_URL=http://localhost:8374 TASKFLOW_API_KEY=<agent-key> taskflow-mcp
 - **[OpenAPI Spec](http://localhost:8374/openapi.json)** — machine-readable, auto-generated from operation definitions
 - **[Claude Code Skill](SKILL.md)** — AI agent guide for using TaskFlow via the CLI
 - **[Manual QA Checklist](TESTING.md)** — endpoint-by-endpoint verification guide
+- **[Changelog](CHANGELOG.md)** — release history
+- **[Contributing](CONTRIBUTING.md)** — development setup and contribution workflow
 
 ## Features
 
@@ -228,7 +230,7 @@ Set `TASKFLOW_DEV_MODE=true` to disable all rate limiting (useful for testing an
 just release v0.1.2
 ```
 
-This creates an annotated git tag and pushes it. CI then:
+This generates a changelog entry from the git log, commits it, tags, and pushes. CI then:
 1. Runs the full test suite
 2. Cross-compiles binaries for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64
 3. Creates a GitHub Release with downloadable archives and auto-generated release notes
