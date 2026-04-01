@@ -91,4 +91,4 @@ tui-test:
 
 # Clean build artifacts
 clean:
-    rm -f taskflow taskflow-server taskflow-mcp *.db seed-admin-key.txt
+    rm -f taskflow taskflow-server taskflow-mcp *.db *.db-wal *.db-shm seed-admin-key.txt
