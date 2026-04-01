@@ -1,6 +1,7 @@
 actor create                                       Create an actor
 actor get <name>                                   Get an actor by name
 actor list                                         List all actors
+actor rotate_key <name>                            Rotate an actor's API key
 actor update <name>                                Update an actor
 admin stats                                        System-wide statistics
 attachment create <slug> <num>                     Add an attachment

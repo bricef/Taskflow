@@ -29,6 +29,7 @@ type ActorRepo interface {
 	ActorGetByAPIKeyHash(ctx context.Context, hash string) (model.Actor, error)
 	ActorList(ctx context.Context) ([]model.Actor, error)
 	ActorUpdate(ctx context.Context, tx Tx, params model.UpdateActorParams) (model.Actor, error)
+	ActorUpdateKeyHash(ctx context.Context, name, newHash string) error
 }
 
 type BoardRepo interface {

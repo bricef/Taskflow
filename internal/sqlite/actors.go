@@ -103,3 +103,14 @@ func (s *Store) ActorUpdate(ctx context.Context, tx repo.Tx, params model.Update
 	}
 	return s.actorGet(ctx, tx, params.Name)
 }
+
+func (s *Store) ActorUpdateKeyHash(ctx context.Context, name, newHash string) error {
+	result, err := s.db.ExecContext(ctx, "UPDATE actors SET api_key_hash = ? WHERE name = ?", newHash, name)
+	if err != nil {
+		return err
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		return notFound("actor", name)
+	}
+	return nil
+}

@@ -23,6 +23,7 @@ type TaskFlow interface {
 	GetActorByAPIKeyHash(ctx context.Context, hash string) (model.Actor, error)
 	ListActors(ctx context.Context) ([]model.Actor, error)
 	UpdateActor(ctx context.Context, params model.UpdateActorParams) (model.Actor, error)
+	RotateActorKey(ctx context.Context, name string) (string, error)
 
 	// Boards
 	CreateBoard(ctx context.Context, params model.CreateBoardParams) (model.Board, error)

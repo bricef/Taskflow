@@ -26,6 +26,7 @@ var (
 // Named operations — exported for direct use by httpclient consumers.
 var (
 	OpActorCreate    = mustOp("actor_create")
+	OpActorRotateKey = mustOp("actor_rotate_key")
 	OpActorUpdate    = mustOp("actor_update")
 	OpBoardCreate    = mustOp("board_create")
 	OpBoardUpdate    = mustOp("board_update")

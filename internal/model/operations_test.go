@@ -141,14 +141,14 @@ func TestResourcesCount(t *testing.T) {
 }
 
 func TestOperationsCount(t *testing.T) {
-	if got := len(Operations()); got != 23 {
-		t.Errorf("Operations() returned %d, want 23 — update this test if the change was intentional", got)
+	if got := len(Operations()); got != 24 {
+		t.Errorf("Operations() returned %d, want 24 — update this test if the change was intentional", got)
 	}
 }
 
 func TestTotalCount(t *testing.T) {
 	total := len(Resources()) + len(Operations())
-	if total != 42 {
-		t.Errorf("Resources() + Operations() = %d, want 42", total)
+	if total != 43 {
+		t.Errorf("Resources() + Operations() = %d, want 43", total)
 	}
 }

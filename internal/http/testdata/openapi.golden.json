@@ -1041,6 +1041,52 @@
         ]
       }
     },
+    "/actors/{name}/rotate-key": {
+      "put": {
+        "operationId": "actor_rotate_key",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Actor"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Client error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Rotate an actor's API key",
+        "tags": [
+          "actors"
+        ]
+      }
+    },
     "/admin/stats": {
       "get": {
         "operationId": "admin_stats",

@@ -59,6 +59,26 @@ func generateAPIKey() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+func (s *Server) rotateActorKey(ctx context.Context, r *http.Request) (any, error) {
+	name := urlParamStr(r, "name")
+
+	apiKey, err := s.svc.RotateActorKey(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	actor, err := s.svc.GetActor(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	type actorWithKey struct {
+		model.Actor
+		APIKey string `json:"api_key"`
+	}
+	return actorWithKey{Actor: actor, APIKey: apiKey}, nil
+}
+
 // --- Boards ---
 
 func (s *Server) listBoards(ctx context.Context, r *http.Request) (any, error) {
