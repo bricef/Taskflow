@@ -83,7 +83,6 @@ func (m *kanbanModel) updateTask(task model.Task) {
 	m.tasks = append(m.tasks, task)
 }
 
-
 func (m *kanbanModel) removeTask(boardSlug string, num int) {
 	for i, t := range m.tasks {
 		if t.BoardSlug == boardSlug && t.Num == num {

@@ -1,6 +1,8 @@
 # Binaries (in repo root only)
 /taskflow-server
 /taskflow
+/taskflow-mcp
+/taskflow-sim
 
 # Database
 *.db
@@ -13,4 +15,3 @@ seed-admin-key.txt
 
 # Backups
 backups/
-/taskflow-sim

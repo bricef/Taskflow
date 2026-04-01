@@ -803,7 +803,6 @@ func TestSearch(t *testing.T) {
 	}
 }
 
-
 // --- @me alias ---
 
 func TestAtMeAlias(t *testing.T) {

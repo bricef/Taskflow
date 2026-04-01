@@ -304,7 +304,6 @@ func (s *simulator) pickTransition(task taskInfo) string {
 	return opts[rand.Intn(len(opts))]
 }
 
-
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

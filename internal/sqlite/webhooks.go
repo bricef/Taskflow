@@ -114,16 +114,16 @@ func (s *Store) WebhookDelete(ctx context.Context, tx repo.Tx, id int) error {
 // --- Webhook Deliveries ---
 
 type webhookDeliveryRow struct {
-	ID          int        `db:"id"`
-	WebhookID   int        `db:"webhook_id"`
-	EventType   string     `db:"event_type"`
-	EventID     string     `db:"event_id"`
-	Attempt     int        `db:"attempt"`
-	StatusCode  *int       `db:"status_code"`
-	Error       *string    `db:"error"`
-	RequestBody string     `db:"request_body"`
-	DurationMs  *int       `db:"duration_ms"`
-	CreatedAt   Timestamp  `db:"created_at"`
+	ID          int       `db:"id"`
+	WebhookID   int       `db:"webhook_id"`
+	EventType   string    `db:"event_type"`
+	EventID     string    `db:"event_id"`
+	Attempt     int       `db:"attempt"`
+	StatusCode  *int      `db:"status_code"`
+	Error       *string   `db:"error"`
+	RequestBody string    `db:"request_body"`
+	DurationMs  *int      `db:"duration_ms"`
+	CreatedAt   Timestamp `db:"created_at"`
 }
 
 func (s *Store) WebhookDeliveryInsert(ctx context.Context, d model.WebhookDelivery) (model.WebhookDelivery, error) {

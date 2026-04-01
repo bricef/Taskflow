@@ -26,10 +26,10 @@ type BoardOverview struct {
 
 // SystemStats contains system-wide statistics.
 type SystemStats struct {
-	Actors   ActorStats    `json:"actors"`
-	Boards   BoardStats    `json:"boards"`
+	Actors   ActorStats       `json:"actors"`
+	Boards   BoardStats       `json:"boards"`
 	Tasks    TaskStatsSummary `json:"tasks"`
-	Activity ActivityStats `json:"activity"`
+	Activity ActivityStats    `json:"activity"`
 }
 
 // ActorStats summarises actor counts.

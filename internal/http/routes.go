@@ -20,7 +20,7 @@ type Route struct {
 	Path    string
 	Summary string
 	MinRole model.Role
-	Input   any                // nil for resources
+	Input   any // nil for resources
 	Output  any
 	Params  []model.QueryParam // derived from Filter/Sort structs for resources
 	Method  string             // "GET", "POST", etc.
@@ -95,7 +95,7 @@ func (s *Server) resourceHandlers() map[string]handler {
 		"workflow_get": pathStr("slug", s.svc.GetWorkflow),
 
 		// Tasks
-		"task_list": s.listTasks,
+		"task_list":   s.listTasks,
 		"task_get":    pathStrInt("slug", "num", s.svc.GetTask),
 		"task_detail": pathStrInt("slug", "num", s.svc.TaskDetail),
 
@@ -123,7 +123,6 @@ func (s *Server) resourceHandlers() map[string]handler {
 		"webhook_list":  noInput(s.svc.ListWebhooks),
 		"webhook_get":   pathInt("id", s.svc.GetWebhook),
 		"delivery_list": pathInt("id", s.svc.ListWebhookDeliveries),
-
 	}
 }
 

@@ -67,10 +67,10 @@ func (c *ServerConfig) applyDefaults() {
 
 // Server is the HTTP API server for TaskFlow.
 type Server struct {
-	svc    taskflow.TaskFlow
-	bus    *eventbus.EventBus
-	cfg    ServerConfig
-	router *chi.Mux
+	svc         taskflow.TaskFlow
+	bus         *eventbus.EventBus
+	cfg         ServerConfig
+	router      *chi.Mux
 	openAPISpec []byte
 }
 

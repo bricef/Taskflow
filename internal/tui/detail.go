@@ -126,7 +126,7 @@ func (m *detailModel) submitComment(client *httpclient.Client) tea.Cmd {
 	task := m.data.task
 	return func() tea.Msg {
 		tp := httpclient.PathParams{"slug": task.BoardSlug, "num": fmt.Sprint(task.Num)}
-		comment, err := httpclient.Exec[model.Comment](client,model.OpCommentCreate, tp, map[string]string{"body": body})
+		comment, err := httpclient.Exec[model.Comment](client, model.OpCommentCreate, tp, map[string]string{"body": body})
 		return commentPosted{comment: comment, err: err}
 	}
 }

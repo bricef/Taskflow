@@ -22,13 +22,13 @@ var (
 
 // transitionModel is an overlay for transitioning a task.
 type transitionModel struct {
-	boardSlug   string
-	taskNum     int
-	taskTitle   string
+	boardSlug    string
+	taskNum      int
+	taskTitle    string
 	currentState string
-	transitions []workflow.Transition
-	cursor      int
-	err         string
+	transitions  []workflow.Transition
+	cursor       int
+	err          string
 }
 
 type transitionResult struct {
@@ -45,7 +45,7 @@ func newTransition(client *httpclient.Client, boardSlug string, task model.Task)
 
 	// Fetch available transitions.
 	return m, func() tea.Msg {
-		wf, err := httpclient.GetOne[workflow.Workflow](client,model.ResWorkflowGet, httpclient.PathParams{"slug": boardSlug}, nil)
+		wf, err := httpclient.GetOne[workflow.Workflow](client, model.ResWorkflowGet, httpclient.PathParams{"slug": boardSlug}, nil)
 		if err != nil {
 			return transitionsLoaded{err: err}
 		}
@@ -127,7 +127,7 @@ func (m transitionModel) view(width int) string {
 
 	b.WriteString("\n" + dimStyle.Render("enter confirm  esc cancel"))
 
-	boxWidth := width/2
+	boxWidth := width / 2
 	if boxWidth < 40 {
 		boxWidth = 40
 	}
@@ -137,7 +137,7 @@ func (m transitionModel) view(width int) string {
 func executeTransition(client *httpclient.Client, boardSlug string, num int, transition string) tea.Cmd {
 	return func() tea.Msg {
 		tp := httpclient.PathParams{"slug": boardSlug, "num": fmt.Sprint(num)}
-		err := httpclient.ExecNoResult(client,model.OpTaskTransition, tp, map[string]string{"transition": transition})
+		err := httpclient.ExecNoResult(client, model.OpTaskTransition, tp, map[string]string{"transition": transition})
 		if err != nil {
 			return transitionResult{err: err}
 		}

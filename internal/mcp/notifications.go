@@ -25,8 +25,8 @@ type Notification struct {
 // from other actors. Pending notifications are retrieved and cleared on each
 // tool call via Drain().
 type Notifier struct {
-	mu       sync.Mutex
-	pending  []Notification
+	mu        sync.Mutex
+	pending   []Notification
 	actorName string
 }
 

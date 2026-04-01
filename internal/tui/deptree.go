@@ -20,9 +20,9 @@ type depTreeNode struct {
 	ref      string // "board/num"
 	title    string
 	state    string
-	current  bool            // is this the task we're viewing
-	depType  string          // "depends_on" or "relates_to"
-	children []*depTreeNode  // tasks this one depends on
+	current  bool           // is this the task we're viewing
+	depType  string         // "depends_on" or "relates_to"
+	children []*depTreeNode // tasks this one depends on
 }
 
 // taskSummary holds just enough info to display a task in the tree.

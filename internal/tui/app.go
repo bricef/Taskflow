@@ -70,9 +70,9 @@ type Model struct {
 	kanban       kanbanModel
 	listView     listViewModel
 	workflowView workflowViewModel
-	detail     *detailModel     // non-nil when detail overlay is open
-	transition *transitionModel // non-nil when transition overlay is open
-	assign     *assignModel     // non-nil when assign overlay is open
+	detail       *detailModel     // non-nil when detail overlay is open
+	transition   *transitionModel // non-nil when transition overlay is open
+	assign       *assignModel     // non-nil when assign overlay is open
 }
 
 // New creates a new TUI model.
@@ -291,7 +291,6 @@ func snapshotToTask(boardSlug string, snap *eventbus.TaskSnapshot) model.Task {
 		Assignee:  snap.Assignee,
 	}
 }
-
 
 func (m *Model) resizeViewport() {
 	helpHeight := strings.Count(m.help.View(m.activeKeyMap()), "\n") + 1

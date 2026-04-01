@@ -105,10 +105,10 @@ func newRes(path, summary string) *resBuilder {
 	return &resBuilder{res: Resource{Path: path, Summary: summary, MinRole: RoleReadOnly}}
 }
 
-func ListRes(path, summary string) *resBuilder  { return newRes(path, summary) }
-func GetRes(path, summary string) *resBuilder    { return newRes(path, summary) }
+func ListRes(path, summary string) *resBuilder { return newRes(path, summary) }
+func GetRes(path, summary string) *resBuilder  { return newRes(path, summary) }
 
-func (b *resBuilder) Name(n string) *resBuilder   { b.res.Name = n; return b }
+func (b *resBuilder) Name(n string) *resBuilder    { b.res.Name = n; return b }
 func (b *resBuilder) Desc(d string) *resBuilder    { b.res.Description = d; return b }
 func (b *resBuilder) Role(r Role) *resBuilder      { b.res.MinRole = r; return b }
 func (b *resBuilder) Output(v any) *resBuilder     { b.res.Output = v; return b }
@@ -128,19 +128,20 @@ func defaultRole(action Action) Role {
 	return RoleMember
 }
 
-func Create(path, summary string) *opBuilder                        { return newOp(ActionCreate, path, summary) }
-func Update(path, summary string) *opBuilder                        { return newOp(ActionUpdate, path, summary) }
-func Remove(path, summary string) *opBuilder                        { return newOp(ActionDelete, path, summary) }
-func SetOp(path, summary string) *opBuilder                         { return newOp(ActionSet, path, summary) }
-func CustomAction(action Action, path, summary string) *opBuilder   { return newOp(action, path, summary) }
+func Create(path, summary string) *opBuilder { return newOp(ActionCreate, path, summary) }
+func Update(path, summary string) *opBuilder { return newOp(ActionUpdate, path, summary) }
+func Remove(path, summary string) *opBuilder { return newOp(ActionDelete, path, summary) }
+func SetOp(path, summary string) *opBuilder  { return newOp(ActionSet, path, summary) }
+func CustomAction(action Action, path, summary string) *opBuilder {
+	return newOp(action, path, summary)
+}
 
-func (b *opBuilder) Name(n string) *opBuilder  { b.op.Name = n; return b }
-func (b *opBuilder) Desc(d string) *opBuilder   { b.op.Description = d; return b }
-func (b *opBuilder) Role(r Role) *opBuilder     { b.op.MinRole = r; return b }
-func (b *opBuilder) Input(v any) *opBuilder     { b.op.Input = v; return b }
-func (b *opBuilder) Output(v any) *opBuilder    { b.op.Output = v; return b }
-func (b *opBuilder) Build() Operation           { return b.op }
-
+func (b *opBuilder) Name(n string) *opBuilder { b.op.Name = n; return b }
+func (b *opBuilder) Desc(d string) *opBuilder { b.op.Description = d; return b }
+func (b *opBuilder) Role(r Role) *opBuilder   { b.op.MinRole = r; return b }
+func (b *opBuilder) Input(v any) *opBuilder   { b.op.Input = v; return b }
+func (b *opBuilder) Output(v any) *opBuilder  { b.op.Output = v; return b }
+func (b *opBuilder) Build() Operation         { return b.op }
 
 // LookupResource returns the Resource with the given name, or false if not found.
 func LookupResource(name string) (Resource, bool) {
@@ -226,7 +227,6 @@ func Resources() []Resource {
 			Output(Webhook{}).Build(),
 		ListRes("/webhooks/{id}/deliveries", "List webhook delivery attempts").Name("delivery_list").Role(RoleAdmin).
 			Output([]WebhookDelivery{}).Build(),
-
 	}
 }
 

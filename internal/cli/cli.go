@@ -53,12 +53,11 @@ The seed admin key is written to seed-admin-key.txt on first server start.`)
 	return nil
 }
 
-
 // cmdSpec is the CLI-internal representation of a command derived from a
 // domain resource or operation.
 type cmdSpec struct {
 	summary string
-	input   any              // nil for resources / delete operations
+	input   any // nil for resources / delete operations
 	output  any
 	params  []model.QueryParam
 	// Exactly one of these is set:
