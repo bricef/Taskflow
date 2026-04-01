@@ -1,6 +1,7 @@
 package http
 
 import (
+	_ "embed"
 	"encoding/json"
 	"io/fs"
 	"net/http"
@@ -13,6 +14,9 @@ import (
 	"github.com/bricef/taskflow/internal/model"
 	"github.com/bricef/taskflow/internal/transport"
 )
+
+//go:embed landing.html
+var landingPage []byte
 
 // Route is the HTTP-layer representation of a domain resource or operation.
 type Route struct {
@@ -180,6 +184,12 @@ func (s *Server) registerRoutes() {
 	if !s.cfg.DevMode {
 		r.Use(httprate.Limit(30, time.Minute, httprate.WithKeyFuncs(httprate.KeyByRealIP)))
 	}
+
+	// Landing page — no auth.
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(landingPage)
+	})
 
 	// Dashboard — static HTML, no auth (uses API key from client-side JS).
 	dashFS, _ := fs.Sub(dashboard.FS, ".")
