@@ -94,6 +94,32 @@ run-test: seed
 tui-test:
     TASKFLOW_API_KEY=seed-admin-key-for-testing go run ./cmd/taskflow-tui
 
+# Cross-compile release binaries for all platforms
+dist:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf dist && mkdir -p dist/staging
+    platforms=(
+        "linux/amd64"
+        "linux/arm64"
+        "darwin/amd64"
+        "darwin/arm64"
+    )
+    for platform in "${platforms[@]}"; do
+        os="${platform%/*}"
+        arch="${platform#*/}"
+        dir="dist/staging/taskflow-${os}-${arch}"
+        mkdir -p "$dir"
+        echo "Building ${os}/${arch}..."
+        for bin in taskflow-server taskflow taskflow-mcp; do
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+                go build -ldflags '{{LDFLAGS}}' -o "${dir}/${bin}" "./cmd/${bin}"
+        done
+        tar -czf "dist/taskflow-${os}-${arch}.tar.gz" -C dist/staging "taskflow-${os}-${arch}"
+    done
+    rm -rf dist/staging
+    echo "Built $(ls dist/*.tar.gz | wc -l) archives in dist/"
+
 # Tag and push a release (e.g. just release v0.1.2)
 release tag:
     #!/usr/bin/env bash

@@ -13,5 +13,8 @@
 # Seed key files
 seed-admin-key.txt
 
+# Build artifacts
+/dist/
+
 # Backups
 backups/

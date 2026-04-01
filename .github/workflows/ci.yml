@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed for git describe
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -55,7 +55,45 @@ jobs:
           just docker-push latest
           just docker-push ${{ github.sha }}
 
-          # If this is a tag push, also push the semver tag.
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             just docker-push "${{ github.ref_name }}"
           fi
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: extractions/setup-just@v2
+
+      - name: Build release archives
+        run: just dist
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          # Find the previous tag.
+          PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          echo "## What's Changed" > release-notes.md
+          echo "" >> release-notes.md
+          git log --pretty=format:"- %s" "${PREV}..HEAD" --no-merges >> release-notes.md
+          echo "" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "**Docker:** \`docker pull ${{ secrets.DOCKERHUB_USERNAME }}/taskflow:${{ github.ref_name }}\`" >> release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: dist/*.tar.gz
+          generate_release_notes: false
