@@ -1,3 +1,6 @@
+# Docker image repository (override with DOCKER_REPO env var or `just --set DOCKER_REPO ...`)
+DOCKER_REPO := env("DOCKER_REPO", "taskflow")
+
 # Default: list available recipes
 default:
     @just --list
@@ -50,6 +53,11 @@ run:
 # Build Docker image
 docker-build:
     docker build -t taskflow .
+
+# Push Docker image to registry
+docker-push tag="latest":
+    docker tag taskflow {{DOCKER_REPO}}:{{tag}}
+    docker push {{DOCKER_REPO}}:{{tag}}
 
 # Run with Docker Compose
 docker-up:
