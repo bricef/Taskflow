@@ -54,6 +54,12 @@ run:
 docker-build:
     docker build -t taskflow .
 
+# Build Docker image with BuildKit cache (used in CI)
+docker-build-cached:
+    docker buildx build --load \
+      --cache-from type=gha --cache-to type=gha,mode=max \
+      -t taskflow .
+
 # Push Docker image to registry
 docker-push tag="latest":
     docker tag taskflow {{DOCKER_REPO}}:{{tag}}
