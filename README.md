@@ -111,7 +111,7 @@ TASKFLOW_URL=http://localhost:8374 TASKFLOW_API_KEY=<agent-key> taskflow-mcp
 ## Features
 
 - HTTP API with auth (SHA-256 keys), RBAC, idempotency keys, and batch operations
-- 42 domain endpoints (19 Resources + 23 Operations) auto-derived from the model
+- 43 domain endpoints (19 Resources + 24 Operations) auto-derived from the model
 - OpenAPI 3.1 spec auto-generated at startup
 - CLI with commands derived from the same model
 - Interactive TUI with kanban, list, workflow graph, and live event stream — see **[TUI Reference](docs/tui.md)**
@@ -208,7 +208,7 @@ Requires Go 1.25+ and [just](https://github.com/casey/just).
 just check          # fmt-check + vet + test (full suite)
 just test           # unit + integration + QA smoke test (45 endpoint checks)
 just test-unit      # unit + integration tests only (no server startup)
-just build          # build server + CLI binaries
+just build          # build all binaries (server, CLI, TUI, MCP)
 just run            # start the server locally
 just fmt            # format code
 just seed           # generate test database
@@ -222,13 +222,30 @@ just clean          # remove build artifacts
 
 Set `TASKFLOW_DEV_MODE=true` to disable all rate limiting (useful for testing and development). See [TESTING.md](TESTING.md) for the full manual QA checklist.
 
-### Deployment note
+### Releasing
+
+```bash
+just release v0.1.2
+```
+
+This creates an annotated git tag and pushes it. CI then:
+1. Runs the full test suite
+2. Cross-compiles binaries for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64
+3. Creates a GitHub Release with downloadable archives and auto-generated release notes
+4. Builds and pushes Docker images tagged `:latest`, `:sha`, and `:v0.1.2`
+5. Watchtower deploys the new image to the VPS within 3 minutes
+
+To build release archives locally: `just dist` (outputs to `dist/`).
+
+### Deployment
 
 The server must be hosted at the root of a domain (e.g. `https://taskflow.example.com`). Hosting at a subpath (e.g. `/taskflow`) is not currently supported — the dashboard, OpenAPI spec, and SSE endpoints generate absolute paths without a configurable prefix.
 
+All binaries embed a version string from `git describe` at build time. The server exposes it via the `X-TaskFlow-Version` response header and the `/health` endpoint. Clients warn on stderr if their version differs from the server.
+
 ### Testing with the simulator
 
-The activity simulator generates realistic board activity for testing SSE live updates:
+The activity simulator generates realistic board activity for testing live updates:
 
 ```bash
 # Terminal 1: server with test database

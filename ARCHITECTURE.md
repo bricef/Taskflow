@@ -253,9 +253,18 @@ Each board has a workflow defined as a JSON state machine:
 
 The workflow engine validates transitions, enforces terminal states, and provides health checks (detecting tasks orphaned in states with no outgoing transitions). Workflows are validated on board creation and replacement.
 
+## Versioning
+
+All binaries embed a version string from `git describe --tags --always` at build time via ldflags. The `internal/version.Version` variable defaults to `"dev"` if not set.
+
+- Server adds `X-TaskFlow-Version` to all response headers
+- `/health` includes `version` in the JSON response
+- MCP reports the version during capability negotiation
+- The httpclient checks the server version on the first request and warns on stderr if versions differ or the header is missing
+
 ## Authentication and RBAC
 
-API keys are SHA-256 hashed and stored with actor records. Three roles:
+API keys are SHA-256 hashed and stored with actor records. Creating an actor via the API generates a random key and returns it once in the response. Keys can be rotated with `PATCH /actors/{name}/rotate-key` — the old key is immediately invalidated. Three roles:
 
 | Role | Permissions |
 |------|------------|

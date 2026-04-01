@@ -77,9 +77,10 @@ curl "/boards/my-board/tasks?assignee=@me" -H "Authorization: Bearer $KEY"
 
 | Method | Path | Description | Min Role |
 |--------|------|-------------|----------|
-| POST | `/actors` | Create an actor | admin |
+| POST | `/actors` | Create an actor (returns API key once) | admin |
 | GET | `/actors` | List all actors | read_only |
 | GET | `/actors/{name}` | Get an actor by name | read_only |
+| PATCH | `/actors/{name}/rotate-key` | Rotate API key (returns new key once) | admin |
 | PATCH | `/actors/{name}` | Update an actor | admin |
 
 ### Self

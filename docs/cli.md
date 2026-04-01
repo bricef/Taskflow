@@ -32,11 +32,14 @@ api_key: your-api-key-here
 ### actor
 
 ```
-taskflow actor create   --name <name> --display_name <name> --type <human|ai_agent> --role <admin|member|read_only>
+taskflow actor create      --name <name> --display_name <name> --type <human|ai_agent> --role <admin|member|read_only>
 taskflow actor list
-taskflow actor get      <name>
-taskflow actor update   <name> [--display_name <name>] [--role <role>] [--active <bool>]
+taskflow actor get         <name>
+taskflow actor update      <name> [--display_name <name>] [--role <role>] [--active <bool>]
+taskflow actor rotate_key  <name>                         # generate new API key (shown once)
 ```
+
+Creating an actor returns the API key in the response (shown once — save it). Use `rotate_key` to generate a new key if compromised. Use `update --active false` to deactivate an actor (revokes access, preserves audit history).
 
 ### admin
 

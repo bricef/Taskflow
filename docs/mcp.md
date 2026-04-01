@@ -122,6 +122,7 @@ Tools are mutations that change state. Path parameters and body fields are passe
 | Tool | Description | Key Inputs |
 |------|-------------|------------|
 | `actor_create` | Create an actor (admin) | `name`, `type`, `role` |
+| `actor_rotate_key` | Rotate an actor's API key (admin) | `name` |
 | `actor_update` | Update an actor (admin) | `name`, fields to change |
 | `webhook_create` | Create a webhook (admin) | `url`, `events`, `secret` |
 | `webhook_update` | Update a webhook (admin) | `id`, fields to change |
