@@ -133,10 +133,30 @@ release tag:
         echo "Error: working tree is dirty — commit or stash first" >&2
         exit 1
     fi
+
+    # Generate changelog entry.
+    PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    DATE=$(date +%Y-%m-%d)
+    ENTRY="## {{tag}} — ${DATE}"$'\n\n'
+    if [ -n "$PREV" ]; then
+        ENTRY+=$(git log --pretty=format:"- %s" "${PREV}..HEAD" --no-merges)
+    else
+        ENTRY+=$(git log --pretty=format:"- %s" --no-merges)
+    fi
+    ENTRY+=$'\n'
+
+    # Prepend to CHANGELOG.md (after the header line).
+    HEADER=$(head -3 CHANGELOG.md)
+    BODY=$(tail -n +4 CHANGELOG.md)
+    printf '%s\n\n%s\n%s' "$HEADER" "$ENTRY" "$BODY" > CHANGELOG.md
+
+    git add CHANGELOG.md
+    git commit -m "Update CHANGELOG for {{tag}}"
+
     echo "Tagging {{tag}}..."
     git tag -a "{{tag}}" -m "Release {{tag}}"
-    echo "Pushing tag to origin..."
-    git push origin "{{tag}}"
+    echo "Pushing commits and tag to origin..."
+    git push origin main "{{tag}}"
     echo "Done. CI will build and push docker.io/fractallambda/taskflow:{{tag}}"
 
 # Clean build artifacts
