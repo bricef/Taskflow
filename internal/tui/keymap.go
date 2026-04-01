@@ -260,6 +260,7 @@ type detailKeys struct {
 	PgDn       key.Binding
 	Home       key.Binding
 	End        key.Binding
+	Edit       key.Binding
 	Comment    key.Binding
 	Transition key.Binding
 	Assign     key.Binding
@@ -269,13 +270,13 @@ type detailKeys struct {
 }
 
 func (k detailKeys) ShortHelp() []key.Binding {
-	return []key.Binding{keyHelp, k.Up, k.Down, k.PgUp, k.PgDn, k.Comment, k.Transition, k.Assign, k.Take, k.Esc, k.Quit}
+	return []key.Binding{keyHelp, k.Up, k.Down, k.PgUp, k.PgDn, k.Edit, k.Comment, k.Transition, k.Assign, k.Take, k.Esc, k.Quit}
 }
 
 func (k detailKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PgUp, k.PgDn, k.Home, k.End},
-		{k.Comment, k.Transition, k.Assign, k.Take},
+		{k.Edit, k.Comment, k.Transition, k.Assign, k.Take},
 		{k.Esc, k.Quit},
 	}
 }
@@ -287,6 +288,7 @@ var detailKeyMap = detailKeys{
 	PgDn:       key.NewBinding(key.WithKeys("pgdown", "ctrl+d"), key.WithHelp("PgDn", "page down")),
 	Home:       key.NewBinding(key.WithKeys("home"), key.WithHelp("Home", "top")),
 	End:        key.NewBinding(key.WithKeys("end"), key.WithHelp("End", "bottom")),
+	Edit:       key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
 	Comment:    key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 	Transition: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "transition")),
 	Assign:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "assign")),

@@ -93,11 +93,12 @@ type commentPosted struct {
 
 // detailModel is the task detail overlay.
 type detailModel struct {
-	data    *taskDetailData
-	loading bool
-	err     error
-	vp      viewport.Model
-	content string // cached rendered content
+	data            *taskDetailData
+	loading         bool
+	err             error
+	vp              viewport.Model
+	content         string // cached rendered content
+	currentUserName string
 	// Comment input
 	commenting bool
 	input      textarea.Model
@@ -217,12 +218,21 @@ func (m detailModel) render(width, height int) string {
 
 	// Metadata fields.
 	b.WriteString(field("State", t.State))
-	b.WriteString(field("Priority", string(t.Priority)))
-	assignee := "unassigned"
-	if t.Assignee != nil {
-		assignee = *t.Assignee
+	prioStyled := string(t.Priority)
+	if s, ok := priorityStyle[t.Priority]; ok {
+		prioStyled = s.Render(prioStyled)
 	}
-	b.WriteString(field("Assignee", assignee))
+	b.WriteString(styledField("Priority", prioStyled))
+	var assigneeStyled string
+	switch {
+	case t.Assignee == nil:
+		assigneeStyled = dimStyle.Render("unassigned")
+	case m.currentUserName != "" && *t.Assignee == m.currentUserName:
+		assigneeStyled = meStyle.Render("@me")
+	default:
+		assigneeStyled = *t.Assignee
+	}
+	b.WriteString(styledField("Assignee", assigneeStyled))
 	if len(t.Tags) > 0 {
 		b.WriteString(field("Tags", strings.Join(t.Tags, ", ")))
 	}
@@ -340,6 +350,11 @@ func formatAuditDetail(raw json.RawMessage) string {
 
 func field(label, value string) string {
 	return fmt.Sprintf("%s %s\n", detailFieldLabel.Render(label+":"), detailFieldValue.Render(value))
+}
+
+// styledField renders a label with a pre-styled value (already contains ANSI).
+func styledField(label, styledValue string) string {
+	return fmt.Sprintf("%s %s\n", detailFieldLabel.Render(label+":"), styledValue)
 }
 
 // wrapLine word-wraps a single line to maxWidth, joining continuation lines

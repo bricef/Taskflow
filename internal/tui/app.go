@@ -78,6 +78,7 @@ type Model struct {
 	listView     listViewModel
 	workflowView workflowViewModel
 	detail       *detailModel     // non-nil when detail overlay is open
+	edit         *editModel       // non-nil when edit overlay is open
 	transition   *transitionModel // non-nil when transition overlay is open
 	assign       *assignModel     // non-nil when assign overlay is open
 }
@@ -296,7 +297,11 @@ func (m *Model) openDetail() tea.Cmd {
 		return nil
 	}
 
-	m.detail = &detailModel{loading: true}
+	currentName := ""
+	if m.currentUser != nil {
+		currentName = m.currentUser.Name
+	}
+	m.detail = &detailModel{loading: true, currentUserName: currentName}
 	return fetchTaskDetail(m.client, boardSlug, num)
 }
 
@@ -467,6 +472,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// When edit overlay is open, delegate all keys to it.
+		if m.edit != nil {
+			if msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
+			closed, cmd := m.edit.update(msg, m.client)
+			if closed {
+				m.edit = nil
+			}
+			return m, cmd
+		}
+
 		// When assign or transition overlays are open, delegate all keys
 		// to the overlay (except ctrl+c) so the search filter works.
 		if m.assign != nil {
@@ -500,6 +517,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc", "backspace":
 			if m.detail != nil {
 				m.detail = nil
+				m.edit = nil
 				return m, nil
 			}
 			if m.view == viewBoard || m.view == viewMyTasks {
@@ -528,6 +546,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a":
 			if (m.view == viewBoard || m.view == viewMyTasks) && m.assign == nil && m.transition == nil {
 				return m, m.openAssignFromContext()
+			}
+		case "e":
+			if m.detail != nil && m.detail.data != nil && !m.detail.commenting {
+				data := m.detail.data
+				em, cmd := newEdit(m.client, data.task.BoardSlug, data.task, m.currentUser, data.dependencies, data.attachments)
+				m.edit = em
+				return m, cmd
 			}
 		case "c":
 			if m.detail != nil && m.detail.data != nil && !m.detail.commenting {
@@ -598,6 +623,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.myTasks.rebuild()
 		return m, nil
 
+	case depAdded, depRemoved, depTasksLoaded, attachAdded, attachRemoved:
+		if m.edit != nil {
+			m.edit.update(msg, m.client)
+		}
+		return m, nil
+
+	case editResult:
+		if m.edit != nil {
+			if msg.err != nil {
+				m.edit.err = msg.err.Error()
+				return m, nil
+			}
+			m.edit = nil
+			// Refetch detail to show updated data.
+			if m.detail != nil {
+				m.detail.loading = true
+				m.detail.invalidateContent()
+				return m, fetchTaskDetail(m.client, msg.task.BoardSlug, msg.task.Num)
+			}
+		}
+		return m, nil
+
 	case boardSelected:
 		m.activeBoard = &msg.board
 		m.view = viewBoard
@@ -620,7 +667,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case actorsLoaded, assignResult:
+	case actorsLoaded:
+		if m.assign != nil {
+			_, cmd := m.assign.update(msg, m.client)
+			return m, cmd
+		}
+		if m.edit != nil {
+			m.edit.update(msg, m.client)
+		}
+		return m, nil
+
+	case assignResult:
 		if m.assign != nil {
 			closed, cmd := m.assign.update(msg, m.client)
 			if closed {
@@ -629,8 +686,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		// "Take" action result (no overlay open).
-		if result, ok := msg.(assignResult); ok && result.err != nil {
-			m.lastError = result.err.Error()
+		if msg.err != nil {
+			m.lastError = msg.err.Error()
 		}
 		return m, nil
 
@@ -807,7 +864,10 @@ func (m Model) myTasksView() string {
 	b.WriteString("\n") // no tabs
 
 	// Content.
-	if m.detail != nil && m.assign == nil && m.transition == nil {
+	if m.edit != nil {
+		m.viewport.SetContent(m.edit.view(m.viewport.Width))
+		b.WriteString(m.viewport.View())
+	} else if m.detail != nil && m.assign == nil && m.transition == nil {
 		b.WriteString(m.detail.view(m.viewport.Width, m.viewport.Height))
 	} else {
 		var content string
@@ -866,10 +926,10 @@ func (m Model) boardView() string {
 	}
 
 	// Tab content rendered into the viewport.
-	// The workflow tab has its own viewport for independent scrolling.
-	// Views with their own viewport render directly.
-	// Others go through the shared viewport.
-	if m.detail != nil && m.assign == nil && m.transition == nil {
+	if m.edit != nil {
+		m.viewport.SetContent(m.edit.view(m.viewport.Width))
+		b.WriteString(m.viewport.View())
+	} else if m.detail != nil && m.assign == nil && m.transition == nil {
 		b.WriteString(m.detail.view(m.viewport.Width, m.viewport.Height))
 	} else if m.activeTab == tabWorkflow && m.detail == nil && m.transition == nil && m.assign == nil {
 		b.WriteString(m.workflowView.view(m.viewport.Width, m.viewport.Height))
