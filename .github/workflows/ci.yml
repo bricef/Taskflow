@@ -86,7 +86,7 @@ jobs:
           PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
           echo "## What's Changed" > release-notes.md
           echo "" >> release-notes.md
-          git log --pretty=format:"- %s" "${PREV}..HEAD" --no-merges >> release-notes.md
+          git log --pretty=format:"- %s" "${PREV}..HEAD" --no-merges --grep="^Update CHANGELOG" --invert-grep >> release-notes.md
           echo "" >> release-notes.md
           echo "" >> release-notes.md
           echo "**Docker:** \`docker pull ${{ secrets.DOCKERHUB_USERNAME }}/taskflow:${{ github.ref_name }}\`" >> release-notes.md

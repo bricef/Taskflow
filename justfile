@@ -134,18 +134,19 @@ release tag:
         exit 1
     fi
 
-    # Generate changelog entry.
+    # Generate changelog entry from commits since the last tag,
+    # excluding previous changelog commits.
     PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
     DATE=$(date +%Y-%m-%d)
     ENTRY="## {{tag}} — ${DATE}"$'\n\n'
     if [ -n "$PREV" ]; then
-        ENTRY+=$(git log --pretty=format:"- %s" "${PREV}..HEAD" --no-merges)
+        ENTRY+=$(git log --pretty=format:"- %s" "${PREV}..HEAD" --no-merges --grep="^Update CHANGELOG" --invert-grep)
     else
-        ENTRY+=$(git log --pretty=format:"- %s" --no-merges)
+        ENTRY+=$(git log --pretty=format:"- %s" --no-merges --grep="^Update CHANGELOG" --invert-grep)
     fi
     ENTRY+=$'\n'
 
-    # Prepend to CHANGELOG.md (after the header line).
+    # Prepend to CHANGELOG.md (after the header).
     HEADER=$(head -3 CHANGELOG.md)
     BODY=$(tail -n +4 CHANGELOG.md)
     printf '%s\n\n%s\n%s' "$HEADER" "$ENTRY" "$BODY" > CHANGELOG.md
