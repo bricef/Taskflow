@@ -101,22 +101,22 @@ type editModel struct {
 	actorCursor       int
 
 	// Dependencies sub-state.
-	deps      []model.Dependency
-	depCursor int
+	deps         []model.Dependency
+	depCursor    int
 	addingDep    bool
-	depType      int // index into depTypes
+	depType      int             // index into depTypes
 	depTasks     []model.Task    // all non-terminal tasks for the selector
 	depFilter    textinput.Model // filter for task ref selector
 	depSelCursor int
 
 	// Attachments sub-state.
-	attachments    []model.Attachment
-	attachCursor   int
-	addingAttach   bool
-	attachRefType  int // index into refTypes
-	attachRef      textinput.Model
-	attachLabel    textinput.Model
-	attachField    int // 0=type, 1=reference, 2=label
+	attachments   []model.Attachment
+	attachCursor  int
+	addingAttach  bool
+	attachRefType int // index into refTypes
+	attachRef     textinput.Model
+	attachLabel   textinput.Model
+	attachField   int // 0=type, 1=reference, 2=label
 
 	err string
 }

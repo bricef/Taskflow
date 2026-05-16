@@ -75,12 +75,12 @@ func (m *myTasksModel) load(tasks []model.Task) {
 	m.bindTerminalFunc()
 	m.table.load(tasks)
 }
-func (m *myTasksModel) updateTask(task model.Task)               { m.table.updateTask(task) }
-func (m *myTasksModel) removeTask(boardSlug string, num int)     { m.table.removeTask(boardSlug, num) }
-func (m *myTasksModel) selectedTask() *model.Task                { return m.table.selectedTask() }
-func (m *myTasksModel) rebuild()                     { m.table.rebuild() }
-func (m *myTasksModel) update(msg tea.KeyMsg)        { m.table.update(msg) }
-func (m myTasksModel) view(width, height int) string { return m.table.view(width, height) }
+func (m *myTasksModel) updateTask(task model.Task)           { m.table.updateTask(task) }
+func (m *myTasksModel) removeTask(boardSlug string, num int) { m.table.removeTask(boardSlug, num) }
+func (m *myTasksModel) selectedTask() *model.Task            { return m.table.selectedTask() }
+func (m *myTasksModel) rebuild()                             { m.table.rebuild() }
+func (m *myTasksModel) update(msg tea.KeyMsg)                { m.table.update(msg) }
+func (m myTasksModel) view(width, height int) string         { return m.table.view(width, height) }
 
 // colTaskRef renders the board/num task reference.
 var colTaskRef = taskColumn{

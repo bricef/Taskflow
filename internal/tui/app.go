@@ -72,7 +72,7 @@ type Model struct {
 	myTasks myTasksModel
 
 	// Board view (active after selecting a board)
-	activeBoard *model.Board
+	activeBoard  *model.Board
 	activeTab    boardTab
 	kanban       kanbanModel
 	listView     listViewModel
